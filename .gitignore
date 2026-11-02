@@ -1,0 +1,11 @@
+# source manuscript stays local (author's unpublished novel)
+source/
+# fonts are downloaded by tools/fetch_fonts.sh (OFL, large)
+pv/fonts/*.ttf
+# render outputs / caches
+render/frames*/
+*.jpg
+!pv/**/*.jpg
+audio/out/tmp/
+__pycache__/
+node_modules/

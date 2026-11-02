@@ -1,0 +1,51 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><title>PV</title>
+<style>
+@font-face{font-family:'Shippori';src:url('fonts/ShipporiMincho-Regular.ttf');font-weight:400;font-display:block}
+@font-face{font-family:'Shippori';src:url('fonts/ShipporiMincho-Medium.ttf');font-weight:500;font-display:block}
+@font-face{font-family:'Shippori';src:url('fonts/ShipporiMincho-SemiBold.ttf');font-weight:600;font-display:block}
+@font-face{font-family:'Shippori';src:url('fonts/ShipporiMincho-Bold.ttf');font-weight:700;font-display:block}
+@font-face{font-family:'Shippori';src:url('fonts/ShipporiMincho-ExtraBold.ttf');font-weight:800;font-display:block}
+@font-face{font-family:'ZenOld';src:url('fonts/ZenOldMincho-Regular.ttf');font-weight:400;font-display:block}
+@font-face{font-family:'ZenOld';src:url('fonts/ZenOldMincho-Bold.ttf');font-weight:700;font-display:block}
+@font-face{font-family:'ZenOld';src:url('fonts/ZenOldMincho-Black.ttf');font-weight:900;font-display:block}
+@font-face{font-family:'Cormorant';src:url('fonts/CormorantGaramond.ttf');font-weight:300 700;font-display:block}
+@font-face{font-family:'Cormorant';src:url('fonts/CormorantGaramond-Italic.ttf');font-style:italic;font-weight:300 700;font-display:block}
+html,body{margin:0;padding:0;background:#000;overflow:hidden;width:1920px;height:1080px}
+#stage{position:absolute;left:0;top:0;width:1920px;height:1080px}
+#text{position:absolute;left:0;top:0;width:1920px;height:1080px;pointer-events:none;overflow:hidden}
+</style></head><body>
+<canvas id="stage" width="1920" height="1080"></canvas><div id="text"></div>
+<script src="engine/core.js"></script>
+<script src="engine/post.js"></script>
+<script src="engine/text.js"></script>
+<script src="engine/lib/atmos.js"></script>
+<script src="engine/lib/figures.js"></script>
+<script src="engine/lib/fx.js"></script>
+<script src="engine/lib/props.js"></script>
+<script src="engine/lib/titles.js"></script>
+<script src="scenes/_dev_figures.js"></script>
+<script src="scenes/_dev_props.js"></script>
+<script src="scenes/_dev_tests.js"></script>
+<script src="scenes/_dev_title.js"></script>
+<script src="timeline.js"></script>
+<script>
+(function(){
+  const q = new URLSearchParams(location.search);
+  const TL = PV.timeline;
+  if (q.get('solo')) {
+    const id = q.get('solo'); const S = TL.shots.find(s => s.id === id);
+    if (S) {
+      const d = S.end - S.start;
+      const shifted = Object.assign({}, S, { start: 0, end: d, transition_in: 'cut' });
+      const texts = q.get('notext') ? [] : (TL.texts || []).filter(x => x.end > S.start && x.start < S.end).map(x => Object.assign({}, x, { start: x.start - S.start, end: x.end - S.start }));
+      PV.timeline = Object.assign({}, TL, { shots: [shifted], texts });
+    }
+  } else if (q.get('dev')) {
+    const d = parseFloat(q.get('dur') || '6');
+    PV.timeline = Object.assign({}, TL, { shots: [{ id: q.get('dev'), renderer: q.get('dev'), start: 0, end: d, params: {} }], texts: [] });
+  }
+  PV.init(); PV.text.init();
+  window.__ready = document.fonts.ready.then(() => Promise.all(Array.from(document.fonts).map(f => f.load().catch(()=>null)))).then(() => true);
+})();
+</script>
+</body></html>
