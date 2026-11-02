@@ -56,8 +56,8 @@
       const col = i % 5, row = Math.floor(i / 5), x0 = cw * col, y0 = ch * row;
       ctx.save(); ctx.beginPath(); ctx.rect(x0, y0, cw, ch); ctx.clip();
       ctx.fillStyle = PV.linGrad(ctx, 0, y0, 0, y0 + ch, [[0, bg[0]], [1, bg[1]]]); ctx.fillRect(x0, y0, cw, ch);
-      PV.anime.head(ctx, { who: 'senpai', x: x0 + cw * 0.3, y: y0 + 330, size: 200, yaw: 0.35, T, light: L, rimDir: rd, neck: true, neckLen: 0.6, expr: 'neutral' });
-      PV.anime.head(ctx, { who: 'boy', x: x0 + cw * 0.72, y: y0 + 335, size: 205, yaw: -0.35, T, light: L, rimDir: rd, neck: true, neckLen: 0.6, expr: 'neutral' });
+      PV.anime.bust(ctx, { who: 'senpai', outfit: 'uniform', x: x0 + cw * 0.27, y: y0 + 300, size: 150, yaw: 0.35, T, light: L, rimDir: rd, expr: 'neutral' });
+      PV.anime.bust(ctx, { who: 'boy', outfit: 'uniform', x: x0 + cw * 0.74, y: y0 + 305, size: 156, yaw: -0.35, T, light: L, rimDir: rd, expr: 'neutral' });
       ctx.restore();
       label(ctx, L, x0 + cw / 2, y0 + 34, i === 4 || i === 5 || i === 8 ? '#e8e8f0' : '#3a3f4a', 24);
     });
@@ -131,7 +131,8 @@
     ctx.fillStyle = '#ddd'; ctx.fillRect(0, 0, PV.W, PV.H);
     const q = new URLSearchParams(location.search); const n = +(q.get('n') || 10), size = +(q.get('size') || 300), who = q.get('who') || 'senpai', light = q.get('light') || 'day';
     ctx.getImageData(0, 0, 1, 1); window.__rimMs = 0; window.__rimParts = []; window.__rimPre = []; const t0 = performance.now();
-    for (let i = 0; i < n; i++) PV.anime.head(ctx, { who, x: 300 + (i % 5) * 330, y: 500 + Math.floor(i / 5) * 60, size, yaw: 0.3, T: env.T + i * 0.37, light, rimDir: -0.6, talk: true, neck: true, hair: { wind: 0.5 } });
+    const rim = q.get('rim') != null ? +q.get('rim') : 1;
+    for (let i = 0; i < n; i++) PV.anime.head(ctx, { who, x: 300 + (i % 5) * 330, y: 500 + Math.floor(i / 5) * 60, size, yaw: 0.3, T: env.T + i * 0.37, light, rimDir: -0.6, rim, talk: true, neck: true, hair: { wind: 0.5 } });
     ctx.getImageData(0, 0, 1, 1); window.__headMs = (performance.now() - t0) / n; window.__rimPer = window.__rimMs / n;
     ctx.fillStyle = '#000'; ctx.font = '40px monospace'; ctx.fillText(`${who} size ${size} ${light}: ${window.__headMs.toFixed(2)} ms/head`, 40, 60);
   } });
@@ -157,6 +158,33 @@
     [{ yaw: 0.4 }, { yaw: -1 }, { back: true }].forEach((v, i) => PV.anime.head(ctx, Object.assign({ who: 'boy', x: 300 + i * 450, y: 850, size: 230, T: env.T, neck: true, neckLen: 0.5,
       light: 'storm', rimDir: -1.2, expr: 'determined', hair: { style: 'wet', wind: 1.2, windDir: 0.3 } }, v)));
     PV.anime.head(ctx, { who: 'senpai', x: 1560, y: 850, size: 230, yaw: -0.3, T: env.T, neck: true, neckLen: 0.5, light: 'storm', rimDir: -1.2, expr: 'shout', eyes: { tears: 1 }, talk: true, hair: { style: 'wet', wind: 0.9, windDir: 0.3 } });
+  } });
+})();
+(function () { // model sheet: front / 3/4 / strong 3/4 / profile for one character at 300-340 px (?who=senpai|boy|aunt&expr=)
+  const PV = window.PV, W = PV.W, H = PV.H;
+  PV.shot('dev_anime_head_model', { draw(ctx, t, d, S, env) {
+    const q = new URLSearchParams(location.search); const who = q.get('who') || 'senpai', ex = q.get('expr') || 'neutral', light = q.get('light') || 'day';
+    ctx.fillStyle = PV.linGrad(ctx, 0, 0, 0, H, [[0, '#f4f3f0'], [1, '#e4e2dd']]); ctx.fillRect(0, 0, W, H);
+    const yaws = [0, 0.3, 0.55, 1.0], size = who === 'boy' ? 330 : 320;
+    yaws.forEach((yaw, i) => {
+      const cw = W / 4, x0 = i * cw;
+      ctx.save(); ctx.beginPath(); ctx.rect(x0 + 1, 0, cw - 2, H); ctx.clip();
+      PV.anime.head(ctx, { who, x: x0 + cw * 0.5 - yaw * 40, y: 560, size, yaw, T: env.T, expr: ex, neck: true, light, rimDir: -2.3, noBlink: true });
+      ctx.restore();
+      ctx.font = '22px sans-serif'; ctx.fillStyle = '#5a6170'; ctx.textAlign = 'center'; ctx.fillText(who + '  yaw ' + yaw, x0 + cw / 2, 1050);
+    });
+  } });
+})();
+(function () { // profiles at 520 px: 先輩 down / 先輩 updo (C17) / 彼 (C39)  (?expr=)
+  const PV = window.PV, W = PV.W, H = PV.H;
+  PV.shot('dev_anime_head_profile', { draw(ctx, t, d, S, env) {
+    const q = new URLSearchParams(location.search); const ex = q.get('expr') || 'neutral';
+    ctx.fillStyle = PV.linGrad(ctx, 0, 0, 0, H, [[0, '#f4f3f0'], [1, '#e4e2dd']]); ctx.fillRect(0, 0, W, H);
+    [['senpai', {}], ['senpai', { style: 'updo' }], ['boy', {}]].forEach(([who, hair], i) => {
+      ctx.save(); ctx.beginPath(); ctx.rect(i * 640 + 1, 0, 638, H); ctx.clip();
+      PV.anime.head(ctx, { who, x: i * 640 + 300, y: 760, size: 520, yaw: 1, T: env.T, expr: ex, neck: true, hair, noBlink: true, rimDir: -2.3 });
+      ctx.restore();
+    });
   } });
 })();
 (function () { // 9: key story cuts with the presets they need (C05, C10, C17, C33, C39, C42)

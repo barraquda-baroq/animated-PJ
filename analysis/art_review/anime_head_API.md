@@ -2,8 +2,9 @@
 
 `pv/engine/lib/anime_head.js` extends `PV.anime` (the style kit in `anime.js`) with the anime-style character heads of
 『キミの右手のアイロニー』: 先輩 (`senpai`), 彼 (`boy`), 叔母 (`aunt`).
-Showcases: `pv/scenes/_dev_anime_head.js` (shots `dev_anime_head_1` … `_8`, plus dev tools `_zoom`, `_perf`, `_dbg`).
-Review renders: `analysis/art_review/anime_head/`.
+Showcases: `pv/scenes/_dev_anime_head.js` (shots `dev_anime_head_1` … `_9`, `_model`, `_profile`, plus dev tools `_zoom`, `_wind`, `_perf`, `_dbg`).
+Review renders: `analysis/art_review/anime_head/` (builder) and `analysis/art_review/anime_head_review/` (作画監督 review: `r0` before → `final`).
+Critique and fix log: `analysis/art_review/anime_head_critique.md`. Character design (authoritative): `analysis/character_design_from_text.md`.
 
 ```
 cd /home/user/animated-PJ && node tools/build_index.cjs
@@ -18,15 +19,24 @@ node render/still.cjs --dev dev_anime_head_1 --dur 6 --times 0,2,4 --out /tmp/x 
 * Horizontal **slices** of the volume are rotated (pitch about the neck point, then yaw) and projected; their extremes
   give the silhouette. Front, 3/4, profile, lost-profile and back views all come from one model and turn smoothly.
 * Features sit on that surface and turn with it. **Eyes** are flat anime shapes drawn in their own foreshortened 2D frame
-  (the far eye is squeezed less than real; near |yaw|=1 the eye becomes a wedge with the iris at the front).
+  (near |yaw|=1 the eye becomes a wedge with the iris at the front, set back from the nose-bridge line).
   Brows, nose, mouth, blush and tears are drawn on the surface.
-* **Hair** = a smooth cap (offset of the skull silhouette above the projected hairline) + clumps (3D centre lines →
-  2D ribbons with pointed tips) drawn far-to-near with tapered ink, a root shadow, a cel shadow on the side away from the
-  light, a light→tip gradient and a zig-zag **angel ring** that crosses the cap and the clumps. Clumps that lie on the
-  scalp have no ink until they leave the head (no "noodle" lines on the head).
+* **Anime 3/4 conventions** (not a real projection): a cheekbone fullness on the side-front of the model (`cheek`) makes the
+  far cheek contour pass outside the far eye; far-side features (eye, brow, blush, tear path) are pulled toward the nose
+  line (`farX`, up to 20 % at 3/4) and the far eye is clamped inside the far contour with a margin; the far side locks
+  hang **behind** the face in 3/4 so the far cheek reads against the hair. Toward profile the near face-framing locks
+  swing back beside the cheek so they never cover the eye / profile line.
+* **Hair** = a cap (offset of the skull silhouette above the projected hairline, outline weight following the light) +
+  clumps (3D centre lines → 2D ribbons) drawn far-to-near. Clumps have a gentle S-curve (`sc`), tips turned in
+  (`tipIn`), a bulge, varied widths and lengths. Each group gets one thick silhouette ink (`drawBacking`); lines between
+  overlapping clumps are thin. Cel shadow on the side away from the light, a root shadow on bangs, a light→tip gradient.
+  The **angel ring** is broken: irregular pieces on the cap, and a separate short band with uneven teeth on each clump.
+  Clumps that lie on the scalp have no ink until they leave the head.
 * **Light**: every tone comes from `PV.anime.mat(material, light)`. Faces/necks use `PV.anime.faceLight(light)`
-  (dark scenes lifted so faces stay readable). Rim light = crisp band on the light-facing **outer** silhouette only
-  (a coarse occupancy mask decides which edges face open air; the band replaces the line on the lit side).
+  (dark scenes lifted, saturation partly restored, so faces stay readable and not grey). **Rim light** = one continuous
+  crisp band inside the union silhouette on the light side: a low-res mask of the union minus the union shifted away
+  from the light, composited (clipped to the layer's own shapes) in device pixels — it thins naturally where the contour
+  turns away from the light and follows camera transforms.
 
 ## 2. `PV.anime.head(ctx, o)` → anchors
 
@@ -42,7 +52,8 @@ Draws one head in `ctx`'s current transform (camera transforms are fine).
 | `pitch` | −0.4…0.4 (+ looks up) |
 | `roll` | radians (head tilt; hanging hair keeps falling straight down) |
 | `expr` | preset name in `PV.anime.EXPR` (see §4) |
-| `eyes` | `{open 0..1.25, look:[x,y] −1..1 (screen), tears 0..1 (0.5 welling, 1 streaming), shine 0..1, smile, focus, sad, wide, squeeze, dull, pupil, closed:'down'\|'up'}` — overrides the preset |
+| `eyes` | `{open 0..1.25, look:[x,y] −1..1 (screen), tears 0..1 (0.5 welling, 1 streaming), shine 0..1, smile, focus, sad, wide, squeeze, dull, pupil, closed:'down'\|'up', hlK (highlight size ×), undereye 0..1, dimShine}` — overrides the preset. `{shine:0.5, dull:1, dimShine:true}` = the dependent phase's single dull grey glint |
+| `undereye` | 0…1: dark circles under the eyes (the silent days; `COLORS.undereye`). The `empty` preset uses 0.45 |
 | `mouth` | `{open 0..1, shape:'a'\|'i'\|'u'\|'e'\|'o'\|'smile'\|'flat'\|'frown'\|'shout'}` |
 | `talk` | `true` → lip-sync from the real dialogue: `PV.anime.mouth(o.T, who)` (3 mouth drawings on twos). The preset's shape family is kept (flat→e/a, smile→open smile, frown→open frown, shout→shout). |
 | `brows` | `{inner, outer}` −1…1 (+ raises), `furrow` 0…1 |
@@ -51,7 +62,7 @@ Draws one head in `ctx`'s current transform (camera transforms are fine).
 | `light` | `PV.anime.LIGHT` name or a light object (default `'day'`) |
 | `rimDir` | radians, from the figure toward the light (screen). Used for the rim and, if `lightDir` is not given, for the cel shadows |
 | `lightDir` | radians, key light for cel shadows (default `rimDir`, else −2.25 = upper-left) |
-| `rim` | rim strength multiplier (default 1 × the light's `rimA`); `rimW` width multiplier |
+| `rim` | rim strength multiplier (default 1 × the light's `rimA`); `rimW` width multiplier; `rimRes` mask-resolution multiplier (default 1; >1 crisper, slower) |
 | `shade` | width of the face cel shadow in H (default 0.06, backlit 0.035) |
 | `faceLift` | 0…1, how much a dark light is lifted on the face (default by light; see §6) |
 | `T` | global seconds (blinks, sway, lip-sync, tears). Sway/flutter is quantised on twos. |
@@ -83,7 +94,12 @@ PV.anime.head(ctx, { ...o, layer: 'front' });   // face, cap, bangs, side locks,
   front views, the bun (updo) when it is behind the neck. In profile and back views the curtain moves to the **front**
   layer (it lies over the back / neck), so bodies never need to special-case views.
 * The **neck belongs to the body**. If a body wants the head's neck (same skin tones and jaw shadow), call
-  `head({…o, layer:'neck'})` (or `PV.anime.neck(ctx, o)`) after the torso and before collars, then `layer:'front'`.
+  `head({…o, layer:'neck'})` (or `PV.anime.neck(ctx, o)`) **before** the torso / garment (the garment then covers the base
+  of the neck), then collars, then `layer:'front'` (this is what `bust` does).
+* The head's neck: slim (先輩 half-width 0.071 H, 彼 0.088 H, 叔母 0.073 H), slightly waisted, 1.3× deeper in profile,
+  leaning ~17° forward in profile, the back line starting under the skull (higher than the throat). `neckLen` (H, default
+  0.40) = how far below the neck point it reaches. On head-only sheets (`neck:true`) the base flares into the trapezius and
+  dissolves (`neckFlare:false` turns it off; `neckFade:true` = ink fade only, no flare, as busts use).
 * `layer:'all'` = back + (neck if `o.neck`) + front, with a single rim pass.
 * Dev sheets without bodies use `neck:true`.
 
@@ -91,45 +107,49 @@ PV.anime.head(ctx, { ...o, layer: 'front' });   // face, cap, bangs, side locks,
 
 | preset | look | notes |
 |---|---|---|
-| `neutral` | default | blinks |
-| `smile` | lower lids pushed up, open smile, blush | |
-| `gentle` | soft half-lidded smile, closed smiling mouth | |
-| `closed` | eyes closed serenely (︶), gentle smile | no blink (C10) |
-| `teary` | eyes welling (tears 0.55), brows ハの字, small frown | C05 |
-| `cry` | squeezed eyes, streaming tears + drops at the jaw, wailing open frown | no blink |
-| `shout` | wide eyes, small irises, angry brows + furrow, big open mouth with teeth & tongue | no blink (C28/C30) |
+| `neutral` | 先輩: lid just touching the iris; 彼: half-lidded (top third of the iris hidden); 叔母: heavy lid | blinks |
+| `smile` | lower lids pushed up, open smile showing a little of the upper teeth, bigger highlights, blush. 彼: crescent eyes (目が三日月) | |
+| `gentle` | soft eyes, closed smiling mouth (先輩's everyday 控えめな微笑み) | |
+| `closed` | eyes closed serenely (︶, lashes down), gentle smile | no blink (C10 / C42) |
+| `teary` | welling: water layer along the lower lid + trembling bright surface line, wet lower rim, extra sparkles; ハの字 brows; lips parted | C05 |
+| `cry` | squeezed eyes, strong ハの字 + furrow, streaming tears (bright edge) + drops at the jaw, wailing mouth with upper teeth | no blink |
+| `shout` | eyes wide, small pupils, angry brows + deep furrow, big open mouth with teeth & tongue | no blink (C28/C30) |
 | `surprise` | wide eyes, small pupils, raised brows, small "o" | no blink |
 | `sad` | drooping lids, look down, ハの字 brows | |
-| `empty` | dull flat iris, **no highlights**, no blink | C33 (V12) |
-| `determined` | flattened upper lids, lowered inner brows | C32 (V11) |
+| `empty` | flat dark iris disc (no glow, soft pupil edge), **no highlights**, dark circles (`undereye` 0.45) | no blink; C33 (V12) |
+| `determined` | flattened upper lids, lowered inner brows + furrow. 彼: the whole iris shows, one clear highlight (L1216) | C32 (V11) |
 | `pain` | squeezed, furrowed, clenched "i" mouth | |
-| `sleep` | closed eyes, relaxed | no blink |
-| `focus` | sharp, narrowed eyes (彼 "turns sharp when he focuses") | |
+| `sleep` | closed eyes, relaxed | no blink (C35) |
+| `focus` | sharp narrowed eyes, lowered inner brows + furrow (先輩's 張り詰めた演奏の顔 with `brows:{furrow:0.7}`) | |
 
-Any preset value can be overridden by `o.eyes / o.brows / o.mouth / o.blush`; e.g. C28:
-`{expr:'shout', eyes:{tears:1}, hair:{style:'wet'}, light:'storm', talk:true, T}`.
-Tears: `eyes.tears` 0…0.5 = welling (water layer with a bright edge, glossy lower lid, extra sparkles, wobbling
-highlights on twos); 0.5…1 = streaming (translucent streak with a white glint along the cheek; drops fall from the jaw
-when > 0.85). Highlights are on the same screen side in both eyes (`lightDir`).
+Per-character takes live in `CHAR_EXPR` (彼: `determined`, `smile`, `shout`, `surprise`, `empty` — his eyes never lose
+their light, that is her sign; 叔母: `neutral`, `focus`/`determined` = the probing gaze with the whole iris).
+Any preset value can be overridden by `o.eyes / o.brows / o.mouth / o.blush / o.undereye`; e.g. C28:
+`{expr:'shout', eyes:{tears:1}, hair:{style:'wet'}, light:'storm', talk:true, T}`; C16 (stage fright, focus lost):
+`{expr:'neutral', eyes:{shine:0.35, look:[0.25,0.1]}}` then back to `shine:1` with `blush:0.3` at his cough.
+Tears: `eyes.tears` 0…0.5 = welling; 0.5…1 = streaming (ribbon of water from the lower lid down the cheek; drops fall
+from the jaw when > 0.85). Highlights are on the same screen side in both eyes (`lightDir`).
+Highlights follow the design sheet: 先輩 two (big oval on the light side + small dot), 彼 one small + a thin reflected
+light under the iris (never empty), 叔母 one small.
 
 ## 5. Hair styles (`o.hair.style`)
 
 | who | styles |
 |---|---|
-| 先輩 | `down` (default: see-through bangs parted to her right, long side locks to the chest, curtain to the waist) · `updo` (low chignon, thin face-framing strands, ears visible — competition) · `loose` (updo coming undone: bigger lower bun, wavy strands around the face and neck — night park) · `wet` (flattened, narrow clumps, strands pasted to the cheeks, sharp glints; darker via `mat(…,{wet})` — storm) |
-| 彼 | default (messy: pointed bangs over the eyes, side clumps over the ears, jagged back, flicked nape, two cowlicks) · `wet` (flattened) |
-| 叔母 | default (centre parting, hair swept back, face-framing strands, low ponytail) |
+| 先輩 | `down` (default: see-through bangs — 6 clumps of varied width + 2 at the temples + 2 wisps, parted to her right half an eye from the centre, brow length; face-framing locks curving in along the cheek and out over the collarbones to the chest; a clump from behind each ear falling forward over the shoulder; a curtain of 9 clumps of varied width/length to the waist, converging slightly) · `updo` (low chignon at the nape, thin face-framing strands, ears visible — competition) · `loose` (the chignon half come undone: lower bun, soft loose strands at the face and neck — night park) · `wet` (flattened narrow clumps, strands pasted to the cheeks, sharp glints, darker via `mat(…,{wet})` — storm) |
+| 彼 | default (messy, little shine: uneven pointed bangs to the upper lids flowing to his left, thin clumps over the eyes; side clumps on the skull covering the top half of the ears; jagged back; nape flicks touching the collar; crown spikes) · `wet` (flattened) |
+| 叔母 | default (collarbone-length hair from a centre parting swept back into a low tie at the nape, short loose strands at the temples) |
 
 Wind: `hair.wind` 0…2 bends every clump toward `windDir` progressively from the root (lengths preserved) with flutter;
 bangs react at 35–40 %. Without wind the hair breathes slightly (`hair.still:true` turns it off). All on twos.
-Eyes are drawn through the bangs (anime convention), brows at 60–80 % over the bangs.
+Eyes are drawn through the bangs (anime convention; fully opaque on small heads), brows at 60–80 % over the bangs.
 
 ## 6. Light helpers for bodies
 
 * `PV.anime.faceLight(light, lift?)` → the light object used for faces / necks (dark lights lifted: `dark < 0.6` lift 0.78,
-  `< 0.7` 0.62, `< 0.9` 0.3, else 0.12; ambient reduced and exposure raised). For matching hands/necks use
-  `PV.anime.mat('skin', PV.anime.faceLight(light))`.
-* `PV.anime.faceAmb(light, lift?)` → just the ambient part (what anime_body.js currently uses; it does not raise exposure,
+  `< 0.7` 0.62, `< 0.9` 0.3, else 0.12; ambient reduced, exposure raised, saturation partly restored). For matching
+  hands/necks use `PV.anime.mat('skin', PV.anime.faceLight(light))`.
+* `PV.anime.faceAmb(light, lift?)` → just the ambient part (what anime_body.js uses; it does not raise exposure,
   so in storm/night body skin is a little darker than the face — reads as the neck in the jaw's shadow).
 
 ## 7. `PV.anime.bust(ctx, o)` → head anchors
@@ -138,58 +158,68 @@ Head + neck + shoulders / chest for close-ups (cut by the frame below ~2.3 H). S
 
 | option | meaning |
 |---|---|
-| `outfit` | 先輩: `uniform` (blouse, red ribbon), `blazer`, `dress` (navy, round neck, chain necklace, cap sleeves), `dress_cardigan`, `summer` (white sleeveless one-piece + hat), `gown` (pyjamas, right forearm in a cast & sling), `home` (grey knit). 彼: `uniform` (open collar, loosened tie), `blazer`, `tee` (white T + open light-blue shirt), `jacket` (leather jacket, black T), `wet` (soaked shirt; hair `wet`). 叔母: `coat` (turtleneck + long coat) |
+| `outfit` | 先輩: `uniform` (blouse, red ribbon), `blazer`, `dress` (navy, modest round neck, thin silver chain with a small drop, cap sleeves), `dress_cardigan` (+ ecru cardigan), `summer` (white one-piece, small round neck, short sleeves + straw hat), `gown` (pale-blue pyjamas, right forearm in a cast & sling), `home` (loose grey knit with a wide neck). 彼: `uniform` (open collar, loosened deep-green tie), `blazer`, `tee` (white T + open light-blue shirt), `jacket` (leather jacket, black T), `wet` (soaked shirt; hair `wet`). 叔母: `coat` (black rib-knit high neck + long charcoal coat) |
 | `bodyYaw` | torso yaw (default 0.45 × head yaw) |
 | `neckLen` | override the neckline-dependent neck length |
 
-The torso is the same slice construction (shoulders 1.45 H for 先輩, 1.8 H for 彼); garments are surface polygons
+The torso is the same slice construction (shoulders 1.45 H for 先輩, 1.8 H for 彼), starting at the base of the neck with a
+trapezius slope; the head's neck is drawn first and the garment covers its base. Garments are surface polygons
 (collars, lapels with drop shadows, ribbon / tie, buttons, necklace, cast) with cel shadows. Arms hang at the sides
 and are cut by the frame (no arm poses).
 
 ## 8. Recommended sizes, LOD, performance
 
-* LOD: `size < 58` px → minimal (one highlight, no crease/ring/split lines); `< 120` → medium; ≥ 120 full detail.
-  Readable down to ~40 px (sheet 7); designed to hold up to ~900 px (dev `zoom` shot).
-* Ink width = `PV.anime.inkW(size) × line`; hair ink 0.9×, face contour 0.78×, inner lines 0.3–0.6×.
-* Measured in headless Chromium (raster flushed, 10 heads averaged, long hair + neck + wind + lip-sync):
+* LOD: `size < 58` px → minimal; `< 120` → medium; ≥ 120 full detail. Below ~110 px the narrow eyes (彼, 叔母) open a
+  little, eyes under ~16 px wide get a solid dark iris + bigger highlight and a heavier lid line, and eyes through the bangs
+  become opaque — faces stay readable at 40–60 px heads (figures 250–450 px tall). Designed to hold up to ~900 px.
+* Ink width = `PV.anime.inkW(size) × line`; hair silhouette ink 0.9× (one thick backing per group), lines between
+  clumps 0.42× of that, face contour 0.78×, inner lines 0.3–0.6×.
+* Measured in headless Chromium (raster flushed, 10 heads, long hair + neck + wind + lip-sync; p25 of 14 frames; the CPU
+  is shared with another agent, ±15 % noise):
 
-| head | ms / head (median, min) — CPU shared with another job, ±20 % noise |
+| head | ms / head |
 |---|---|
-| 先輩 300 px, day | 13.7 (11.6) |
-| 先輩 300 px, window backlight (rim) | 16.7 (13.4) |
-| 彼 300 px, window | 9.7 (9.3) |
-| 先輩 140 px, night | 11.3 (8.2) |
-| 先輩 60 px | 4.6 (4.3) |
-| 先輩 600 px close-up, window | 20.9 (17.7) |
+| 先輩 300 px, day | 13.2 |
+| 先輩 300 px, window backlight (rim) | 16.6 |
+| 彼 300 px, window | 12.3 |
+| 先輩 140 px, night | 11.2 |
+| 先輩 60 px | 5.0 |
+| 叔母 300 px, day | 5.8 |
+| 先輩 600 px close-up, window | 23.6 |
 
-  Large heads cost more because the long curtain is filled several times; in scenes the body hides most of it.
-  Probe: `dev_anime_head_perf` (`?n=10&who=senpai&size=300&light=window`).
+  The backlit long-haired head is ~1.5 ms over the 15 ms budget (the rim costs ~4 ms: union mask + clipped composite);
+  `rim:0` or a smaller `rimRes` trims it. Probe: `dev_anime_head_perf` (`?n=10&who=senpai&size=300&light=window&rim=1`).
 
 ## 9. Showcases
 
 1 先輩 turnaround (yaw −1, −0.5, 0, 0.5, 1, back) · 2 彼 turnaround · 3 先輩 expressions (14) · 4 彼 expressions ·
-5 lighting (both; day/window/classroom/sunset/night/storm/stage/room_gray/lamp/summer) · 6 animated close-up
+5 lighting (busts of both; day/window/classroom/sunset/night/storm/stage/room_gray/lamp/summer) · 6 animated close-up
 (600 px, 3/4, window backlight: blink at t≈2.5 s, V01 lip-sync via `talk` with `T=12.6+t`, wind, tears welling → streaming) ·
 7 hair styles down/updo/loose/wet + 叔母 (3/4 + back) + small sizes 40/60/90/140 px · 8 busts in every outfit ·
 9 key story cuts with the presets they need (C05 teary+talk window, C10 closed window rim, C17 profile focus + tear in
-the updo, C33 empty + flat talk room_gray, C39 boy profile crying + talk lamp, C42 back view with the head turned).
+the updo, C33 empty + flat talk room_gray, C39 boy profile crying + talk lamp, C42 back view with the head turned) ·
+`model` model sheet: front / 3/4 (0.3) / strong 3/4 (0.55) / profile at 320 px (`?who=senpai|boy|aunt&expr=&light=`) ·
+`profile` three 520 px profiles (先輩 down, 先輩 updo, 彼; `?expr=`).
 Dev tools: `dev_anime_head_zoom` (900 px faces, `?expr=`), `dev_anime_head_wind` (strong wind, storm, hat),
 `dev_anime_head_perf`, `dev_anime_head_dbg` (outlines of silhouette / cap / hairline / clumps by group; `?who=&lost=1`).
 
 ## 9b. Known limitations (honest list)
 
-* Busts are simple: square-ish shoulders, no arm poses (`o.arms` not implemented — the body library covers poses),
-  garments are flat surface polygons with one cel shadow; the cast/sling is schematic.
-* The angel ring is a regular zig-zag band; real 作画 breaks it per clump.
-* Long hair seen from the front shows many parallel clump lines on the inside of the curtain (hidden by a body in
-  scenes, visible on head-only sheets).
-* The far side lock switches from "over the cheek" to "behind the head" at |yaw| ≈ 0.35 (a one-drawing pop).
-* Rim light can leave short bright segments on inner clump edges next to gaps (reads as backlit strands).
-* 600 px heads cost ~20 ms; faces are deliberately flat (anime), little cheek / nose modelling.
+* Busts are simple: boxy shoulders, no arm poses (`o.arms` not implemented — the body library covers poses),
+  garments are flat surface polygons with one cel shadow; the cast/sling is schematic. Use the body library for anything
+  below the collarbones.
+* The far side lock switches from "over the cheek" to "behind the face" at |yaw| ≈ 0.2 (a one-drawing switch, as in
+  hand-drawn in-betweens).
+* The side of the head in profile shows the scalp-lying back clumps as faint diagonal flow bands; the back of the head in a
+  pure back view is a smooth dome with a broken ring (anime-like, but plain).
+* The bangs at 900 px still read a little "combed" in a strict front view (clumps hang mostly straight).
+* The rim mask is computed at reduced resolution and upscaled: the band is slightly soft rather than razor-crisp on
+  600 px close-ups.
+* Faces are deliberately flat (anime): little cheek / nose modelling; a nose = tip line + small shadow (+ bridge line in 3/4).
 * Faces in storm / night are lifted (`faceLight`); bodies that only use `faceAmb` will be a bit darker than the face.
-* Profile: the face is narrow and mostly framed by bangs and side locks; the lips / chin read at ≥ 200 px.
 
-
-## 10. Exports added to `PV.anime` (no change to anime.js)
+## 10. Exports added to `PV.anime`
 
 `head`, `headBack`, `bust`, `neck`, `headInfo`, `EXPR`, `faceLight`, `faceAmb`; dev-only `_headModel`, `_headDebug`.
+`anime.js` itself: only the data of `analysis/character_design_from_text.md` §7 (DESIGN_PATCH) was added after `A.COLORS`
+(iris_senpai plum-brown, ecru cardigan, deep-green tie, new materials incl. `undereye`, `necklace`, `tee_black`), no function changed.
