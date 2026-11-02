@@ -1193,3 +1193,14 @@
     ctx0.restore();
   } });
 })();
+/* DEV-ONLY (g09 rework, removed before delivery) */
+(function () {
+  const PV = window.PV;
+  PV.shot('dev_g09_pair', { draw(ctx, t) {
+    ctx.fillStyle = '#9a9a9a'; ctx.fillRect(0, 0, PV.W, PV.H);
+    const A = PV.anime, T = 125 + t;
+    A.pair(ctx, { pose: 'sit_side', x: 960, y: 560, scale: 230, T, light: 'room_gray', facing: -0.42, camPitch: 0.2, keyDir: -2.58, rimDir: -2.58,
+      params: { side: 'right', gap: 2.6, seat: 'sofa', sofa: false },
+      senpai: { outfit: 'home', head: { expr: 'empty' } }, boy: { outfit: 'year2', costume: { shoes: 'slipper' } } });
+  } });
+})();

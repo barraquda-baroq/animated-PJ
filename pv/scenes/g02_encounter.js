@@ -512,50 +512,69 @@
       L.godRays(c, 18.0, { x: 420, y: -120, angle: 1.0, spread: 0.32, count: 6, length: 1500, width: 120, flare: 2.2, alpha: 0.24, color: '#fff1d6', seed: 66, flicker: 0, mode: 'source-over' });
     });
   }
-  PV.shot('C06', { draw(ctx, t, d, S) { mirrored(ctx, (c) => drawC06(c, t, d, S)); } });
+  // 彼 in C06: a bust, 3/4, seated by the pier (the window and its curtain behind him on the light side). Placed by the neck
+  // point (measured), in the DIR=+1 frame: x is mirrored by sX(), the facing by DIR.
+  const C06_BOY = { x: 1240, y: 600, size: 350, facing: -0.78 };
+  function c06BoyArgs(T, p, h) {
+    const base = { who: 'boy', outfit: 'uniform', pose: 'seated_chair', facing: C06_BOY.facing * DIR, scale: C06_BOY.size, T, light: C05_LIGHT,
+      rimDir: sAng(-2.62), keyDir: sAng(PI + 0.25), rimA: 0, wind: 0.08, windDir: sAng(0),
+      params: { variant: 'juice', sip: 1, chair: false, nod: 0.02 },
+      head: { expr: 'neutral', lightDir: sAng(PI + 0.12), shade: 0.6, rimW: 1.4, faceLift: 1, blinkOffset: 1.85 } };
+    const nk = probeNeck('c06boy', base);
+    const o = Object.assign({}, base, { x: sX(C06_BOY.x) - nk[0], y: C06_BOY.y - nk[1] });
+    o.params = Object.assign({}, base.params, p); o.head = Object.assign({}, base.head, h);
+    return o;
+  }
+  PV.shot('C06', { draw(ctx, t, d, S) { drawC06(ctx, t, d, S); } });
   function drawC06(ctx, t, d, S) {
     const tt = clamp(t, -0.5, d + 0.5);
     const T = absT(S, 'C06', tt);
-    const tq = Math.floor(T * 12 + 1e-6) / 12;                        // acting on twos
-    // speech beats (V02 timing, absolute): え？ 16.55 / だって 17.1 / 今のはミスなかった 17.9 / じゃん 18.9; gust 18.6
-    const lowerK = PV.ease.inOutCubic(clamp((tq - (16.4 + 0.02)) / 0.42));       // the straw leaves his lips
-    const eh = bell(tq, 16.66, 0.16);                                              // "え？" — chin lifts a little
-    const datte = bell(tq, 17.2, 0.22), nod = bell(tq, 18.05, 0.3), jan = sm(18.75, 19.05, tq) * (1 - sm(19.5, 19.9, tq));
-    const tilt = lerp(-0.3, -0.04, lowerK) - 0.07 * eh + 0.035 * datte + 0.05 * nod - 0.06 * jan;
+    S.post = Object.assign({}, S.post, { bloom: 0.18 });      // a bright close-up: keep the thin eye lines crisp
     const gust = sm(18.35, 18.75, T) * (1 - sm(19.0, 19.75, T));                  // curtain fills 18.6
-    const breath = Math.sin(TAU * 0.28 * T);
 
-    // background plate + the living curtain + sun through it
+    // background plate + the living curtain + sun through it (the room plates are mirrored with the geography)
     ctx.drawImage(onTwos('c06bg', tt, 1 / 24, (c, q) => {
       const Tq = absT(S, 'C06', q);
       const gq = sm(18.35, 18.75, Tq) * (1 - sm(19.0, 19.75, Tq));
-      c.drawImage(c06Back(), 0, 0);
-      c06Curtain(c, Tq, gq);
-      // sun beyond the sheer (brighter as the gust opens the folds)
-      L.glow(c, 520, 110, 980, '#fff6e2', 0.55 + 0.25 * gq);
-      // light shafts through the curtain, slanting down toward him (painted once; they swell with the gust)
-      c.save(); c.globalCompositeOperation = 'screen'; c.globalAlpha = clamp((0.12 + 0.12 * gq) / 0.24 * (0.92 + 0.08 * Math.sin(Tq * 2.1))); c.drawImage(c06Rays(), 0, 0); c.restore();
+      inDir(c, (c2) => {
+        c2.drawImage(c06Back(), 0, 0);
+        c06Curtain(c2, Tq, gq);
+        L.glow(c2, 520, 110, 980, '#fff6e2', 0.55 + 0.25 * gq);
+        c2.save(); c2.globalCompositeOperation = 'screen'; c2.globalAlpha = clamp((0.12 + 0.12 * gq) / 0.24 * (0.92 + 0.08 * Math.sin(Tq * 2.1))); c2.drawImage(c06Rays(), 0, 0); c2.restore();
+      });
     }), 0, 0);
 
-    // the boy (rendered on twos into a buffer, so the passing light can be clipped to his silhouette)
-    const s = 2.55, ox = 1262, oy = 560;                               // neck base on screen
-    let J = null;
-    const figC = onTwos('c06fig', tt, 0, (c) => {
-      L.figureRender(c, { x: ox, y: oy, scale: s, flip: true, style: 'silhouette', light: -2.75, rimColor: '#ffe7c4', rim: 1.25, backlight: 0.22, glow: 0.6 }, null,
-        (F) => { boyCloseUp(F, { t: tq, tilt, arm: lowerK, breath, wind: 0.08 + 0.6 * gust }); });
+    // the boy, acting on twos (painted into a buffer, so the passing light can be clipped to him)
+    // speech beats (V02, absolute): え？ 16.54–16.71 / だって 17.17–17.46 / 今のはミスなかった 17.88–18.33 / じゃん 18.6–19.0; gust 18.6
+    let info = null;
+    const figC = onTwos('c06fig', tt, 0, (c, q) => {
+      const Tq = absT(S, 'C06', q);
+      const lowerK = PV.ease.inOutCubic(clamp((Tq - (16.4 + 0.02)) / 0.42));       // the straw leaves his lips
+      const eh = bell(Tq, 16.64, 0.16);                                              // "え？" — blank, brows up, chin up a little
+      const nod = bell(Tq, 18.05, 0.3), jan = sm(18.6, 18.95, Tq) * (1 - sm(19.6, 19.9, Tq));
+      const smile = sm(17.75, 18.45, Tq);                                            // the easy half-smile grows while he says it
+      const gq = sm(18.35, 18.75, Tq) * (1 - sm(19.0, 19.75, Tq));
+      const lp = lips(Tq, 'boy', 0);
+      const o = c06BoyArgs(Tq, { sip: lerp(1, 0.42, lowerK) + 0.05 * sm(19.3, 19.8, Tq), nod: 0.02 - 0.06 * eh + 0.07 * nod - 0.02 * jan, tilt: 0.03 * jan * DIR },
+        { expr: smile > 0.5 ? 'gentle' : 'neutral', talk: lp.talk, mouth: Object.assign({ asym: -0.75 * smile }, lp.mouth || {}),
+          eyes: { look: [0.3 * -DIR, -0.04], open: lerp(1, 0.84, smile) + 0.22 * eh },
+          brows: { inner: 0.3 * eh + 0.1 * smile, outer: 0.25 * eh }, blush: 0.06 + 0.06 * smile, hair: { wind: 0.08 + 0.6 * gq, windDir: sAng(0) } });
+      info = A().figure(c, o);
     });
-    // joint positions (cheap: the pose maths without painting)
-    { const F0 = { layer() {}, raw() {} }; J = boyCloseUp(F0, { t: tq, tilt, arm: lowerK, breath, wind: 0.08 + 0.6 * gust }); }
+    // joint positions on this frame's drawing (cheap: re-run only when the twos drawing changed)
+    if (info) C06_INFO.v = info;
+    const J = C06_INFO.v;
     const fb = PV.buffer('g02:c06fig'); fb.ctx.clearRect(0, 0, W, H); fb.ctx.drawImage(figC, 0, 0);
     // light strokes his shoulder as the curtain fills: a sunbeam slips through the opening folds and slides over
-    // his shoulder (front -> back). On the white shirt it is bright; in the air it is a faint shaft.
+    // his shoulder (window side -> away). On the white shirt it is bright; in the air it is a faint shaft.
     const sweep = clamp((T - 18.48) / 0.9);
     const beam = sweep > 0 && sweep < 1 ? Math.pow(Math.sin(PI * sweep), 1.2) : 0;
     let beamFn = null, beamBox = null, beamLine = null;
     if (beam > 0 && J) {
-      const sx = ox - J.S[0] * s * 92, sy = oy + J.S[1] * s * 92;          // shoulder on screen (figure is flipped)
-      const bxp = lerp(sx - 150, sx + 190, PV.ease.inOutCubic(sweep));     // where the beam crosses the shoulder line
-      const ang = 0.92;                                                     // beam direction (down-right)
+      const sh = DIR > 0 ? (J.shoulders.L[0] < J.shoulders.R[0] ? J.shoulders.L : J.shoulders.R) : (J.shoulders.L[0] > J.shoulders.R[0] ? J.shoulders.L : J.shoulders.R);
+      const sx = sh[0] - 30 * DIR, sy = sh[1] + 10;                                 // the shoulder toward the window
+      const bxp = sx + DIR * lerp(-150, 190, PV.ease.inOutCubic(sweep));            // where the beam crosses the shoulder line
+      const ang = sAng(0.92);                                                         // beam direction (down, away from the window)
       beamLine = [bxp, sy + 10, ang];
       beamFn = (c, wHalf, aCore, col, fade) => {
         c.save(); c.translate(bxp, sy + 10); c.rotate(ang - PI / 2);
@@ -570,14 +589,13 @@
         }
         c.restore();
       };
-      // the lit patch on his shirt: the beam, limited to the shoulder / upper arm, laid only on the silhouette
-      // everything happens inside a box round the shoulder (keeps the per-frame cost small)
+      // the lit patch on his shirt: the beam, limited to the shoulder / upper arm, laid only on his figure
       const bx0 = Math.max(0, Math.floor(sx - 300)), by0 = Math.max(0, Math.floor(sy - 300)), bw = 620, bh = 620;
       const lb = PV.buffer('g02:c06light'); const lc = lb.ctx; lc.clearRect(bx0, by0, bw, bh);
       lc.save(); lc.beginPath(); lc.rect(bx0, by0, bw, bh); lc.clip();
       beamFn(lc, 95, 0.8 * beam, '#ffe9c8', false);
       lc.globalCompositeOperation = 'destination-in';
-      const g = lc.createRadialGradient(sx + 15, sy + 25, 60, sx + 15, sy + 25, 270); g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+      const g = lc.createRadialGradient(sx + 15 * DIR, sy + 25, 60, sx + 15 * DIR, sy + 25, 270); g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(1, 'rgba(0,0,0,0)');
       lc.fillStyle = g; lc.fillRect(bx0, by0, bw, bh); lc.restore();
       const fc = fb.ctx; fc.save(); fc.globalCompositeOperation = 'source-atop'; fc.drawImage(lb.canvas, bx0, by0, bw, bh, bx0, by0, bw, bh); fc.restore();
       beamBox = [bx0, by0, bw, bh];
@@ -588,19 +606,21 @@
       bb.ctx.clearRect(ax0, ay0, aw, ah); bb.ctx.save(); bb.ctx.beginPath(); bb.ctx.rect(ax0, ay0, aw, ah); bb.ctx.clip();
       beamFn(bb.ctx, 120, 0.22 * beam, '#fff0d6', true); beamFn(bb.ctx, 40, 0.2 * beam, '#fff6e6', true); bb.ctx.restore();
       ctx.save(); ctx.globalCompositeOperation = 'screen'; ctx.drawImage(bb.canvas, ax0, ay0, aw, ah, ax0, ay0, aw, ah); ctx.restore();
-      // motes caught in the beam glitter against his dark shirt
+      // motes caught in the beam glitter against his shirt
       const [lx, ly, la] = beamLine, sa = Math.sin(la), ca = Math.cos(la);
-      L.dust(ctx, T, { seed: 64, count: 150, x0: lx - 420, x1: lx + 420, y0: ly - 420, y1: ly + 420, size: 3.2, alpha: 0.95 * beam, color: '#fff6e4', drift: 30, vx: 18, vy: 10,
+      L.dust(ctx, T, { seed: 64, count: 150, x0: lx - 420, x1: lx + 420, y0: ly - 420, y1: ly + 420, size: 3.2, alpha: 0.95 * beam, color: '#fff6e4', drift: 30, vx: 18 * DIR, vy: 10,
         mask: (x, y) => clamp(1.2 - Math.abs((x - lx) * sa - (y - ly) * ca) / 85) * clamp(1.4 - Math.hypot(x - lx, y - ly) / 330) });
     }
     // dust in the window light; the gust stirs it toward him
-    L.dust(ctx, T, { seed: 61, count: 90, x0: 40, x1: 1250, y0: 30, y1: 900, size: 2.8, alpha: 0.85, color: '#fff2da', drift: 50, vx: 5 + 70 * gust, vy: -4 - 10 * gust,
-      mask: (x, y) => clamp((C06_PIER - 120 - x) / 160) * clamp((C06_SILL + 120 - y) / 200) });
-    L.bokeh(ctx, T, { seed: 62, count: 10, x0: 80, x1: 1100, y0: 120, y1: 760, rmin: 14, rmax: 34, alpha: 0.16, colors: ['#fff6e6', '#ffe8c8'], wobble: 16 });
+    const wx0 = Math.min(sX(40), sX(1250)), wx1 = Math.max(sX(40), sX(1250));
+    L.dust(ctx, T, { seed: 61, count: 90, x0: wx0, x1: wx1, y0: 30, y1: 900, size: 2.8, alpha: 0.85, color: '#fff2da', drift: 50, vx: (5 + 70 * gust) * DIR, vy: -4 - 10 * gust,
+      mask: (x, y) => clamp(((DIR > 0 ? C06_PIER - 120 - x : x - (W - C06_PIER + 120))) / 160) * clamp((C06_SILL + 120 - y) / 200) });
+    L.bokeh(ctx, T, { seed: 62, count: 10, x0: Math.min(sX(80), sX(1100)), x1: Math.max(sX(80), sX(1100)), y0: 120, y1: 760, rmin: 14, rmax: 34, alpha: 0.16, colors: ['#fff6e6', '#ffe8c8'], wobble: 16 });
     // the subtitle sits on the dark dado: keep the lowest band calm
     const g = ctx.createLinearGradient(0, H * 0.8, 0, H); g.addColorStop(0, 'rgba(20,14,12,0)'); g.addColorStop(1, 'rgba(20,14,12,0.35)');
     ctx.fillStyle = g; ctx.fillRect(0, H * 0.8, W, H * 0.2);
   }
+  const C06_INFO = { v: null };
 
   /* =====================================================================================================
    * C07 — 「頭の中を埋め尽くしていた楽譜が、一斉に、消えた。真っ白な世界。」

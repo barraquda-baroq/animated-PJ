@@ -885,7 +885,7 @@
       who: 'boy', outfit: 'year2', costume: { top: 'tee_black' }, pose: 'stand', facing: Math.PI / 2, camPitch: 0.15,
       x: C39.boyX, y: C39.boyY - 5 * hitch, scale: C39.boyS, T: C39.T0 + u, light: 'lamp', rimDir: 0.15, keyDir: L.key,
       params: { weight: 0.15, bow: 0.3, nod: 0.6 + 0.06 * hitch - 0.1 * firm + 0.08 * sink },
-      head: { yaw: C39.yaw, expr: 'cry', talk: true, lightDir: L.key, shade: L.shade, rim: 1.1, faceLift: L.lift,
+      head: { yaw: C39.yaw, pitch: -0.34 - 0.07 * brk - 0.03 * hitch + 0.09 * firm - 0.1 * sink, expr: 'cry', talk: true, lightDir: L.key, shade: L.shade, rim: 1.1, faceLift: L.lift,
         eyes: { open: lerp(0.55, 0.32, brk) + 0.1 * firm - 0.15 * sink, squeeze: 0.3 + 0.45 * brk, sad: 0.65, tears: 0.45 + 0.47 * smooth(0.5, 4.3, u), look: [0.3, 0.6] },
         brows: { inner: 0.7 + 0.3 * brk, outer: -0.3, furrow: 0.55 + 0.3 * brk - 0.1 * firm },
         mouth: { shape: 'frown', open: 0, tremble: 0.25 + 0.6 * brk }, blush: 0.4 },
@@ -893,7 +893,7 @@
   }
   C39.boyX = 526; C39.boyY = 2966; C39.boyS = 400;
   C39.light = { key: -2.55, shade: 0.5, lift: 0.32 };
-  C39.yaw = 0.8;
+  C39.yaw = 0.72;
   // a second, cool rim from the streetlight: the band of the layer's own silhouette on the light side (union minus the union
   // shifted away from the light), tinted, laid inside the figure (source-atop).  box = the region the cel covers.
   function silRim(c, box, dir, w, col, alpha, key, fall) {

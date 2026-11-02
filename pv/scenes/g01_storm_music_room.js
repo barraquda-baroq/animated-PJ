@@ -337,7 +337,7 @@
   const BOY_SEAT = [4.25, 0.427, 0.85];     // his chair seat (1.75 of his heads), in front of the first pier (窓間壁), where the sun does not reach (原作311)
   const BOY_DIR = (() => { const dx = BENCH[0] - BOY_SEAT[0], dz = BENCH[2] - BOY_SEAT[2], l = Math.hypot(dx, dz); return [dx / l, dz / l]; })();   // he watches her
   const ROOM = {
-    c02: { view: 'windows', time: 'noon', furniture: 'none', wind: 0.6, cam: { eye: [6.0, 1.3, 7.6], target: [5.7, 1.12, 0], fov: 50 }, shaft: 0.55, dust: false },
+    c02: { view: 'windows', time: 'noon', furniture: 'none', wind: 0.6, cam: { eye: [6.05, 1.3, 6.95], target: [6.6, 1.12, 0], fov: 56 }, shaft: 0.55, dust: false },
     c04: { view: 'windows', time: 'noon', furniture: 'none', wind: 0.5, cam: { eye: [6.64, 1.25, 5.97], target: [5.52, 1.08, 2.13], fov: 40 }, shaft: 0.5, dust: false },
   };
   const pianoOpts = (R, extra) => R.piano(PIANO.at[0], PIANO.at[1], PIANO.yaw, Object.assign({ lidOpen: 1, bench: false, rimLit: true, desk: false }, extra || {}));
@@ -558,31 +558,31 @@
     c.strokeStyle = mS.base; c.lineWidth = lw * 1.3; c.stroke();
     c.restore();
   }
-  // beads of sweat (張り詰めた演奏の顔：額に大粒の汗, design sheet 2-4): small clear drops on the forehead between the bangs and on
-  // the near temple, placed from the head's anchors; the temple drop slides down the cheek line over time. k = amount 0..1
+  // beads of sweat (張り詰めた演奏の顔：額に大粒の汗, design sheet 2-4): small clear drops on the forehead between the bangs and at
+  // the near temple by the hairline, placed from the head's anchors (head up axis = chin -> crown). Never below the eye line:
+  // there a drop reads as a tear. k = amount 0..1
   function sweat(c, Hd, k, t, light) {
     if (!Hd || !Hd.eyeL || k <= 0.01) return;
-    const s = Hd.size, eL = Hd.eyeL, eR = Hd.eyeR, cr = Hd.crown;
+    const s = Hd.size, eL = Hd.eyeL, eR = Hd.eyeR, cr = Hd.crown, ch = Hd.chin, ns = Hd.nose;
+    let ux = cr[0] - ch[0], uy = cr[1] - ch[1]; const ul = Math.hypot(ux, uy) || 1; ux /= ul; uy /= ul;      // head up
     const mx = (eL[0] + eR[0]) / 2, my = (eL[1] + eR[1]) / 2;
-    let ux = eR[0] - eL[0], uy = eR[1] - eL[1]; const ul = Math.hypot(ux, uy) || 1; ux /= ul; uy /= ul;      // along the eyes
-    let vx = cr[0] - mx, vy = cr[1] - my; const vl = Math.hypot(vx, vy) || 1; vx /= vl; vy /= vl;            // up the forehead
     const skin = A.mat('skin', A.faceLight ? A.faceLight(light) : light);
     const drop = (px, py, r, a) => {
       c.save(); c.translate(px, py); c.globalAlpha = a;
-      c.beginPath(); c.moveTo(0, -r * 1.7); c.bezierCurveTo(r * 0.55, -r * 0.9, r, -r * 0.1, r, r * 0.25); c.arc(0, r * 0.25, r, 0, Math.PI); c.bezierCurveTo(-r, -r * 0.1, -r * 0.55, -r * 0.9, 0, -r * 1.7); c.closePath();
-      c.fillStyle = 'rgba(255,255,255,0.32)'; c.fill();
-      c.strokeStyle = skin.line; c.globalAlpha = a * 0.55; c.lineWidth = Math.max(0.6, r * 0.28); c.stroke();
-      c.globalAlpha = a; c.fillStyle = '#ffffff'; c.beginPath(); c.ellipse(-r * 0.35, r * 0.05, r * 0.28, r * 0.42, -0.3, 0, TAU); c.fill();
+      c.beginPath(); c.moveTo(0, -r * 1.6); c.bezierCurveTo(r * 0.55, -r * 0.85, r, -r * 0.1, r, r * 0.25); c.arc(0, r * 0.25, r, 0, Math.PI); c.bezierCurveTo(-r, -r * 0.1, -r * 0.55, -r * 0.85, 0, -r * 1.6); c.closePath();
+      c.fillStyle = 'rgba(255,255,255,0.3)'; c.fill();
+      c.strokeStyle = skin.line; c.globalAlpha = a * 0.5; c.lineWidth = Math.max(0.5, r * 0.25); c.stroke();
+      c.globalAlpha = a; c.fillStyle = '#ffffff'; c.beginPath(); c.ellipse(-r * 0.32, r * 0.02, r * 0.26, r * 0.4, -0.3, 0, TAU); c.fill();
       c.restore();
     };
-    const r = Math.max(1.2, s * 0.02);
-    const F = (a, b) => [mx + vx * s * a + ux * s * b, my + vy * s * a + uy * s * b];
-    let p = F(0.3, 0.02); drop(p[0], p[1], r, k);
-    p = F(0.36, 0.17); drop(p[0], p[1], r * 0.8, k * 0.85);
-    // the near temple: just outside the near eye, sliding down toward the jaw (on twos)
-    const u = (q12(t) * 0.35) % 1;
-    p = [eL[0] - ux * s * 0.13 - vx * s * (0.02 + 0.22 * u), eL[1] - uy * s * 0.13 - vy * s * (0.02 + 0.22 * u)];
-    drop(p[0], p[1], r * 1.1, k * (1 - 0.6 * u));
+    const r = Math.max(1.1, s * 0.018);
+    // forehead: above the brows, on the nose side of the eyes' middle (the part of the forehead that faces us)
+    const fx = mx + (ns[0] - mx) * 0.35, fy = my + (ns[1] - my) * 0.0;
+    drop(fx + ux * s * 0.2, fy + uy * s * 0.2, r, k);
+    drop(fx + ux * s * 0.27 - (ns[0] - mx) * 0.55, fy + uy * s * 0.27, r * 0.75, k * 0.85);
+    // near temple, at the hairline above the outer end of the near eye; it creeps down a little and is replaced (on twos)
+    const u = (q12(t) * 0.45) % 1, ox = eL[0] - (mx - eL[0]) * 0.55, oy = eL[1] - (my - eL[1]) * 0.55;
+    drop(ox + ux * s * (0.13 - 0.06 * u), oy + uy * s * (0.13 - 0.06 * u), r * 1.05, k * (1 - 0.5 * u));
   }
 
   /* ============================================================== C01 */
@@ -732,7 +732,7 @@
   // the days go by: each change of the light takes one spectator away (cut-local seconds)
   const C02_DAYS = [0.95, 1.72, 2.48, 3.18];
   const c02Day = (t) => C02_DAYS.reduce((n, s) => n + (t >= s ? 1 : 0), 0);
-  const C02_F = { x: 1180, y: 600 };       // push-in centre (on her face)
+  const C02_F = { x: 1000, y: 570 };       // push-in centre (on her face)
   const c02Zoom = (t, d) => 1 + 0.075 * PV.ease.inOut(clamp(t / d));
   const c02DayStart = (day) => (day ? C02_DAYS[day - 1] : 0);
   // each day's room is one held plate (clouds and curtains jump from day to day: time-lapse) with that day's light,
@@ -753,16 +753,16 @@
   }
   // the students who came to watch: seen from behind at the lens, turned toward her; they stop coming one by one
   const C02_SP = [
-    { id: 0, who: 'boy', outfit: 'uniform', facing: 2.55, s: 170, x: 150, y: 935, ph: 1.2 },
-    { id: 1, who: 'senpai', outfit: 'blazer', facing: -2.5, s: 158, x: 1360, y: 965, ph: 2.7, head: { hair: { style: 'updo', still: true } } },
-    { id: 2, who: 'senpai', outfit: 'uniform', facing: 2.65, s: 172, x: 480, y: 995, ph: 4.1, rot: 0.04, head: { hair: { style: 'loose', still: true } } },
-    { id: 3, who: 'boy', outfit: 'blazer', facing: 2.85, s: 164, x: 830, y: 1012, ph: 5.6 },
+    { id: 0, who: 'boy', outfit: 'uniform', facing: 2.5, s: 148, x: 165, y: 920, ph: 1.2, amb: 0.56 },
+    { id: 1, who: 'senpai', outfit: 'blazer', facing: -2.55, s: 138, x: 1335, y: 958, ph: 2.7, amb: 0.6, head: { hair: { style: 'updo', still: true } } },
+    { id: 2, who: 'senpai', outfit: 'uniform', facing: 2.6, s: 152, x: 525, y: 972, ph: 4.1, rot: 0.04, amb: 0.56, head: { hair: { style: 'loose', still: true } } },
+    { id: 3, who: 'boy', outfit: 'blazer', facing: 2.8, s: 146, x: 845, y: 992, ph: 5.6, amb: 0.6 },
   ];
   // 〈雪あらし〉 at full force: her hair lags behind the surge of her body into the keys (the piano pose's own sway, on twos)
   function c02HairWind(T, I) {
     const tq = A.onTwos(T), sg = (x) => { const ph = x * (1.2 + I * 1.6); return Math.pow(Math.max(0, Math.sin(ph * 0.45 + 1)), 2) * I; };
     const v = (sg(tq + 1 / 12) - sg(tq - 1 / 12)) * 6;
-    return { wind: clamp(0.28 + Math.abs(v) * 0.9 + 0.12 * N2(7.7, tq * 3.1), 0, 1.3), windDir: v > 0 ? Math.PI - 0.35 : 0.25 };
+    return { wind: clamp(0.1 + Math.abs(v) * 0.3 + 0.05 * N2(7.7, tq * 3.1), 0, 0.45), windDir: v > 0 ? Math.PI - 0.5 : 0.4 };
   }
   PV.shot('C02', { draw(ctx, tIn, d, S) {
     const t = cutT(tIn, d), T0 = S ? S.start : 3.0;
@@ -780,8 +780,8 @@
       PV.camera(c, { zoom: zb, cx: C02_F.x, cy: C02_F.y });
       const P = figPlace(R, BOY_SEAT, BOY_DIR, 'boy', 0.5), s = P.scale;
       const sip = [1, 0.82, 1, 0.35, 1][day] - 0.04 * Math.sin(qb * 2.3 + day);
-      drawBoy(c, R, T0 + qb, { amb: 0.42, rimA: 0.55, params: { variant: 'juice', sip }, head: day === 2 ? { expr: 'sleep' } : { expr: 'neutral', eyes: { look: [0.35, 0.1] } } });
-      hazeOn(c, R, 1);
+      drawBoy(c, R, T0 + qb, { amb: 0.55, rimA: 0.5, params: { variant: 'juice', sip }, head: day === 2 ? { expr: 'sleep' } : { expr: 'neutral', eyes: { look: [0.35, 0.1] } } });
+      hazeOn(c, R, 0.6);
       return devBox(c, P.x - 3.2 * s, P.y - 5.4 * s, P.x + 3.2 * s, P.y + 2.4 * s);
     }), zb, zoom, C02_F.x, C02_F.y);
     // ---- 先輩 at the piano, 〈雪あらし〉 at full force: the tense, cold face (focus, knitted brows, lips pressed, eyes on the
@@ -805,7 +805,7 @@
     // ---- foreground: the students (they stop coming one by one) and the curtain in shade
     const sp = C02_SP.map((s, i) => Object.assign({}, s, { a: 1 - sm(C02_DAYS[i] - 0.04, C02_DAYS[i] + 0.32, t) }));
     spectators(ctx, t, sp, 0.25 * e);
-    fgCurtain(ctx, t, 1468 + 26 * e);
+    fgCurtain(ctx, t, 1545 + 22 * e);
   } });
 
   /* ============================================================== C03 */

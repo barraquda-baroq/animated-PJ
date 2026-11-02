@@ -252,10 +252,10 @@
   // shoulder, eyes closed, smiling through tears. Then the camera slowly orbits and pushes in.
   // He stands in profile facing her (his back view is not used: the library's back of his head reads as a blank face).
   // Ground: a perspective lawn — horizon y=560, camera at her chest height; units = her head height (23 cm).
-  const C20 = { tHit: 1.75, fLand: -1.45, fEnd: -0.8, camPitch: -0.03, cam: { cx: 1120, cy: 430 },
+  const C20 = { tHit: 1.75, fLand: -1.45, fEnd: -0.8, camPitch: -0.03, cam: { cx: 1180, cy: 260, x: -220, y: 120, zoom: 0.32 },
     G: { hz: 560, hc: 4.86, f: 2059, cx: 960 },
-    boy: { X: 2.52, Z: 23.56 },
-    path: [[-12.5, 38.0], [-7.8, 33.4], [-4.5, 24.25], [0.66, 23.47]],   // her run (ground X, depth Z), a cubic Bézier
+    boy: { X: 2.24, Z: 16.47 },                                               // (his feet are below the frame: cut at the shins)
+    path: [[-12.6, 41.2], [-7.15, 35.35], [-4.09, 17.06], [0.38, 16.38]],   // her run (ground X, depth Z), a cubic Bézier
     steps: [0.2, 0.56, 0.88, 1.16, 1.4, 1.6],                                  // heel clicks (audio/make_sfx_plan.py)
     bay: { hz: 560, wheelX: 330, wheelR: 112, cityX0: -40, cityX1: 1250, bridgeX0: 1290, bridgeX1: 2500, deck: 30, towerH: 215, towers: [1540, 2100], span: 240, scale: 1.045, scaleCx: 960, scaleCy: 560 } };
   const g20 = (X, Z) => { const G = C20.G, s = G.f / Z; return { x: G.cx + X * s, y: G.hz + G.hc * s, s }; };
@@ -334,7 +334,7 @@
     // camera (24 fps): static wide, the impact felt as a small push, then a slow orbit (parallax) and push-in to the faces
     const orb = PV.ease.inOut(clamp((tc - 1.95) / (d - 1.95)));
     const bump = tc >= tHit ? 0.014 * Math.exp(-(tc - tHit) / 0.16) : 0;
-    const zoom = 1 + 0.012 * sm(0, tHit, tc) + 0.55 * orb + bump, camX = -200 * orb, camY = 20 * orb;
+    const zoom = 1 + 0.012 * sm(0, tHit, tc) + C20.cam.zoom * orb + bump, camX = C20.cam.x * orb, camY = C20.cam.y * orb;
     // warmth (on twos, it belongs to the drawing): a burst at the impact (M11's climax), then a held glow
     const burst = hit ? Math.exp(-Math.pow((tq - (tHit + 0.1)) / 0.34, 2)) : 0, hug = 0.45 * sm(tHit, tHit + 0.6, tq) + 0.55 * burst;
     // ---- the world behind them at zoom 1, each layer with its own parallax (per frame: smooth)

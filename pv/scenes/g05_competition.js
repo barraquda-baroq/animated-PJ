@@ -195,7 +195,7 @@
     // the front edge of the lid catches a thin line of light
     { const a = gp(c, ...gLid(GP.hinge, GP.fallZ)), b = gp(c, ...gLid(-3.35, GP.fallZ)); ctx.strokeStyle = PV.rgba(pal.edge, pal.edgeA * 0.7); ctx.lineWidth = Math.max(1, c.s * 0.005); ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke(); }
     // the prop stick from the bentside rim up to the board
-    { const r = gp(c, -2.86, GP.rimY, 5.05), l = gp(c, ...gLid(-2.95, 5.05)); const k = 0.82, top = [lerp(r[0], l[0], k), lerp(r[1], l[1], k)];
+    { const r = gp(c, -2.05, GP.rimY, 6.25), l = gp(c, ...gLid(-2.2, 6.25)); const k = 0.82, top = [lerp(r[0], l[0], k), lerp(r[1], l[1], k)];
       ctx.strokeStyle = pal.line; ctx.lineWidth = Math.max(2, c.s * 0.034); ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(r[0], r[1]); ctx.lineTo(top[0], top[1]); ctx.stroke();
       ctx.strokeStyle = PV.rgba(pal.edge, pal.edgeA * 0.6); ctx.lineWidth = Math.max(1, c.s * 0.008); ctx.beginPath(); ctx.moveTo(r[0] - c.s * 0.01, r[1]); ctx.lineTo(top[0] - c.s * 0.01, top[1]); ctx.stroke(); }
     ctx.restore();
@@ -246,11 +246,11 @@
    * closes her eyes and breathes in, the shoulders rise. Camera: static -> slow push-in from the cough.
    */
   const C16 = { cough: 51.4 };
-  const CAM16 = { th: 0.86, ph: 0.15, x: 820, y: 1350, s: 340 };
+  const CAM16 = { th: 0.86, ph: 0.15, x: 760, y: 1650, s: 430 };
   const PAL16 = {   // the black lacquer in the white world: it mirrors the white (no outlines in this world: the ink is soft)
     side: '#17161c', top: '#3a3a44', inner: '#16151a', innerWall: '#1d1c22', plate: '#2c2722', strings: 'rgba(120,112,100,0.35)',
     lid: '#121116', lidEdge: '#2b2a32', lidRefl: '#d8dae2', lidReflA: 0.07, lidSheen: '#ffffff', lidSheenA: 0.08,
-    refl: '#e9eaf0', reflA: 0.3, streaks: [[3.2, 0.5, 0.12], [6.2, 0.7, 0.09]], edge: '#ffffff', edgeA: 0.75, line: '#0b0a0e',
+    refl: '#e9eaf0', reflA: 0.12, streaks: [[3.2, 0.5, 0.1], [6.2, 0.7, 0.08]], edge: '#ffffff', edgeA: 0.8, line: '#0b0a0e',
   };
   // her light: the white world ('stage'); after the cough the hall's amber reaches her (quantised so the colours are reused)
   function light16(k) {
@@ -285,8 +285,8 @@
   // the bottom of the case dissolves in the white (the piano floats)
   function fog16(ctx, warm) {
     const col = warm > 0.01 ? mixH('#f6f6f4', '#f6ebde', warm) : '#f6f6f4';
-    const g = ctx.createLinearGradient(0, 760, 0, 1090); g.addColorStop(0, PV.rgba(col, 0)); g.addColorStop(0.55, PV.rgba(col, 0.5)); g.addColorStop(1, PV.rgba(col, 0.96));
-    ctx.fillStyle = g; ctx.fillRect(-200, 700, W + 400, 500);
+    const g = ctx.createLinearGradient(0, 960, 0, 1100); g.addColorStop(0, PV.rgba(col, 0)); g.addColorStop(1, PV.rgba(col, 0.55));
+    ctx.fillStyle = g; ctx.fillRect(-200, 940, W + 400, 300);
   }
   PV.shot('C16', { draw(ctx, t, d, S) {
     if (S) S.post = Object.assign({}, S.post, { bloom: 0.15 });   // bright close-up: keep the thin eye lines crisp
@@ -305,22 +305,22 @@
     const closeK = sm(52.42, 52.6, tq);                                        // ... with the eyes closed
     const frozen = 1 - sm(cough, cough + 0.5, T);
     const shallow = frozen * (0.5 + 0.5 * Math.sin(tq * TAU / 0.8));           // quick shallow breaths while frozen
-    const lookX = lerp(0.34, -0.4, eyeK), lookY = lerp(0.16, -0.02, eyeK) + 0.3 * closeK;
-    const open = closeK > 0 ? lerp(1.0, 0, closeK) : (lit ? 1.04 : 0.93) * blinkO;
+    const lookX = lerp(0.2, -0.22, eyeK), lookY = lerp(0.1, -0.02, eyeK) + 0.3 * closeK;
+    const open = closeK > 0 ? lerp(1.0, 0, closeK) : (lit ? 1.04 : 0.98) * blinkO;
     const head = {
-      expr: 'neutral', noBlink: true,
+      expr: 'neutral', noBlink: true, turn: -0.3 * headK + 0.08 * inh,
       eyes: closeK > 0.5 ? { open: 0, closed: 'down', look: [0.1, 0.3] }
         : { open, look: [lookX, lookY], shine: lit ? 1 : 0.22, dull: lit ? 0 : 0.38, hlK: lit ? 1.12 : 0.78, wide: lit ? 0.12 * (1 - closeK) : 0 },
       brows: { inner: lerp(0.1, 0.34, sm(51.6, 51.9, tq)) - 0.18 * closeK, outer: lerp(-0.04, 0.06, sm(51.6, 51.9, tq)) },
       mouth: { shape: T < 51.62 && T > 51.43 ? 'o' : 'flat', open: frozen * 0.07 + (T > 51.43 && T < 51.62 ? 0.12 : 0) + 0.04 * inh },
       blush: lerp(0.03, 0.34, sm(51.75, 52.5, tq)),
-      lightDir: -2.5, shade: 0.09,
+      lightDir: -2.5, shade: 0.05 + 0.04 * k,
     };
     const fig = {
       who: 'senpai', outfit: 'dress', pose: 'g05_piano', facing: cam.th, camPitch: cam.ph, x: cam.x, y: cam.y, scale: cam.s, T,
       light: light16(k), keyDir: -2.45, rimDir: -2.2,
-      params: { intensity: 0, play: 0, look: 'keys', rel, trem: frozen * 0.8, lift: 0.012 * shallow + 0.05 * inh,
-        neckYaw: -0.42 * headK + 0.1 * inh, neckPitch: lerp(0.1, -0.02, headK) + 0.1 * inh, bendAdd: -0.02 * inh },
+      params: { intensity: 0, play: 0, look: 'keys', rel, trem: frozen * 0.8, lift: 0.04 * (1 - rel) + 0.012 * shallow + 0.05 * inh,
+        neckYaw: 0.06 * inh, neckPitch: lerp(0.02, -0.03, headK) + 0.1 * inh, bendAdd: -0.02 * inh },
       head,
     };
     ctx.save();
