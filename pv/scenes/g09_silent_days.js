@@ -313,8 +313,8 @@
   const LDN = (() => { const d = RM.Ld, l = Math.hypot(d[0], d[1], d[2]); return [-d[0] / l, -d[1] / l, -d[2] / l]; })();   // toward the light
   const lambert = (n) => { const l = Math.hypot(n[0], n[1], n[2]) || 1; return Math.max(0, (n[0] * LDN[0] + n[1] * LDN[1] + n[2] * LDN[2]) / l); };
   // a soft quad: corners a,b,c,d (3D, in order round the face) with each edge bowed by a 3D offset at its middle
-  function softQuad(c, P, Q, bows, n = 10) {
-    c.beginPath(); let first = true;
+  function softQuad(c, P, Q, bows, n = 10, append = false) {
+    if (!append) c.beginPath(); let first = true;
     for (let e = 0; e < 4; e++) {
       const A = Q[e], B = Q[(e + 1) % 4], bw = (bows && bows[e]) || [0, 0, 0];
       for (let i = 0; i < n; i++) {
@@ -517,27 +517,70 @@
    * lips; he looks at the empty seat between them, tired; after her line his head sinks a little more.
    * ==================================================================== */
   const C33V = { facing: -0.42, pitch: 0.2, X: 960, Y: 690, s: 138, ax: -0.05, az: -0.12, gap: 2.6 };
+  // a cached prop layer (transparent outside the pieces) with the window light on it, the light kept inside the pieces
+  function litPieces(P, pieces, night, LO) {
+    const c0 = PV.makeCanvas(W, H), c = c0.ctx;
+    paintPieces(c, P, pieces, night);
+    const m = PV.makeCanvas(W, H); m.ctx.drawImage(c0.canvas, 0, 0);
+    if (LO) litPass(c, P, piecesAsSurfs(pieces), LO);
+    c.globalCompositeOperation = 'destination-in'; c.drawImage(m.canvas, 0, 0); c.globalCompositeOperation = 'source-over';
+    return c0.canvas;
+  }
+  // soft shadows of what is in the figure buffer, cast on the regions behind them (offset = the light's direction)
+  function figureShadows(ctx, fb, regions, col) {
+    const sb = PV.buffer('g09_shadowS', 480, 270), sc = sb.ctx;
+    sc.clearRect(0, 0, 480, 270); sc.drawImage(fb.canvas, 0, 0, 480, 270);
+    sc.globalCompositeOperation = 'source-in'; sc.fillStyle = col; sc.fillRect(0, 0, 480, 270); sc.globalCompositeOperation = 'source-over';
+    const sb2 = PV.buffer('g09_shadowS2', 480, 270); sb2.ctx.clearRect(0, 0, 480, 270); sb2.ctx.filter = 'blur(2.2px)'; sb2.ctx.drawImage(sb.canvas, 0, 0); sb2.ctx.filter = 'none';
+    for (const R of regions) {
+      ctx.save(); R.clip(ctx); ctx.clip();
+      ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalCompositeOperation = 'multiply'; ctx.globalAlpha = R.a;
+      ctx.drawImage(sb2.canvas, R.dx, R.dy, W, H);
+      ctx.restore();
+    }
+  }
   PV.shot('C33', { draw(ctx, t, d, S) {
-    const tt = clamp(t, -0.5, d + 0.5), T = 123.5 + t, A = PV.anime;
+    const tt = clamp(t, -0.5, d + 0.5), T = 123.5 + t, A = PV.anime, tq = A.onTwos(T);
     const P = g9proj(C33V.facing, C33V.pitch, C33V.X, C33V.Y, C33V.s);
-    const sofaP = sofaPieces(false), nearP = sofaNearPieces();
-    const room = PV.cached('g09_frontRoomD', W, H, (c) => {
-      paintFrontRoom(c, P, false);
-      paintPieces(c, P, sofaP, false);
-      litPass(c, P, wallSurfs().concat(piecesAsSurfs(sofaP)), {});
-      paintTableLamp(c, P, false);
-    });
-    const near = PV.cached('g09_frontNearD', W, H, (c) => { paintPieces(c, P, nearP, false); litPass(c, P, piecesAsSurfs(nearP), {}); });
-    ctx.save();
-    PV.camera(ctx, { zoom: 1 + 0.045 * PV.ease.inOut(clamp(tt / d)), cx: 960, cy: 600 });
-    ctx.drawImage(room, 0, 0);
-    drawDeskClock(ctx, P, T, false);
+    const LO = { soft: 0.62, screen: 0.12, blur: 8, color: '#fff2e2' };
+    const room = PV.cached('g09_frontRoomD3', W, H, (c) => { paintFrontRoom(c, P, false); litPass(c, P, wallSurfs(), LO); paintTableLamp(c, P, false); });
+    const sofa = PV.cached('g09_frontSofaD3', W, H, (c) => c.drawImage(litPieces(P, sofaPieces(false), false, LO), 0, 0));
+    const near = PV.cached('g09_frontNearD3', W, H, (c) => c.drawImage(litPieces(P, sofaNearPieces(), false, LO), 0, 0));
+    const sky = 0.93 + 0.07 * Math.sin(tt * 0.55 + 0.6) + 0.02 * N2(tt * 0.4, 3.1);   // the overcast light breathing (a cloud passing)
+    const cam = { zoom: 1 + 0.045 * PV.ease.inOut(clamp(tt / d)), cx: 960, cy: 600 }, z = cam.zoom;
+    // --- acting (on twos).  She: from the first word (123.9) her head turns a hair toward him — not to look at him; her
+    // empty eyes stay on nothing; her lips barely move (V12, the real envelope at ~half amplitude: 平坦な声).
+    // He: looking down at the empty seat between them; his eyes lift toward her as she starts, sink back; after the line
+    // (129.45) his head sinks a little further and his eyes close for a long moment.
+    const herTurn = PV.ease.inOut(clamp((tq - 123.95) / 1.0)), sink = PV.ease.inOut(clamp((tq - 129.1) / 0.9));
+    const lift = PV.smooth(124.0, 124.5, tq) * (1 - PV.smooth(125.6, 126.4, tq));
+    const close = PV.smooth(129.35, 129.75, tq);
+    const mo = A.mouth(T, 'senpai');
+    const herHead = { expr: 'empty', eyes: { look: [-0.08, 0.22] }, mouth: { shape: 'flat', open: 0.55 * mo.open } };
+    const hisHead = { expr: 'neutral', undereye: 0.32, brows: { inner: 0.12, outer: -0.15 },
+      eyes: { open: lerp(0.6, 0.0, close) + 0.14 * lift, look: [lerp(-0.35, -0.6, lift), lerp(0.55, 0.15, lift)], sad: 0.3 } };
+    if (close > 0.98) hisHead.eyes.closed = 'down';
+    // the figures into a buffer (same camera transform)
+    const fb = PV.buffer('g09_figs'), fc = fb.ctx; fc.clearRect(0, 0, W, H);
+    fc.setTransform(1, 0, 0, 1, 0, 0); PV.camera(fc, cam);
     const an = P(C33V.ax, 0, C33V.az);
-    A.pair(ctx, { pose: 'sit_side', x: an[0], y: an[1], scale: C33V.s, T, light: 'room_gray', facing: C33V.facing, camPitch: C33V.pitch, keyDir: -2.58, rimDir: -2.58,
+    A.pair(fc, { pose: 'sit_side', x: an[0], y: an[1], scale: C33V.s, T, light: 'room_gray', facing: C33V.facing, camPitch: C33V.pitch, keyDir: -2.58, rimDir: -2.58,
       params: { side: 'right', gap: C33V.gap, seat: 'sofa', sofa: false },
-      senpai: { outfit: 'home', head: { expr: 'empty', mouth: { shape: 'flat', open: 0.55 * A.mouth(T, 'senpai').open } } },
-      boy: { outfit: 'year2', costume: { shoes: 'slipper' }, head: { expr: 'neutral', undereye: 0.3, eyes: { open: 0.62, look: [-0.4, 0.5] } } } });
+      senpai: { outfit: 'home', costume: { legs: 'tights' }, params: { look: 0.05 + 0.13 * herTurn, nod: 0.1 }, head: herHead },
+      boy: { outfit: 'year2', costume: { shoes: 'slipper' }, params: { look: 0.32, nod: 0.24 + 0.1 * sink, slump: 0.04 }, head: hisHead } });
+    fc.setTransform(1, 0, 0, 1, 0, 0);
+    // --- compose: room → their shadows on the wall → sofa → their shadows on the cushions → them → the near arm
+    ctx.save(); PV.camera(ctx, cam);
+    ctx.drawImage(room, 0, 0);
+    ctx.save(); ctx.globalCompositeOperation = 'screen'; ctx.globalAlpha = 0.5 * (sky - 0.86); ctx.fillStyle = '#f4efe6'; ctx.fillRect(-50, -50, W + 100, H + 100); ctx.restore();
+    drawDeskClock(ctx, P, T, false);
+    figureShadows(ctx, fb, [{ clip: (c) => poly(c, P, [[RM.LX, -16, RM.BZ], [RM.RX, -16, RM.BZ], [RM.RX, RM.FY, RM.BZ], [RM.LX, RM.FY, RM.BZ]]), dx: 113 * z, dy: 71 * z, a: 0.5 * sky }], '#5a544e');
+    ctx.drawImage(sofa, 0, 0);
+    figureShadows(ctx, fb, [{ clip: (c) => { c.beginPath(); for (const f of sofaPieces(false)) if (/^cush\d|^cushTop|^backTop|^seat\d/.test(f.name)) softQuad(c, P, f.Q, f.bows, 10, true); }, dx: 50 * z, dy: 30 * z, a: 0.45 * sky }], '#5a544e');
+    ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(fb.canvas, 0, 0); ctx.restore();
     ctx.drawImage(near, 0, 0);
+    // dust hanging in the flat light, barely moving
+    if (has('dust')) L.dust(ctx, tt, { seed: 33, count: 40, x0: 380, x1: 1700, y0: 60, y1: 760, size: 2.0, alpha: 0.26, drift: 18, vx: 1.2, vy: 0.6, color: '#f3e8d6' });
     ctx.restore();
   } });
 

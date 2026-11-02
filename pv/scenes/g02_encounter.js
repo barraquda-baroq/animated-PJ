@@ -1199,14 +1199,31 @@
     const her = (o) => (c, t) => { bgv(c); const T = T0 + t;
       A().figure(c, Object.assign({ who: 'senpai', outfit: 'uniform', pose: 'stand', facing: 0.62, x: 200, y: 690 + 6.12 * 440, scale: 440, T, light: 'window', rimDir: -0.55, wind: 0.22, windDir: PI * 0.98,
         params: { weight: 0.15, armBend: 0.15, tilt: 0.06 } }, o, { head: Object.assign({ expr: 'teary', turn: 0.05, eyes: { tears: 0.45, look: [0.42, -0.2] }, talk: true }, o.head || {}) })); };
-    const pp = { weight: 0.15, armBend: 0.15, tilt: 0.06, nod: 0.12 };
-    const LW1 = Object.assign({}, PV.anime.LIGHT.window, { amb: 0.16, dark: 0.94, shadow: '#a49ccc', sat: 0.82 });
-    const LW2 = Object.assign({}, PV.anime.LIGHT.window, { amb: 0.2, dark: 0.92, shadow: '#9c9ad0', sat: 0.86 });
-    const LW3 = Object.assign({}, PV.anime.LIGHT.window, { amb: 0.12, dark: 0.96, shadow: '#aaa6d4', sat: 0.8 });
-    PV.g02devVariants.push(her({ params: pp, rimA: 0, light: LW1, head: { lightDir: 0, shade: 0.66, rimW: 1.4, faceLift: 1 } }));
-    PV.g02devVariants.push(her({ params: pp, rimA: 0, light: LW2, head: { lightDir: 0, shade: 0.66, rimW: 1.4, faceLift: 0.7 } }));
-    PV.g02devVariants.push(her({ params: pp, rimA: 0, light: LW3, head: { lightDir: 0, shade: 0.66, rimW: 1.4, faceLift: 1 } }));
-    PV.g02devVariants.push(her({ params: pp, rimA: 0, light: LW3, head: { lightDir: -0.12, shade: 0.6, rimW: 1.4, faceLift: 1 } }));
+    // juice hand prototypes: carton + hands.js hand (back view, gripping)
+    const carton = (c, x, y, h, tilt, light) => {
+      const mB = PV.anime.mat('carton_band', light), mW = PV.anime.mat('carton', light);
+      const w = h * 0.58, dx = h * 0.22, dy = -h * 0.12, lw = Math.max(1, PV.anime.inkW(h * 2.2) * 0.8);
+      c.save(); c.translate(x, y); c.rotate(tilt); c.lineJoin = 'round';
+      const quad = (pts, fill) => { c.beginPath(); pts.forEach((p, i) => (i ? c.lineTo(p[0], p[1]) : c.moveTo(p[0], p[1]))); c.closePath(); c.fillStyle = fill; c.fill(); };
+      const x0 = -w / 2, x1 = w / 2, y0 = -h / 2, y1 = h / 2;
+      quad([[x1, y0], [x1 + dx, y0 + dy], [x1 + dx, y1 + dy], [x1, y1]], mB.shade);
+      quad([[x0, y0], [x1, y0], [x1, y1], [x0, y1]], mB.base);
+      for (const [a, b] of [[0.06, 0.3], [0.58, 0.78]]) {
+        quad([[x0, y0 + h * a], [x1, y0 + h * a], [x1, y0 + h * b], [x0, y0 + h * b]], mW.base);
+        quad([[x1, y0 + h * a], [x1 + dx, y0 + h * a + dy], [x1 + dx, y0 + h * b + dy], [x1, y0 + h * b]], mW.shade);
+      }
+      quad([[x0, y0], [x0 + dx, y0 + dy], [x1 + dx, y0 + dy], [x1, y0]], mB.hi);
+      c.strokeStyle = mB.line; c.lineWidth = lw; c.beginPath();
+      c.moveTo(x0, y1); c.lineTo(x0, y0); c.lineTo(x0 + dx, y0 + dy); c.lineTo(x1 + dx, y0 + dy); c.lineTo(x1 + dx, y1 + dy); c.lineTo(x1, y1); c.closePath(); c.moveTo(x1, y0); c.lineTo(x1, y1); c.moveTo(x0, y0); c.lineTo(x1, y0); c.stroke();
+      c.restore();
+    };
+    const hv = (o) => (c, t) => { c.fillStyle = '#d8c6b0'; c.fillRect(0, 0, 480, H);
+      carton(c, 240 + (o.cx || 0), 520 + (o.cy || 0), 170, o.tilt || 0, 'window');
+      L.hand(c, Object.assign({ x: 240, y: 700, rot: 0, scale: 1.3, side: 'R', kind: 'him', view: 'back', curl: [0.5, 0.6, 0.65, 0.7, 0.75], spread: 0.05, arm: 120, keyColor: '#fff3dc', fillColor: '#e2b8a6', tint: 0.5 }, o.h || {})); };
+    PV.g02devVariants.push(hv({ h: { view: 'back', rot: 0.3 } }));
+    PV.g02devVariants.push(hv({ h: { view: 'side', rot: 0.3 } }));
+    PV.g02devVariants.push(hv({ h: { view: 'edge', rot: -0.3 } }));
+    PV.g02devVariants.push(hv({ h: { view: 'back', rot: 1.2, curl: [0.4, 0.75, 0.8, 0.85, 0.9] }, cy: -40 }));
   }
 
 })();

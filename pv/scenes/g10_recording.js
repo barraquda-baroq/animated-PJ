@@ -885,15 +885,15 @@
       who: 'boy', outfit: 'year2', costume: { top: 'tee_black' }, pose: 'stand', facing: Math.PI / 2, camPitch: 0.15,
       x: C39.boyX, y: C39.boyY - 5 * hitch, scale: C39.boyS, T: C39.T0 + u, light: 'lamp', rimDir: 0.15, keyDir: L.key,
       params: { weight: 0.15, bow: 0.3, nod: 0.6 + 0.06 * hitch - 0.1 * firm + 0.08 * sink },
-      head: { yaw: C39.yaw, pitch: -0.34 - 0.07 * brk - 0.03 * hitch + 0.09 * firm - 0.1 * sink, expr: 'cry', talk: true, lightDir: L.key, shade: L.shade, rim: 1.1, faceLift: L.lift,
+      head: { yaw: C39.yaw, expr: 'cry', talk: true, lightDir: L.key, shade: L.shade, rim: 1.1, faceLift: L.lift,
         eyes: { open: lerp(0.55, 0.32, brk) + 0.1 * firm - 0.15 * sink, squeeze: 0.3 + 0.45 * brk, sad: 0.65, tears: 0.45 + 0.47 * smooth(0.5, 4.3, u), look: [0.3, 0.6] },
         brows: { inner: 0.7 + 0.3 * brk, outer: -0.3, furrow: 0.55 + 0.3 * brk - 0.1 * firm },
         mouth: { shape: 'frown', open: 0, tremble: 0.25 + 0.6 * brk }, blush: 0.4 },
     };
   }
-  C39.boyX = 526; C39.boyY = 2966; C39.boyS = 400;
+  C39.boyX = 486; C39.boyY = 2966; C39.boyS = 400;
   C39.light = { key: -2.55, shade: 0.5, lift: 0.32 };
-  C39.yaw = 0.72;
+  C39.yaw = 0.86;
   // a second, cool rim from the streetlight: the band of the layer's own silhouette on the light side (union minus the union
   // shifted away from the light), tinted, laid inside the figure (source-atop).  box = the region the cel covers.
   function silRim(c, box, dir, w, col, alpha, key, fall) {
@@ -918,9 +918,35 @@
     c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.globalCompositeOperation = 'source-atop';
     let g = c.createRadialGradient(fx, fy, 170, fx, fy, 760); g.addColorStop(0, 'rgba(9,10,17,0)'); g.addColorStop(1, 'rgba(9,10,17,0.62)');
     c.fillStyle = g; c.fillRect(box.x, box.y, box.w, box.h);
+    // the neck under the bowed head falls into the jaw's shadow (its lit back edge comes back with the streetlight rim)
+    const nk = hd.neck, nx = nk[0] - 0.08 * C39.boyS, ny = nk[1] + 0.2 * C39.boyS;
+    g = c.createRadialGradient(nx, ny, 0, nx, ny, 0.42 * C39.boyS); g.addColorStop(0, 'rgba(14,12,20,0.5)'); g.addColorStop(0.6, 'rgba(14,12,20,0.36)'); g.addColorStop(1, 'rgba(14,12,20,0)');
+    c.fillStyle = g; c.fillRect(nx - 0.42 * C39.boyS, ny - 0.42 * C39.boyS, 0.84 * C39.boyS, 0.84 * C39.boyS);
     const bx = n[0] + 40, by = n[1] - 10;
     g = c.createRadialGradient(bx, by, 0, bx, by, 230); g.addColorStop(0, 'rgba(255,206,150,0.2)'); g.addColorStop(0.55, 'rgba(255,206,150,0.08)'); g.addColorStop(1, 'rgba(255,206,150,0)');
     c.fillStyle = g; c.fillRect(bx - 230, by - 230, 460, 460);
+    c.restore();
+  }
+  // his lips on the profile line: near profile the library's mouth is only a sliver at the edge of the face, so the opening
+  // between his lips is drawn here as a dark notch cut into the profile (inside his silhouette only), sized by the real take
+  // (PV.anime.mouth, on twos) and quivering where his voice breaks.  hd = head anchors, S = head size, u = local time on twos.
+  function c39profileMouth(c, hd, S, u, trem) {
+    const mo = PV.anime.mouth(C39.T0 + u, 'boy'), j = N2(u * 9.1, 4.7), j2 = N2(3.3, u * 11.3);
+    const open = Math.max(mo.open * 0.8, trem * (0.12 + 0.14 * (0.5 + 0.5 * j)));
+    if (open < 0.02) return;
+    const m = hd.mouth, no = hd.nose;
+    let ax = hd.chin[0] - hd.eyeL[0], ay = hd.chin[1] - hd.eyeL[1]; const al = Math.hypot(ax, ay) || 1; ax /= al; ay /= al;   // down the face
+    let ix = ay, iy = -ax; if (ix * (no[0] - m[0]) + iy * (no[1] - m[1]) > 0) { ix = -ix; iy = -iy; }                         // inward (the mouth line, away from the nose)
+    const h = open * 0.03 * S * (1 + 0.25 * trem * j2), sh = 0.003 * S * trem * j;
+    const ox = m[0] + ax * sh, oy = m[1] + ay * sh;
+    const A = [ox + ix * 0.028 * S, oy + iy * 0.028 * S];                                                  // the corner of the mouth (inside)
+    const U = [ox - ix * 0.07 * S - ax * h * 0.45, oy - iy * 0.07 * S - ay * h * 0.45], B = [ox - ix * 0.07 * S + ax * h * 0.55, oy - iy * 0.07 * S + ay * h * 0.55];
+    c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.globalCompositeOperation = 'source-atop';
+    c.beginPath(); c.moveTo(A[0], A[1]);
+    c.quadraticCurveTo(ox - ix * 0.02 * S - ax * h * 0.5, oy - iy * 0.02 * S - ay * h * 0.5, U[0], U[1]);   // upper lip
+    c.lineTo(B[0], B[1]);
+    c.quadraticCurveTo(ox - ix * 0.02 * S + ax * h * 0.62, oy - iy * 0.02 * S + ay * h * 0.62, A[0], A[1]);   // lower lip
+    c.closePath(); c.fillStyle = '#2b1416'; c.fill();
     c.restore();
   }
   // where his tear stream ends on the jaw (the library draws the stream; the drop that falls from it is drawn here)
@@ -989,6 +1015,7 @@
       const HIM = held('C39him', tq, (c) => {
         C39.boyInfo = PV.anime.figure(c, c39boyArgs(tq));
         const box = { x: 0, y: 0, w: 1400, h: H };
+        c39profileMouth(c, C39.boyInfo.head, C39.boyS, tq, 0.25 + 0.6 * c39brk(tq));
         c39boyLight(c, box, C39.boyInfo.head);
         silRim(c, box, -2.3, 4, '#d4e0ff', 0.5, 'C39', { x: 548, y: 250, r0: 200, r1: 900, min: 0.1 });
         return box;

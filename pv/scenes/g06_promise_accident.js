@@ -255,7 +255,7 @@
   const C20 = { tHit: 1.75, fLand: -1.45, fEnd: -0.8, camPitch: -0.03, cam: { cx: 1180, cy: 260, x: -220, y: 120, zoom: 0.32 },
     G: { hz: 560, hc: 4.86, f: 2059, cx: 960 },
     boy: { X: 2.24, Z: 16.47 },                                               // (his feet are below the frame: cut at the shins)
-    path: [[-12.6, 41.2], [-7.15, 35.35], [-4.09, 17.06], [0.38, 16.38]],   // her run (ground X, depth Z), a cubic Bézier
+    path: [[-12.6, 41.2], [-7.4, 35.2], [-4.9, 17.1], [-0.42, 16.4]],   // her run (ground X, depth Z), a cubic Bézier
     steps: [0.2, 0.56, 0.88, 1.16, 1.4, 1.6],                                  // heel clicks (audio/make_sfx_plan.py)
     bay: { hz: 560, wheelX: 330, wheelR: 112, cityX0: -40, cityX1: 1250, bridgeX0: 1290, bridgeX1: 2500, deck: 30, towerH: 215, towers: [1540, 2100], span: 240, scale: 1.045, scaleCx: 960, scaleCy: 560 } };
   const g20 = (X, Z) => { const G = C20.G, s = G.f / Z; return { x: G.cx + X * s, y: G.hz + G.hc * s, s }; };
@@ -355,6 +355,7 @@
     w.fillStyle = 'rgba(255,210,150,0.2)'; w.fillRect(-100, 662, W + 360, 1.5);
     w.restore();
     w.drawImage(c20Ground(), -C20M, 0);
+    ctx.fillStyle = '#070b1f'; ctx.fillRect(0, 0, W, H);   // (the sky's top colour: the push-in lowers the world's top edge)
     ctx.save();
     PV.camera(ctx, { zoom, cx: C20.cam.cx, cy: C20.cam.cy, x: camX, y: camY });
     ctx.imageSmoothingQuality = 'low';
@@ -377,19 +378,23 @@
       A.figure(ctx, Object.assign({}, common, { who: 'boy', outfit: 'uniform', costume: { shoes: 'loafer_dark' }, pose: 'hug', facing: C20.fLand,
         x: boyP.x, y: boyP.y, scale: boyP.s * 1.06,
         params: { headSide: 0, nod: lerp(0.12, 0.02, kk), lean: -0.04 * k, leanBack: 0.15 * k, dip: 0,
-          WL: lerpV([0.8, -3.55, 0.2], [0.95, -4.5, 0.5], k), WR: lerpV([-0.8, -3.55, 0.2], [-0.95, -4.5, 0.5], k),
+          WL: lerpV([0.8, -3.55, 0.2], [1.0, -4.35, 0.32], k), WR: lerpV([-0.8, -3.55, 0.2], [-1.0, -4.35, 0.32], k),
           poleL: [1, 0.2, -0.6], poleR: [-1, 0.2, -0.6],
-          handL: { f: lerpV([-0.1, 1, 0.16], [0.45, -0.25, 0.8], k), palm: lerpV([-1, 0, -0.3], [-0.4, -0.2, 0.9], k), curl: 0.3 - 0.1 * k, spread: 0.1 + 0.25 * k },
-          handR: { f: lerpV([0.1, 1, 0.16], [-0.45, -0.25, 0.8], k), palm: lerpV([1, 0, -0.3], [0.4, -0.2, 0.9], k), curl: 0.3 - 0.1 * k, spread: 0.1 + 0.25 * k } },
+          handL: { f: lerpV([-0.1, 1, 0.16], [0.6, 0.1, 0.6], k), palm: lerpV([-1, 0, -0.3], [-0.3, -0.1, 0.95], k), curl: 0.42, spread: 0.12 },
+          handR: { f: lerpV([0.1, 1, 0.16], [-0.6, 0.1, 0.6], k), palm: lerpV([1, 0, -0.3], [0.3, -0.1, 0.95], k), curl: 0.42, spread: 0.12 } },
         head: kk > 0.5 ? { expr: 'surprise', eyes: { look: [-0.2, -0.05] } } : { expr: 'neutral', eyes: { look: [-0.3, -0.1] } } }));
       // ---- her: the run (on twos): a bounce on every stride (the flight between the heel strikes), the arms open for the
       // leap on the last stride; a wide happy smile that reads at a distance
       const R = c20Her(tq), P = g20(R.X, R.Z), ph = c20Phase(tq);
       const fl = ((ph - 0.315) * 2 % 1 + 1) % 1, bob = 0.16 * Math.pow(Math.sin(PI * fl), 1.3) * P.s;
       groundShadow(ctx, P.x, P.y + 2, 0.8 * P.s, 0.14 * P.s, 0.5 - 0.15 * bob / P.s / 0.16);
+      // she leans into the run (toward where she is going on screen) and her body rolls a little with each stride
+      const tilt = 0.075 * Math.sin(R.facing) + 0.03 * Math.sin(TAU * (ph - 0.315));
+      ctx.save(); ctx.translate(P.x, P.y - bob); ctx.rotate(tilt); ctx.translate(-P.x, -(P.y - bob));
       A.figure(ctx, Object.assign({}, common, { who: 'senpai', outfit: 'dress_cardigan', pose: 'run', facing: R.facing, x: P.x, y: P.y - bob, scale: P.s,
-        params: { speed: 0, phase: ph, stride: 0.95, arms: tq >= 1.5 ? 'open' : undefined },
-        head: { expr: 'smile', eyes: { open: 1.02, smile: 0.3 }, mouth: { shape: 'smile', open: 0.5 }, blush: 0.45 } }));
+        params: { speed: 0, phase: ph, stride: 1.12, arms: tq >= 1.5 ? 'open' : undefined },
+        head: { expr: 'smile', eyes: { open: 1.02, smile: 0.38 }, mouth: { shape: 'smile', open: 0.55 }, blush: 0.45 } }));
+      ctx.restore();
     } else {
       // ---- the leap: she lands in his arms (legs kicked up, he leans back), the twirl brings his face round
       const u = tq - tHit, prog = sm(0, 1.15, u), tw = PV.ease.outCubic(clamp(u / 1.25));

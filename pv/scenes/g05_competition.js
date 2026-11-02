@@ -246,7 +246,7 @@
    * closes her eyes and breathes in, the shoulders rise. Camera: static -> slow push-in from the cough.
    */
   const C16 = { cough: 51.4 };
-  const CAM16 = { th: 0.86, ph: 0.15, x: 760, y: 1650, s: 430 };
+  const CAM16 = { th: 0.72, ph: 0.19, x: 820, y: 1570, s: 430 };
   const PAL16 = {   // the black lacquer in the white world: it mirrors the white (no outlines in this world: the ink is soft)
     side: '#17161c', top: '#3a3a44', inner: '#16151a', innerWall: '#1d1c22', plate: '#2c2722', strings: 'rgba(120,112,100,0.35)',
     lid: '#121116', lidEdge: '#2b2a32', lidRefl: '#d8dae2', lidReflA: 0.07, lidSheen: '#ffffff', lidSheenA: 0.08,
@@ -305,10 +305,10 @@
     const closeK = sm(52.42, 52.6, tq);                                        // ... with the eyes closed
     const frozen = 1 - sm(cough, cough + 0.5, T);
     const shallow = frozen * (0.5 + 0.5 * Math.sin(tq * TAU / 0.8));           // quick shallow breaths while frozen
-    const lookX = lerp(0.2, -0.22, eyeK), lookY = lerp(0.1, -0.02, eyeK) + 0.3 * closeK;
+    const lookX = lerp(0.08, -0.26, eyeK), lookY = lerp(0.06, -0.02, eyeK) + 0.3 * closeK;
     const open = closeK > 0 ? lerp(1.0, 0, closeK) : (lit ? 1.04 : 0.98) * blinkO;
     const head = {
-      expr: 'neutral', noBlink: true, turn: -0.3 * headK + 0.08 * inh,
+      expr: 'neutral', noBlink: true, turn: -0.1 * headK + 0.05 * inh,
       eyes: closeK > 0.5 ? { open: 0, closed: 'down', look: [0.1, 0.3] }
         : { open, look: [lookX, lookY], shine: lit ? 1 : 0.22, dull: lit ? 0 : 0.38, hlK: lit ? 1.12 : 0.78, wide: lit ? 0.12 * (1 - closeK) : 0 },
       brows: { inner: lerp(0.1, 0.34, sm(51.6, 51.9, tq)) - 0.18 * closeK, outer: lerp(-0.04, 0.06, sm(51.6, 51.9, tq)) },
@@ -319,8 +319,8 @@
     const fig = {
       who: 'senpai', outfit: 'dress', pose: 'g05_piano', facing: cam.th, camPitch: cam.ph, x: cam.x, y: cam.y, scale: cam.s, T,
       light: light16(k), keyDir: -2.45, rimDir: -2.2,
-      params: { intensity: 0, play: 0, look: 'keys', rel, trem: frozen * 0.8, lift: 0.04 * (1 - rel) + 0.012 * shallow + 0.05 * inh,
-        neckYaw: 0.06 * inh, neckPitch: lerp(0.02, -0.03, headK) + 0.1 * inh, bendAdd: -0.02 * inh },
+      params: { intensity: 0, play: 0, look: 'keys', rel, trem: frozen * 0.8, lift: 0.08 * (1 - rel) + 0.012 * shallow + 0.05 * inh,
+        neckYaw: -0.22 * headK + 0.08 * inh, neckRoll: 0.07 * headK, neckPitch: lerp(0.02, -0.03, headK) + 0.1 * inh, bendAdd: -0.02 * inh },
       head,
     };
     ctx.save();
@@ -337,7 +337,25 @@
     ctx.restore();
     motes16(ctx, tt, 1 - 0.6 * k);
     const pulse = Math.pow(0.5 + 0.5 * Math.cos((tt - 0.35) * TAU * 0.72), 6) * (1 - k);   // heartbeat in the tinnitus
-    ctx.save(); ctx.globalCompositeOperation = 'screen'; ctx.globalAlpha = clamp(0.4 * (1 - 0.55 * k) + 0.12 * pulse); ctx.drawImage(veil16(), 0, 0); ctx.restore();
+    ctx.save(); ctx.globalCompositeOperation = 'screen'; ctx.globalAlpha = clamp(0.3 * (1 - 0.55 * k) + 0.12 * pulse); ctx.drawImage(veil16(), 0, 0); ctx.restore();
+  } });
+
+  /* ---- TEMP dev sheet (removed before delivery): C16 variants side by side */
+  PV.shot('g05_dev16', { draw(ctx, t, d, S, env) {
+    ensurePose();
+    const q = new URLSearchParams(location.search), V = JSON.parse(q.get('v') || '[]');
+    ctx.fillStyle = '#f4f4f2'; ctx.fillRect(0, 0, W, H);
+    V.forEach((v, i) => {
+      ctx.save(); ctx.beginPath(); const cx = (i % 2) * 960, cy = Math.floor(i / 2) * 540; ctx.rect(cx, cy, 960, 540); ctx.clip(); ctx.translate(cx, cy); ctx.scale(0.5, 0.5);
+      ctx.drawImage(bg16(false), 0, 0);
+      const cam = gcam(v.th ?? 0.86, v.ph ?? 0.15, v.x ?? 760, v.y ?? 1650, v.s ?? 430);
+      pianoBack(ctx, cam, PAL16);
+      PV.anime.figure(ctx, { who: 'senpai', outfit: 'dress', pose: 'g05_piano', facing: cam.th, camPitch: cam.ph, x: cam.x, y: cam.y, scale: cam.s, T: v.T ?? 50.0, light: 'stage', keyDir: -2.45, rimDir: -2.2,
+        params: Object.assign({ intensity: 0, play: 0, look: 'keys' }, v.p || {}), head: Object.assign({ expr: 'neutral', noBlink: true, lightDir: -2.5, shade: 0.05 }, v.h || {}) });
+      pianoFront(ctx, cam, PAL16); pianoLid(ctx, cam, PAL16);
+      ctx.restore();
+      ctx.fillStyle = '#c00'; ctx.font = '20px monospace'; ctx.fillText(JSON.stringify(v).slice(0, 90), (i % 2) * 960 + 10, Math.floor(i / 2) * 540 + 24);
+    });
   } });
 
   /* ================================================================== C17 〈別れの曲〉

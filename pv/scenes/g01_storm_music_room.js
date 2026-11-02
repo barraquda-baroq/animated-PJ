@@ -576,13 +576,16 @@
       c.restore();
     };
     const r = Math.max(1.1, s * 0.018);
-    // forehead: above the brows, on the nose side of the eyes' middle (the part of the forehead that faces us)
-    const fx = mx + (ns[0] - mx) * 0.35, fy = my + (ns[1] - my) * 0.0;
-    drop(fx + ux * s * 0.2, fy + uy * s * 0.2, r, k);
-    drop(fx + ux * s * 0.27 - (ns[0] - mx) * 0.55, fy + uy * s * 0.27, r * 0.75, k * 0.85);
-    // near temple, at the hairline above the outer end of the near eye; it creeps down a little and is replaced (on twos)
-    const u = (q12(t) * 0.45) % 1, ox = eL[0] - (mx - eL[0]) * 0.55, oy = eL[1] - (my - eL[1]) * 0.55;
-    drop(ox + ux * s * (0.13 - 0.06 * u), oy + uy * s * (0.13 - 0.06 * u), r * 1.05, k * (1 - 0.5 * u));
+    // the face's forward direction in the picture (nose minus the eyes' middle, without its "up" part): 0 for a front view
+    let fx = ns[0] - mx, fy = ns[1] - my; const fu = fx * ux + fy * uy; fx -= ux * fu; fy -= uy * fu;
+    let sx = eR[0] - eL[0], sy = eR[1] - eL[1]; const sl = Math.hypot(sx, sy) || 1; sx /= sl; sy /= sl;
+    // two drops on the forehead just above the brows (between the bang tips), one a little higher and further back
+    const bx = ns[0] + ux * s * 0.27 - fx * 0.35, by = ns[1] + uy * s * 0.27 - fy * 0.35;
+    drop(bx, by, r, k);
+    drop(bx + ux * s * 0.06 - fx * 0.5 - sx * s * 0.07, by + uy * s * 0.06 - fy * 0.5 - sy * s * 0.07, r * 0.8, k * 0.85);
+    // one creeping down the near side of the forehead toward the temple, replaced every ~2 s (on twos); stays above the brows
+    const u = (q12(t) * 0.45) % 1;
+    drop(bx - fx * 0.9 - sx * s * 0.12 + ux * s * (0.05 - 0.04 * u), by - fy * 0.9 - sy * s * 0.12 + uy * s * (0.05 - 0.04 * u), r * 1.05, k * (1 - 0.5 * u));
   }
 
   /* ============================================================== C01 */
@@ -790,7 +793,7 @@
     blitZ(ctx, plate('c02girl', q + ':' + day, (c) => {
       PV.camera(c, { zoom: zq, cx: C02_F.x, cy: C02_F.y });
       const P = figPlace(R, BENCH, HER_DIR, 'senpai', 0.42), s = P.scale, Tq = T0 + q + day * 3.7;
-      const info = drawPianist(c, R, Tq, { intensity: 0.95, rimDir: -1.15, head: { expr: 'focus', brows: { furrow: 0.8, inner: -0.5 }, eyes: { open: 0.74, look: [0.42, 0.62] }, mouth: { shape: 'flat', open: 0 }, hair: c02HairWind(Tq, 0.95) } });
+      const info = drawPianist(c, R, Tq, { intensity: 0.95, rimDir: -1.15, head: { expr: 'focus', turn: -0.22, brows: { furrow: 0.8, inner: -0.5 }, eyes: { open: 0.74, look: [0.3, 0.62] }, mouth: { shape: 'flat', open: 0 }, hair: c02HairWind(Tq, 0.95) } });
       sweat(c, info && info.head, 1, q, 'window');
       return devBox(c, P.x - 3.8 * s, P.y - 5.0 * s, P.x + 4.4 * s, P.y + 2.6 * s);
     }), zq, zoom, C02_F.x, C02_F.y);
@@ -805,7 +808,7 @@
     // ---- foreground: the students (they stop coming one by one) and the curtain in shade
     const sp = C02_SP.map((s, i) => Object.assign({}, s, { a: 1 - sm(C02_DAYS[i] - 0.04, C02_DAYS[i] + 0.32, t) }));
     spectators(ctx, t, sp, 0.25 * e);
-    fgCurtain(ctx, t, 1545 + 22 * e);
+    fgCurtain(ctx, t, 1500 + 22 * e);
   } });
 
   /* ============================================================== C03 */
@@ -945,23 +948,19 @@
 
   /* ============================================================== C04 */
   // cut-local timing (absolute − 9.0): final chord 0.6, silence 1.0–1.5, rack focus from 1.3, claps 1.6/2.1/2.6,
-  // her back jumps at 2.8. The chord 9.6 s falls inside frame 230 -> cut-local frame 14 (0.583): the hail stops there
-  const C04 = { chord: 14 / 24 - 0.004, focus0: 1.3, focus1: 1.66, claps: [1.6, 2.1, 2.6], jump: 2.8, wave: 2300 };
-  const C04_F = { x: 760, y: 620 };
+  // her start at 2.8 (eyes wide). The chord 9.6 s falls inside frame 230 -> cut-local frame 14 (0.583): the hail stops there.
+  // The focus snaps back to her for her start (2.66 -> 2.82): her eyes must read when they open wide.
+  const C04 = { chord: 14 / 24 - 0.004, focus0: 1.3, focus1: 1.66, back0: 2.66, back1: 2.82, claps: [1.6, 2.1, 2.6], jump: 2.8, wave: 2300 };
+  const C04_F = { x: 960, y: 560 };
   // static camera (the rack focus is the move): every plate is painted at this zoom and blitted 1:1
   const C04_Z0 = 1.01, c04Drift = () => C04_Z0;
-  // the boy: drinking -> the straw leaves his mouth when the music stops -> the pack goes onto his thigh in the
-  // silence -> both hands up -> three small claps -> the hands sink a little
-  function c04Pose(t) {
-    const pk = 1.0 * sm(0.66, 0.98, t) + 1.0 * sm(1.02, 1.38, t);
-    const hold = 1 - sm(1.36, 1.44, t);
-    const rise = sm(1.4, 1.56, t);
-    let sep = 1;
-    for (const tc of C04.claps) { const u = t - tc; sep = Math.min(sep, u < 0 ? sm(0, 1, -u / 0.13) : sm(0, 1, u / 0.17)); }
-    sep = lerp(0.6, sep, rise);
-    const lift = (1 - sep) * 0.04 * rise;
-    const after = sm(2.75, 3.3, t);       // after the third clap the hands sink a little
-    return { pk, hold, sep: lerp(sep, 0.25, after), lift, rest: Math.max(1 - rise, after * 0.35) };
+  // the boy: drinking -> the straw leaves his mouth when the music stops (sip 1 -> 0, the pack comes down to his knee) -> he lets
+  // go of it (it stands on his thigh) -> both hands come up -> three small claps -> the hands sink a little. k blends the
+  // library's 'juice' and 'clap' poses (see juiceClapPose)
+  const C04_RELEASE = 1.22;
+  function c04Boy(t) {
+    const sip = 1 - sm(0.66, 1.18, t), hold = t < C04_RELEASE, rise = sm(1.28, 1.52, t), after = sm(2.78, 3.3, t);
+    return { sip, hold, k: rise * (1 - 0.3 * after) };
   }
   // the room is one held plate: until the focus pull it sits 9px out of focus (curtain motion would not read there),
   // and from the final chord on the world is meant to stand still with the hail
@@ -971,16 +970,27 @@
   function c04Piano(R) {
     if (!C04_PIANO) {
       const b = PV.makeCanvas(W, H), c = b.ctx; c.save(); PV.camera(c, { zoom: C04_Z0, cx: C04_F.x, cy: C04_F.y });
-      const pr = L.grandPiano(c, R.piano(PIANO.x, PIANO.z, PIANO.yaw, { lidOpen: 1, bench: false, rimLit: true }));
+      const pr = L.grandPiano(c, pianoOpts(R));
       const bb = pr && pr.bbox ? devBox(c, pr.bbox[0] - 80, pr.bbox[1] - 80, pr.bbox[2] + 80, pr.bbox[3] + 140) : [0, 0, W, H]; c.restore();
       C04_PIANO = { cv: b.canvas, box: [Math.max(0, Math.floor(bb[0])), Math.max(0, Math.floor(bb[1])), Math.min(W, Math.ceil(bb[2])), Math.min(H, Math.ceil(bb[3]))] };
     }
     return C04_PIANO;
   }
-  PV.shot('C04', { draw(ctx, tIn, d) {
-    const t = cutT(tIn, d);
-    const fk = PV.ease.inOutCubic(sm(C04.focus0, C04.focus1, t));     // rack focus: her back -> the boy
-    const bFar = lerp(9, 0, fk), bNear = lerp(0, 12, fk);
+  // where the pack stands on his thigh: his right hand at the moment he lets go of it (probe drawn once, off screen)
+  let C04_PACK = null;
+  function c04Pack(R, T0) {
+    if (!C04_PACK) {
+      const b = PV.buffer('g01:probe2', 64, 64);
+      const info = drawBoy(b.ctx, R, T0 + C04_RELEASE, { pose: G01_CLAP, params: { k: 0, sip: 0, hold: true } });
+      const P = figPlace(R, BOY_SEAT, BOY_DIR, 'boy', 0.5);
+      C04_PACK = { x: info.hands.R[0], y: info.hands.R[1] - P.scale * 0.05, h: P.scale * 0.34 };
+    }
+    return C04_PACK;
+  }
+  PV.shot('C04', { draw(ctx, tIn, d, S) {
+    const t = cutT(tIn, d), T0 = S ? S.start : 9.0;
+    const fk = PV.ease.inOutCubic(sm(C04.focus0, C04.focus1, t)), fb = PV.ease.inOutCubic(sm(C04.back0, C04.back1, t));   // rack focus: her -> the boy -> her
+    const bFar = lerp(9, 0, fk) + 6 * fb, bNear = 12 * fk * (1 - fb);
     const drift = c04Drift(t), q = q12(t), dq = C04_Z0;
     // ---------- far layer: the room (light, the pier's shade and the air baked in), the boy, the far hail
     const far = PV.buffer('g01:c04far'), fc = far.ctx;     // the room plate is opaque: no clear needed
@@ -993,12 +1003,19 @@
       c.restore();
     }), C04_Z0, drift, C04_F.x, C04_F.y);
     const R = roomR('c04');
+    const pack = c04Pack(R, T0);
+    // the boy, on twos: sipping -> the pack on his thigh -> three small claps; his face opens up (素直な顔) as he claps
     const P = plate('c04boy', q, (c) => {
       PV.camera(c, { zoom: dq, cx: C04_F.x, cy: C04_F.y });
-      const bs = R.project(BOY_SEAT), sc = ppmAt(R, BOY_SEAT) / 417, u = 92 * sc;
-      STAMP.c04hands = boyClapping(c, q, { x: bs[0], y: bs[1], scale: sc, pose: c04Pose(q), light: -1.45, rimColor: '#ffe6c2', rim: 0.85, backlight: 0.22, glow: 0.35, lean: 0.12, headTilt: 0.1 });
-      hazeOn(c, R, 0.8);
-      return devBox(c, bs[0] - 2.8 * u, bs[1] - 6.6 * u, bs[0] + 4.0 * u, bs[1] + 2.8 * u);
+      const B = c04Boy(q), Pp = figPlace(R, BOY_SEAT, BOY_DIR, 'boy', 0.5), s = Pp.scale;
+      const open = sm(1.3, 1.6, q);
+      const head = open > 0.5 ? { expr: 'gentle', eyes: { open: 0.95, look: [0.45, 0.05] }, blush: 0.12 } : { expr: 'neutral', eyes: { look: [0.45, 0.05] } };
+      const info = drawBoy(c, R, T0 + q, { pose: G01_CLAP, amb: 0.5, rimA: 0.55, params: { k: B.k, sip: B.sip, hold: B.hold, claps: C04.claps.map(x => T0 + x) }, head: Object.assign({ rim: 0.6 }, head) });
+      if (!B.hold) juicePack(c, pack.x, pack.y, pack.h, 'window', 0.04);
+      hazeOn(c, R, 0.6);
+      const m = c.getTransform(), hx = (info.hands.L[0] + info.hands.R[0]) / 2, hy = (info.hands.L[1] + info.hands.R[1]) / 2;
+      STAMP.c04hands = { x: m.a * hx + m.c * hy + m.e, y: m.b * hx + m.d * hy + m.f };
+      return devBox(c, Pp.x - 3.2 * s, Pp.y - 5.6 * s, Pp.x + 3.2 * s, Pp.y + 2.4 * s);
     });
     blitZ(fc, P, dq, drift, C04_F.x, C04_F.y);
     // where his hands are on screen (the plate was painted at zoom dq; it is shown at zoom `drift`)
@@ -1010,26 +1027,34 @@
     const HAIL_MID = { glint: 0.9, mode: 'field', seed: 45, n: 34, zr: [0.62, 0.85], vx: 820, size: 18, zFocus: 0.72, dof: 1.5, fall: 25, streak: 0.06, streakA: 0.75, freezeAt: C04.chord, unravel, moteAge };
     const HAIL_BEHIND = { glint: 0.9, mode: 'field', seed: 47, n: 110, zr: [0.8, 1.05], vx: 820, size: 21, zFocus: 0.9, dof: 1.5, fall: 25, streak: 0.06, streakA: 0.8, freezeAt: C04.chord, unravel, moteAge };
     const HAIL_LENS = { mode: 'field', seed: 46, n: 22, zr: [0.22, 0.4], vx: 820, size: 14, zFocus: 0.9, dof: 3, fall: 25, streak: 0.05, streakA: 0.5, freezeAt: C04.chord, unravel, moteAge, moteSize: 0.7 };
-    // ---------- near layer: the piano and her back
+    // ---------- near layer: the piano and her
     hail(fc, t, HAIL_FAR);
     const near = layer('c04near'), nc = near.ctx;
     blitZ(nc, c04Piano(R), C04_Z0, drift, C04_F.x, C04_F.y);
     hail(nc, t, HAIL_BEHIND);            // the hail around the piano, just behind her
-    // she plays the last passage cleanly, the final chord at 0.6, then breathes with her shoulders; 2.8 a small start
-    const bw = benchW(PIANO), bp0 = R.project(bw), ppm = ppmAt(R, bw);
+    // she plays the last passage cleanly, the final chord at 0.6 (her hands stay on the keys), then breathes with her shoulders,
+    // head bowed, lips parted; 2.8 a small start: the head comes up, the eyes open wide (surprise, weakened)
     const playing = (x) => 1 - sm(C04.chord - 0.06, C04.chord + 0.02, x);
-    const tq = Math.floor(t * 12) / 12;
-    const breath = sm(C04.chord, C04.chord + 0.25, tq) * (0.55 + 0.45 * Math.exp(-(tq - C04.chord) * 0.5)) * (0.5 - 0.5 * Math.cos(TAU * (tq - C04.chord) / 0.82));
-    // the start: up in 2 frames, then settles with a small overshoot
-    const ju = t - C04.jump, jump = ju <= 0 ? 0 : ju < 0.084 ? sm(0, 0.084, ju) : Math.exp(-(ju - 0.084) * 6) * Math.cos((ju - 0.084) * 14);
-    const gT = playing(q) > 0 ? q : C04.chord + 0.01, gI = 0.78 * playing(q);
-    const girl = plate('c04girl', gT + ':' + gI.toFixed(4), (c) => {
+    const breath = sm(C04.chord, C04.chord + 0.25, q) * (0.55 + 0.45 * Math.exp(-(q - C04.chord) * 0.5));
+    const st = sm(C04.jump - 0.02, C04.jump + 0.1, q);
+    const girl = plate('c04girl', q, (c) => {
       PV.camera(c, { zoom: dq, cx: C04_F.x, cy: C04_F.y });
-      return pianoGirl(c, gT, { x: bp0[0], y: bp0[1], scale: ppm / 418, intensity: gI, turn: -0.35, outfit: 'blouse', light: -1.3, rimColor: '#fff0d4', backlight: 0.42, glow: 0.5 });
+      const Pg = figPlace(R, BENCH, HER_DIR, 'senpai', 0.42), s = Pg.scale, pl = playing(q);
+      const pant = breath * (0.5 + 0.5 * Math.sin(q * TAU / 0.9));
+      const head = st > 0.5
+        ? { expr: 'surprise', eyes: { open: 1.12, wide: 0.12, look: [-0.25, -0.12] }, brows: { inner: 0.45, outer: 0.25, furrow: 0 }, mouth: { shape: 'o', open: 0.16 }, blush: 0.1, turn: -0.12 }
+        : pl > 0.5
+          ? { expr: 'focus', eyes: { open: 0.78, look: [0.3, 0.6] }, brows: { furrow: 0.35, inner: -0.25 }, mouth: { shape: 'flat', open: 0 }, turn: -0.12 }
+          : { expr: 'neutral', eyes: { open: 0.5, look: [0.25, 0.65] }, brows: { inner: 0.25, outer: -0.05, furrow: 0.1 }, mouth: { shape: 'a', open: 0.14 + 0.12 * pant }, turn: -0.12 };
+      head.hair = { wind: 0.06 + 0.25 * pl + 0.2 * st * (1 - sm(C04.jump + 0.1, C04.jump + 0.6, q)), windDir: Math.PI - 0.6 };
+      const info = drawPianist(c, R, T0 + q, { intensity: 0.55 * pl, play: pl, breathe: breath, look: st > 0.5 ? 'ahead' : 'keys', lean: 0.04 * breath, rimDir: -1.2, head });
+      sweat(c, info && info.head, 1, q, 'window');
+      return devBox(c, Pg.x - 3.6 * s, Pg.y - 5.0 * s, Pg.x + 4.4 * s, Pg.y + 2.6 * s);
     });
-    // breathing / the start: scale and lift about the bench (where she sits), applied to her plate
-    const bpx = C04_F.x + (bp0[0] - C04_F.x) * drift, bpy = C04_F.y + (bp0[1] - C04_F.y) * drift, kz2 = drift / dq;
-    nc.save(); nc.translate(bpx, bpy); nc.scale(1 + 0.004 * breath, 1 + 0.032 * breath + 0.035 * jump); nc.translate(0, -26 * jump); nc.translate(-bpx, -bpy);
+    // the start: up in 2 frames, then settles with a small overshoot (applied to her plate about the bench)
+    const ju = t - C04.jump, jump = ju <= 0 ? 0 : ju < 0.084 ? sm(0, 0.084, ju) : Math.exp(-(ju - 0.084) * 6) * Math.cos((ju - 0.084) * 14);
+    const bp0 = R.project(BENCH), bpx = C04_F.x + (bp0[0] - C04_F.x) * drift, bpy = C04_F.y + (bp0[1] - C04_F.y) * drift, kz2 = drift / dq;
+    nc.save(); nc.translate(bpx, bpy); nc.scale(1, 1 + 0.012 * jump); nc.translate(0, -18 * jump); nc.translate(-bpx, -bpy);
     nc.translate(C04_F.x, C04_F.y); nc.scale(kz2, kz2); nc.translate(-C04_F.x, -C04_F.y);
     { const gb = girl.box, gw = gb[2] - gb[0], gh = gb[3] - gb[1]; if (gw > 0 && gh > 0) nc.drawImage(girl.cv, gb[0], gb[1], gw, gh, gb[0], gb[1], gw, gh); }
     nc.restore();
