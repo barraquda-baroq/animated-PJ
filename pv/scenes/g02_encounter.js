@@ -1,12 +1,12 @@
-/* g02_encounter — ACT0 出会い〜ACT1 頭: C05 / C06 / C07 / C08
- *   C05 先輩の肩越し。日の当たる床を挟んで、窓間壁の陰に少年。「ねえ……どうして今日は拍手をくれたの」
- *       拍手のあと膝の上に置いたパック（C04 の終わり）を、彼女が問う間に取り上げてストローをくわえる
- *   C06 窓の光を背負う少年。ストローから口を離し「え？　だって、今のはミスなかったじゃん」→レースのカーテンが
- *       風をはらんで裾が舞い上がり、開いたひだから差す光が肩をなでる
+/* g02_encounter — ACT0 出会い〜ACT1 頭: C05 / C06 / C07 / C08 (characters: PV.anime — anime_head.js / anime_body.js)
+ *   C05 先輩の顔のアップ（3/4、窓の逆光）。息を切らしたまま、瞳を潤ませて「ねえ……どうして今日は拍手をくれたの」
+ *       （V01 口パク）。奥のボケの中、窓間壁の陰の彼が膝のパックを取り上げてストローをくわえる
+ *   C06 彼のバスト（3/4、窓の逆光）。ストローから口を離し「え？　だって、今のはミスなかったじゃん」（V02 口パク）、
+ *       きょとんとした顔から軽い半笑いへ→レースのカーテンが風をはらみ、開いたひだから差す光が肩をなでる
  *   C07 音符が金に変わって一斉に紙から剥がれ、光になって舞い上がる（五線だけが残って消える）→温かい白（周辺減光なし）
  *       →涙がスローで白鍵 A4 に落ち、鍵がわずかに沈んで光る→その一点から春の色が戻る
  *   C08 左右分割のセッション（左＝彼女の右手と鍵盤／右＝彼の左手と指板）。指使いは M4 の旋律どおり
- *       →継ぎ目がフレアに咲き、並ぶ二人の一枚絵（27.65〜28.0）へ
+ *       →継ぎ目がフレアに咲き、ピアノの先輩（左）とギターの彼（右）が顔を見合わせて笑う一枚の画（27.5〜28.0）へ
  * Event times are written in ABSOLUTE storyboard seconds and converted with the shot's real start, so the picture
  * stays locked to the sound even if the edit moves a cut (solo previews fall back to the storyboard start).
  */
@@ -56,8 +56,9 @@
   }
 
   /* =====================================================================================================
-   * C05 — 先輩's close-up, 3/4 from her right side, the windows behind her (back-light, rim on the far cheek and the
-   *        hair). Still out of breath after 〈雪あらし〉, eyes welling, she asks "ねえ……どうして今日は拍手をくれたの"
+   * C05 — 先輩's close-up, 3/4, turned to him (the boy deep on the other side of the frame), the windows behind her
+   *        (back-light: a soft rose shade on the face, a lit edge on the far cheek, the hair rimmed). Still out of breath
+   *        after 〈雪あらし〉, eyes welling, she asks "ねえ……どうして今日は拍手をくれたの"
    *        (V01, lip-synced). Behind her, out of focus in the pier's shade, the boy picks his juice up off his knee and
    *        drinks (C06 opens on the straw leaving his lips). The band of light with its dust crosses between them.
    * ===================================================================================================== */
@@ -65,9 +66,10 @@
   const C05_BOY = [4.95, 0.45, 0.9];        // seat (room metres): by the pier, where the sun does not reach
   // her: the neck point on screen, head size (px), body facing / head turn
   const C05_HER = { x: 600, y: 700, size: 500, facing: 0.62, turn: 0.08 };
-  // her figure: seated at the piano (hands in her lap), turned to him; the back-light from the windows behind her right
-  // shoulder (a rosy-lavender shade on the face, a lit edge along the far cheek, the hair rimmed)
-  // the window light, a little softer on her than the library's 'window' (the close face stays fair in its back-light shade)
+  // her figure: seated at the piano (hands in her lap), turned to him; back-lit by the windows on his side of the room.
+  // The light is the library's 'window' made a little softer (less ambient / exposure loss, a lavender shadow) so the close
+  // face stays fair in its back-light shade instead of going tan; shade 0.6 toward the light = the backlit-close-up recipe
+  // of the head API (face in shade, a lit sliver on the far cheek).
   const C05_LIGHT = Object.assign({}, PV.anime.LIGHT.window, { amb: 0.12, dark: 0.96, shadow: '#aaa6d4', sat: 0.8 });
   function c05HerArgs(T, p) {
     const base = { who: 'senpai', outfit: 'uniform', pose: 'piano', facing: C05_HER.facing * DIR, scale: C05_HER.size, T, light: C05_LIGHT,
@@ -89,18 +91,21 @@
     return (PROBES[key] = [nk[0], nk[1]]);
   }
   // the boy far behind her: the juice on his knee -> up to his lips while she asks (global seconds)
-  function c05Sip(T) { return sm(13.45, 14.3, T) * (1 - 0.06 * Math.max(0, Math.sin((T - 14.3) * 3.4)) * sm(14.3, 14.6, T)); }
-  // the out-of-focus room: painted sharp into a scratch buffer, then blurred at half resolution (edges clamped so the
+  function c05Sip(T) { return Math.round(sm(13.45, 14.3, T) * 40) / 40; }
+  // he is far and out of focus: his drawing changes only with the pack (cached by its position), drawn at the plate's base
+  // camera and moved with the drift when blitted
+  const C05_BOYQ = { key: null };
+  // the out-of-focus room: painted sharp into a scratch buffer, then blurred at quarter resolution (edges clamped so the
   // blur does not darken the frame border)
-  function blurPlate(src, px) {
-    const m = 8, hw = W / 2, hh = H / 2;
+  function blurPlate(src, px, div = 4) {
+    const m = 6, hw = W / div, hh = H / div;
     const hb = PV.buffer('g02:blurHalf', hw + 2 * m, hh + 2 * m), hc = hb.ctx;
     hc.clearRect(0, 0, hw + 2 * m, hh + 2 * m);
     hc.drawImage(src, 0, 0, W, H, 0, 0, hw + 2 * m, hh + 2 * m);       // stretched copy under the margins
     hc.drawImage(src, 0, 0, W, H, m, m, hw, hh);
     const ob = PV.buffer('g02:blurOut', hw + 2 * m, hh + 2 * m), oc = ob.ctx;
     oc.clearRect(0, 0, hw + 2 * m, hh + 2 * m); oc.filter = `blur(${px}px)`; oc.drawImage(hb.canvas, 0, 0); oc.filter = 'none';
-    return { canvas: ob.canvas, m };
+    return { canvas: ob.canvas, m, w: hw, h: hh };
   }
   PV.shot('C05', { draw(ctx, t, d, S) { drawC05(ctx, t, d, S); } });
   function drawC05(ctx, t, d, S) {
@@ -133,17 +138,21 @@
         c2.restore();
         L.glow(c2, p0[0] + pxm * 0.25, p0[1] - pxm * 1.05, pxm * 1.5, '#fff1d8', 0.42);
         c2.restore();
-        // the boy (seated by the pier, turned to her), drawn un-mirrored at his mirrored place
-        const Tq = absT(S, 'C05', q), cz = 1.035 + 0.006 * dq;
-        const bxs = 1050 + (p0[0] - 1050) * cz + bq, bys = 560 + (p0[1] - 560) * cz;
-        c2.save(); if (DIR < 0) c2.setTransform(1, 0, 0, 1, 0, 0);
-        A().figure(c2, { who: 'boy', outfit: 'uniform', pose: 'seated_chair', facing: -0.95 * DIR, x: DIR > 0 ? bxs : W - bxs, y: bys,
-          scale: pxm * 0.244 * cz, T: Tq, light: 'window', rimDir: sAng(-1.35), params: { variant: 'juice', sip: c05Sip(Tq), chair: true },
-          head: { rim: 0, expr: 'neutral', eyes: { look: [-0.4 * DIR, 0.05] } } });
-        c2.restore();
+        // the boy (seated by the pier, turned to her), drawn un-mirrored at his mirrored place (base camera, see C05_BOYQ)
+        const Tq = absT(S, 'C05', q), sip = c05Sip(Tq), cz0 = 1.035;
+        if (C05_BOYQ.key !== sip) {
+          C05_BOYQ.key = sip;
+          const bb = PV.buffer('g02:c05boy'), bc = bb.ctx; bc.clearRect(0, 0, W, H);
+          const bxs = 1050 + (p0[0] - 1050) * cz0, bys = 560 + (p0[1] - 560) * cz0;
+          A().figure(bc, { who: 'boy', outfit: 'uniform', pose: 'seated_chair', facing: -0.95 * DIR, x: sX(bxs), y: bys,
+            scale: pxm * 0.244 * cz0, T: 13.0, light: 'window', rimDir: sAng(-1.35), rimA: 0.5, params: { variant: 'juice', sip, chair: true },
+            head: { rim: 0, expr: 'neutral', noBlink: true, eyes: { look: [-0.4 * DIR, 0.05] } } });
+        }
       });
-      const bp = blurPlate(sb.canvas, 3.4);
-      c.drawImage(bp.canvas, bp.m, bp.m, W / 2, H / 2, 0, 0, W, H);
+      const k = (1.035 + 0.006 * dq) / 1.035, pvx = sX(1050);
+      sc.save(); sc.translate(pvx + DIR * bq, 560); sc.scale(k, k); sc.translate(-pvx, -560); sc.drawImage(PV.buffer('g02:c05boy').canvas, 0, 0); sc.restore();
+      const bp = blurPlate(sb.canvas, 1.7);
+      c.drawImage(bp.canvas, bp.m, bp.m, bp.w, bp.h, 0, 0, W, H);
     }), 0, 0);
     // the band of light that crosses between them + dust riding in it
     const bx = sX(1000) + bgX * 1.6;                         // band centre at mid-height (between them)
@@ -166,8 +175,7 @@
     g.addColorStop(0, 'rgba(40,28,22,0)'); g.addColorStop(1, 'rgba(40,28,22,0.42)');
     ctx.fillStyle = g; ctx.fillRect(0, H * 0.74, W, H * 0.26);
 
-    // her: out of breath, slowly calming (breathing slows ~0.95 -> 0.7 Hz; phase integrated so it never stutters)
-    const calm = sm(0, d, tt);
+    // her: out of breath, slowly calming (the seated pose's heavy-breathing shoulders, fading over the line)
     const fig = onTwos('c05her', tt, 1 / 24, (c, q) => {
       const Tq = absT(S, 'C05', q);
       // the acting (global seconds; V01: "ねえ" 12.64–12.9, "……", "どうして今日は" 13.6–14.4, "拍手を" 14.85–15.5, "くれたの" 15.55–15.95)
@@ -193,236 +201,9 @@
   }
 
   /* =====================================================================================================
-   * shared drawing prims (ported from figures.js so the close-up boy matches the library's character design)
-   * ===================================================================================================== */
-  function spline(c, pts, closed, move = true) {
-    const n = pts.length; if (n < 2) return;
-    const P = (i) => (closed ? pts[((i % n) + n) % n] : pts[Math.max(0, Math.min(n - 1, i))]);
-    if (move) c.moveTo(pts[0][0], pts[0][1]); else c.lineTo(pts[0][0], pts[0][1]);
-    const m = closed ? n : n - 1;
-    for (let i = 0; i < m; i++) {
-      const p0 = P(i - 1), p1 = P(i), p2 = P(i + 1), p3 = P(i + 2);
-      const s1 = p1[2] ? 0 : 1 / 6, s2 = p2[2] ? 0 : 1 / 6;
-      c.bezierCurveTo(p1[0] + (p2[0] - p0[0]) * s1, p1[1] + (p2[1] - p0[1]) * s1, p2[0] - (p3[0] - p1[0]) * s2, p2[1] - (p3[1] - p1[1]) * s2, p2[0], p2[1]);
-    }
-    if (closed) c.closePath();
-  }
-  const blob = (c, pts) => { c.beginPath(); spline(c, pts, true); c.fill(); };
-  const rot = (p, a) => [p[0] * Math.cos(a) - p[1] * Math.sin(a), p[0] * Math.sin(a) + p[1] * Math.cos(a)];
-  const add = (a, b) => [a[0] + b[0], a[1] + b[1]];
-  const mix2 = (a, b, k) => [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k];
-  function ik(a, c, l1, l2, bend) {
-    const dx = c[0] - a[0], dy = c[1] - a[1]; let D = Math.hypot(dx, dy); D = clamp(D, Math.abs(l1 - l2) + 1e-4, l1 + l2 - 1e-4);
-    const base = Math.atan2(dy, dx), cosA = (l1 * l1 + D * D - l2 * l2) / (2 * l1 * D);
-    const an = base + bend * Math.acos(clamp(cosA, -1, 1)); return [a[0] + Math.cos(an) * l1, a[1] + Math.sin(an) * l1];
-  }
-  // tapered limb a->b with end radii r0,r1 and a mid bulge
-  function limbSeg(c, a, b, r0, r1, bulge = 0) {
-    const dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy) || 1e-6, ux = dx / l, uy = dy / l, nx = uy, ny = -ux;
-    const rm = (r0 + r1) / 2 + bulge, m = [a[0] + dx * 0.45, a[1] + dy * 0.45];
-    c.beginPath();
-    c.moveTo(a[0] + nx * r0, a[1] + ny * r0);
-    c.quadraticCurveTo(m[0] + nx * rm * 1.02, m[1] + ny * rm * 1.02, b[0] + nx * r1, b[1] + ny * r1);
-    c.arc(b[0], b[1], r1, Math.atan2(ny, nx), Math.atan2(-ny, -nx), false);
-    c.quadraticCurveTo(m[0] - nx * rm, m[1] - ny * rm, a[0] - nx * r0, a[1] - ny * r0);
-    c.arc(a[0], a[1], r0, Math.atan2(-ny, -nx), Math.atan2(ny, nx), false);
-    c.closePath(); c.fill();
-  }
-  // boy head in profile (facing +x, head-centre origin) — figures.js headProfile(boy) + boyHairSide
-  const BOY_FACE = [[-0.04, -0.54], [0.22, -0.49], [0.37, -0.32], [0.41, -0.1], [0.405, -0.02], [0.475, 0.13, 1], [0.41, 0.19], [0.405, 0.27], [0.375, 0.34], [0.37, 0.42], [0.3, 0.47], [0.1, 0.45], [-0.06, 0.33], [-0.3, 0.2], [-0.45, -0.05], [-0.4, -0.33]];
-  function boyHairPts(t, W, wd, sd, tl) {
-    const wx = Math.cos(wd) * W, wy = Math.sin(wd) * W;
-    const G = { 0: 0.45, 1: 0.45, 2: 0.5, 3: 0.75, 4: 0.75, 5: 0.7 };
-    const tf = (i, x, y, k = 1) => {
-      const n = PV.noise2(sd + i * 1.7, t * 1.4), m = PV.noise2(sd + 30 + i * 0.9, t * 0.9), g = (G[i] || 0) * tl, cg = Math.cos(-g), sg = Math.sin(-g);
-      const bx = x * 0.72, by = y * 0.72, dx = x - bx, dy = y - by;
-      return [bx + dx * cg - dy * sg + wx * (0.06 + 0.03 * n) * k + 0.008 * m, by + dx * sg + dy * cg + wy * 0.05 * k + 0.02 * n * Math.min(1, W) * k, 1];
-    };
-    return [[0.16, -0.62], [0.34, -0.53], [0.45, -0.38], [0.475, -0.22], tf(0, 0.475, -0.01, 0.5), [0.43, -0.1], tf(1, 0.44, 0.05, 0.4), [0.39, -0.04],
-      [0.28, -0.12], [0.17, -0.09], tf(2, 0.1, 0.19, 0.3), [0.03, 0.06], [-0.1, 0.1], [-0.15, 0.25], tf(3, -0.17, 0.47, 0.8), [-0.25, 0.36],
-      tf(4, -0.33, 0.49, 1.0), [-0.4, 0.33], tf(5, -0.5, 0.42, 1.1), [-0.56, 0.17], [-0.62, -0.05], [-0.635, -0.26], [-0.6, -0.45],
-      tf(7, -0.5, -0.66, 0.8), [-0.38, -0.66], [-0.18, -0.695], [0.02, -0.68]];
-  }
-  // ---- the seated boy, side view (the same boy as g01's C04: same proportions, hair and silhouette pipeline via
-  // L.figureRender). boySeated only has the fixed 'juice' pose; this one can pick the pack up from his thigh, where he
-  // set it down to clap at the end of C04, and bring it to his mouth.
-  const BOY = { torso: 2.42, neck: 0.74, head: 1.06, upArm: 1.3, foreArm: 1.12, hand: 0.82, armR: 0.155, thigh: 1.95, shin: 1.88, legR: 0.3, waistH: 0.8 };
-  const S_UPARM = [[0, 0.155, 0.155], [0.2, 0.15, 0.128], [0.5, 0.122, 0.112], [1, 0.09, 0.088]];
-  const S_FOREARM = [[0, 0.09, 0.088], [0.25, 0.1, 0.094], [0.82, 0.074, 0.07], [0.85, 0.058, 0.056], [1, 0.055, 0.054]];
-  const S_TTHIGH = [[0, 0.38, 0.38], [0.5, 0.31, 0.29], [1, 0.242, 0.236]];
-  const S_TSHIN = [[0, 0.242, 0.236], [0.6, 0.226, 0.222], [1, 0.222, 0.22]];
-  function smoothPoly(c, P, move) {
-    const n = P.length; if (move) c.moveTo(P[0][0], P[0][1]); else c.lineTo(P[0][0], P[0][1]);
-    for (let i = 1; i < n - 1; i++) c.quadraticCurveTo(P[i][0], P[i][1], (P[i][0] + P[i + 1][0]) / 2, (P[i][1] + P[i + 1][1]) / 2);
-    c.lineTo(P[n - 1][0], P[n - 1][1]);
-  }
-  function limb(c, p0, p1, prof, n = 14) {
-    const dx = p1[0] - p0[0], dy = p1[1] - p0[1], l = Math.hypot(dx, dy) || 1e-6, ux = dx / l, uy = dy / l, ax = uy, ay = -ux;
-    const at = (f) => { for (let i = 0; i < prof.length - 1; i++) if (f <= prof[i + 1][0]) { const a = prof[i], b = prof[i + 1]; const k = clamp((f - a[0]) / ((b[0] - a[0]) || 1)); const e = k * k * (3 - 2 * k); return [lerp(a[1], b[1], e), lerp(a[2], b[2], e)]; } const z = prof[prof.length - 1]; return [z[1], z[2]]; };
-    const A = [], B = [];
-    for (let i = 0; i <= n; i++) { const f = i / n, w = at(f), px = p0[0] + dx * f, py = p0[1] + dy * f; A.push([px + ax * w[0], py + ay * w[0]]); B.push([px - ax * w[1], py - ay * w[1]]); }
-    const ang = Math.atan2(uy, ux), w0 = at(0), w1 = at(1), r1 = (w1[0] + w1[1]) / 2, o1 = (w1[0] - w1[1]) / 2, r0 = (w0[0] + w0[1]) / 2, o0 = (w0[0] - w0[1]) / 2;
-    c.beginPath(); smoothPoly(c, A, true);
-    c.arc(p1[0] + ax * o1, p1[1] + ay * o1, Math.max(1e-4, r1), ang - PI / 2, ang + PI / 2, false);
-    smoothPoly(c, B.reverse(), false);
-    c.arc(p0[0] + ax * o0, p0[1] + ay * o0, Math.max(1e-4, r0), ang + PI / 2, ang + 1.5 * PI, false);
-    c.closePath(); c.fill();
-  }
-  const scaleP = (P, k) => P.map(([f, a, b]) => [f, a * k, b * k]);
-  const dirDeg = (p, deg, len) => [p[0] + Math.sin(deg * PI / 180) * len, p[1] + Math.cos(deg * PI / 180) * len];
-  function local(c, p, a, k, fn) { c.save(); c.translate(p[0], p[1]); c.rotate(a); c.scale(k, k); fn(c); c.restore(); }
-  function boyRig(lean, headTilt) {
-    const P = [-0.3, -0.3], up = [Math.sin(lean), -Math.cos(lean)];
-    const F = (x, h) => [P[0] - up[1] * x + up[0] * h, P[1] + up[0] * x + up[1] * h];
-    const N = F(0, BOY.torso), S = F(-0.04, BOY.torso - 0.27), nl = lean + 0.14;
-    const nt = [N[0] + Math.sin(nl) * BOY.neck * 0.42, N[1] - Math.cos(nl) * BOY.neck * 0.42];
-    const ht = lean * 0.5 + headTilt;
-    const head = [nt[0] + Math.sin(ht) * BOY.neck * 0.5 + Math.cos(ht) * 0.03, nt[1] - Math.cos(ht) * BOY.neck * 0.5 + Math.sin(ht) * 0.03];
-    return { P, up, F, N, S, nt, ht, head, Lt: BOY.torso };
-  }
-  const headPt = (R, p) => { const c = Math.cos(R.ht), s = Math.sin(R.ht), k = BOY.head; return [R.head[0] + (p[0] * c - p[1] * s) * k, R.head[1] + (p[0] * s + p[1] * c) * k]; };
-  function boyHeadSide(c, t, R) {
-    c.save(); c.translate(R.head[0], R.head[1]); c.rotate(R.ht); c.scale(BOY.head, BOY.head);
-    blob(c, BOY_FACE);                                        // profile (no lips: the face is never acted)
-    blob(c, boyHairPts(t, 0, PI, 3, R.ht));                   // slightly long, messy hair: bangs over the eyes, tufts at the nape
-    c.restore();
-  }
-  function boyTorsoSide(c, R) {
-    const F = R.F, Lt = R.Lt;
-    blob(c, [F(-0.17, Lt + 0.16), F(-0.25, Lt - 0.05), F(-0.42, 1.78), F(-0.4, 1.25), F(-0.31, 0.82), F(-0.36, 0.36), F(-0.43, 0.02), F(-0.34, -0.32),
-      F(0.2, -0.32), F(0.32, 0.08), F(0.33, 0.52), F(0.32, 0.88), F(0.37, 1.32), F(0.41, 1.62), F(0.35, 1.98), F(0.19, Lt - 0.04), F(0.16, Lt + 0.16)]);
-    blob(c, [F(-0.44, -0.12, 1), F(-0.4, 0.85), F(-0.42, 1.7), F(0.0, Lt), F(0.4, 1.6), F(0.38, 0.85), F(0.4, -0.1, 1), F(0, -0.16)]);  // loose shirt
-    const N = R.N, nt = R.nt; c.beginPath(); c.moveTo(N[0] - 0.2, N[1]); c.lineTo(nt[0] - 0.18, nt[1]); c.lineTo(nt[0] + 0.2, nt[1]); c.lineTo(N[0] + 0.22, N[1]); c.closePath(); c.fill();
-  }
-  function shoeSide(c) { blob(c, [[-0.12, -0.06], [-0.2, 0.08], [-0.2, 0.27, 1], [0.1, 0.29], [0.7, 0.29], [0.86, 0.24], [0.83, 0.12], [0.58, 0.04], [0.3, -0.02], [0.08, -0.08]]); }
-  function schoolChair(c) {
-    c.beginPath(); c.roundRect(-0.85, -0.02, 1.72, 0.12, 0.04); c.fill();
-    const leg = (a, b) => limb(c, a, b, [[0, 0.045, 0.045], [1, 0.04, 0.04]], 3);
-    leg([-0.78, 0.08], [-0.82, 2.0]); leg([0.76, 0.08], [0.8, 2.0]); leg([-0.82, 0.1], [-0.92, -1.75]);
-    c.beginPath(); c.roundRect(-1.0, -1.72, 0.2, 0.62, 0.05); c.fill(); leg([-0.8, 1.55], [0.8, 1.55]);
-  }
-  function handOpenSide(c) {    // an open hand from the thumb side, fingers together, relaxed
-    blob(c, [[0, -0.1], [0.18, -0.13], [0.36, -0.12], [0.55, -0.1], [0.7, -0.07], [0.78, -0.02], [0.77, 0.03], [0.62, 0.07], [0.42, 0.1], [0.2, 0.11], [0, 0.09]]);
-    limb(c, [0.06, -0.06], [0.3, -0.16], [[0, 0.06, 0.06], [1, 0.042, 0.042]], 4);
-  }
-  function handGripSide(c) {    // a hand closed round the juice pack (thumb side)
-    blob(c, [[-0.02, -0.1], [0.12, -0.14], [0.24, -0.12], [0.3, -0.04], [0.3, 0.06], [0.24, 0.12], [0.1, 0.13], [-0.02, 0.09]]);
-    limb(c, [0.06, -0.08], [0.22, -0.2], [[0, 0.055, 0.055], [1, 0.04, 0.04]], 4);
-  }
-  // the 200ml pack: x/y = centre (rig units), a = tilt; the straw comes out of the top toward `to` (or stands up)
-  function juicePackSide(c, x, y, a, to) {
-    local(c, [x, y], a, 1, (cc) => { cc.beginPath(); cc.roundRect(-0.13, -0.22, 0.26, 0.44, 0.03); cc.fill(); });
-    const top = [x + Math.sin(a) * 0.22 + Math.cos(a) * 0.06, y - Math.cos(a) * 0.22 + Math.sin(a) * 0.06];
-    const end = to || [top[0] + Math.cos(a - 1.9) * 0.3, top[1] + Math.sin(a - 1.9) * 0.3];
-    c.lineWidth = 0.035; c.beginPath(); c.moveTo(top[0], top[1]); c.lineTo(end[0], end[1]); c.stroke();
-  }
-  // o: x, y (seat top), scale, flip, light, rimColor, rim, backlight, glow, lean, headTilt,
-  //    pose {rest 0..1 (hands on the lap), hold 0..1 (his near hand on the pack), pk 0..2 (the pack: 0 at his mouth,
-  //          1 at his chest, 2 standing on his thigh)}
-  function boySeatedSip(ctx, t, o) {
-    const cl = o.pose, drink = clamp(1 - cl.pk);
-    const lean = (o.lean === undefined ? 0.1 : o.lean) - 0.08 * drink + 0.01 * Math.sin(t * 1.4);
-    const R = boyRig(lean, (o.headTilt === undefined ? 0.08 : o.headTilt) - 0.14 * drink);   // chin up while he drinks
-    const P = R.P, KN = dirDeg(P, 84, BOY.thigh), AN = dirDeg(KN, 18, BOY.shin), KF = dirDeg(P, 78, BOY.thigh * 0.97), AF = dirDeg(KF, -6, BOY.shin);
-    const mouth = headPt(R, [0.43, 0.2]);
-    const atMouth = [mouth[0] + 0.2, mouth[1] + 0.42], atChest = R.F(0.62, 1.45), onThigh = add(mix2(P, KN, 0.62), [0, -0.52]);
-    const pk = clamp(cl.pk, 0, 2), e1 = PV.ease.inOutCubic(clamp(pk)), e2 = PV.ease.inOutCubic(clamp(pk - 1));
-    const packP = pk <= 1 ? mix2(atMouth, atChest, e1) : mix2(atChest, onThigh, e2);
-    const packA = pk <= 1 ? lerp(-0.42, -0.1, e1) : lerp(-0.1, 0.05, e2);
-    // both hands rest together on his lap after the applause; the near one goes to the pack
-    const C = mix2(R.F(0.9, 1.5), add(KN, [-0.55, -0.42]), cl.rest);
-    const Wf = add(C, [0.1, -0.05]);
-    const grip = [packP[0] - 0.12, packP[1] + 0.08];
-    const Wn = mix2(add(C, [-0.06, -0.02]), grip, cl.hold);
-    const Sf = add(R.S, [0.06, -0.02]);
-    const Ef = ik(Sf, Wf, BOY.upArm, BOY.foreArm, 1), En = ik(R.S, Wn, BOY.upArm, BOY.foreArm, 1);
-    const k = BOY.armR / 0.125;
-    L.figureRender(ctx, o, null, (F) => {
-      F.layer({ fill: F.tone(0.06) }, (c) => {            // far side: chair, far leg, far arm (resting)
-        schoolChair(c);
-        limb(c, P, KF, scaleP(S_TTHIGH, 1)); limb(c, KF, AF, scaleP(S_TSHIN, 1)); local(c, AF, 0, 1.08, shoeSide);
-        limb(c, Sf, Ef, scaleP(S_UPARM, k)); limb(c, Ef, Wf, scaleP(S_FOREARM, k));
-        local(c, Wf, Math.atan2(Wf[1] - Ef[1], Wf[0] - Ef[0]) - 0.3, BOY.hand / 0.78, handOpenSide);
-      });
-      F.layer({ inner: 0.35 }, (c) => {                    // near leg, body, head
-        limb(c, P, KN, scaleP(S_TTHIGH, 1)); limb(c, KN, AN, scaleP(S_TSHIN, 1)); local(c, AN, -0.04, 1.08, shoeSide);
-        blob(c, [R.F(-0.42, BOY.waistH), R.F(-0.46, 0.05), R.F(-0.32, -0.36), KN, R.F(0.35, 0.12), R.F(0.34, BOY.waistH)]);
-        boyTorsoSide(c, R); boyHeadSide(c, t, R);
-      });
-      F.layer({ fill: F.tone(0.12, '#c9b48e'), inner: 0.5 }, (c) => {   // the juice pack (a touch lighter than him)
-        juicePackSide(c, packP[0], packP[1], packA, pk < 0.35 ? mouth : null);
-      });
-      F.layer({ inner: 0.6 }, (c) => {                     // near arm across the body
-        limb(c, R.S, En, scaleP(S_UPARM, k)); limb(c, En, Wn, scaleP(S_FOREARM, k));
-        const ha = Math.atan2(Wn[1] - En[1], Wn[0] - En[0]);
-        if (cl.hold > 0.5) local(c, Wn, ha - 0.2, BOY.hand / 0.78, handGripSide);
-        else local(c, Wn, ha + 0.15, BOY.hand / 0.78, handOpenSide);
-      });
-    });
-  }
-  // C05: after the applause he settles his hands on his lap; while she asks, he picks up the pack and drinks
-  // (absolute seconds: she speaks 12.65-16.47; C06 opens on him with the straw still in his mouth)
-  function c05BoyPose(T) {
-    const rest = lerp(0.35, 1, sm(12.55, 13.15, T));
-    const hold = sm(13.3, 13.55, T);
-    const up = sm(13.6, 14.0, T) + sm(13.95, 14.4, T);               // thigh -> chest -> mouth
-    const sip = 0.04 * Math.max(0, Math.sin((T - 14.4) * 3.6)) * sm(14.4, 14.7, T);
-    return { rest, hold, pk: Math.max(0, 2 - up) + sip };
-  }
-  // the boy, waist-up close-up, profile facing +x. origin = neck base. p: {t, tilt, arm 0(sipping)..1(lowered), breath, wind}
-  function boyCloseUp(F, p) {
-    const tilt = p.tilt, br = p.breath || 0, HS = 1.12;
-    const neckTop = [0.03, -0.26];
-    const hc = add(neckTop, rot([0.04, -0.4], tilt));                 // head centre
-    const toHead = (q) => add(hc, rot([q[0] * HS, q[1] * HS], tilt));
-    const mouth = toHead([0.43, 0.24]);
-    const S = [-0.06, 0.36 - br * 0.02];                               // shoulder joint
-    // the juice pack: at the mouth (straw in) -> lowered to the chest
-    const k = p.arm;
-    const pkSip = add(mouth, rot([0.36, 0.4], tilt * 0.5)), pkLow = [0.92, 1.0];
-    const arc = Math.sin(Math.PI * k) * 0.14;
-    const pk = add(mix2(pkSip, pkLow, k), [arc, 0]);
-    const pkAng = lerp(-0.28 + tilt * 0.4, -0.12, k);
-    const Wr = add(pk, rot([-0.06, 0.26], pkAng));
-    const E = ik(S, Wr, 1.3, 1.12, 1);
-    F.layer({ inner: 0.0 }, (c) => {
-      // shirt torso (sitting tall, relaxed): trapezius slope, shoulder blade, chest; the collar stands round the neck
-      blob(c, [[-0.17, -0.1], [-0.36, 0.04], [-0.53, 0.3], [-0.6, 0.72], [-0.6, 1.25], [-0.55, 1.9], [-0.5, 2.6], [-0.53, 3.5, 1], [0.48, 3.5, 1], [0.44, 2.6], [0.46 + br * 0.02, 1.8],
-        [0.53 + br * 0.03, 1.2], [0.54 + br * 0.03, 0.75], [0.44, 0.33], [0.3, 0.08, 1], [0.19, -0.06]]);
-      c.beginPath(); c.moveTo(-0.28, 0.0); c.lineTo(-0.22, -0.17); c.lineTo(0.12, -0.15); c.lineTo(0.31, 0.09); c.closePath(); c.fill();   // collar band
-      limbSeg(c, [0.0, 0.04], add(neckTop, rot([-0.03, -0.14], tilt)), 0.2, 0.185);   // neck
-      // the head is one shape with the neck: against the window it is pure silhouette (inner lines at the jaw and
-      // the sideburns read as stray strokes on the dark head); the outline and its rim carry the hair
-      c.save(); c.translate(hc[0], hc[1]); c.rotate(tilt); c.scale(HS, HS);
-      blob(c, BOY_FACE); blob(c, boyHairPts(p.t, p.wind || 0, Math.PI, 4, tilt));
-      c.restore();
-    });
-    F.layer({ inner: 0.75 }, (c) => {
-      // upper arm (deltoid on top), forearm, gripping hand, the pack and its straw
-      limbSeg(c, S, E, 0.235, 0.16, 0.02);
-      limbSeg(c, E, Wr, 0.16, 0.11, 0.025);
-      c.save(); c.translate(pk[0], pk[1]); c.rotate(pkAng);
-      c.beginPath(); c.roundRect(-0.15, -0.25, 0.3, 0.5, 0.035); c.fill();                    // carton
-      c.beginPath(); c.moveTo(-0.15, -0.25); c.lineTo(0.0, -0.31); c.lineTo(0.15, -0.25); c.closePath(); c.fill(); // gable top
-      c.restore();
-      // straw: from the carton top toward the lips (sipping) or standing up (lowered)
-      const top = add(pk, rot([0.06, -0.29], pkAng));
-      const sDir = lerp(Math.atan2(mouth[1] - top[1], mouth[0] - top[0]), -Math.PI / 2 - 0.25, k);
-      const sLen = lerp(Math.hypot(mouth[0] - top[0], mouth[1] - top[1]) + 0.03, 0.3, k);
-      c.lineWidth = 0.035; c.lineCap = 'round'; c.beginPath(); c.moveTo(top[0], top[1]); c.lineTo(top[0] + Math.cos(sDir) * sLen, top[1] + Math.sin(sDir) * sLen); c.stroke();
-      // fingers wrapped round the carton (knuckles toward the camera side), thumb over the front
-      c.save(); c.translate(pk[0], pk[1]); c.rotate(pkAng);
-      blob(c, [[-0.21, 0.0], [-0.13, -0.07], [0.0, -0.085], [0.12, -0.06], [0.185, 0.0], [0.17, 0.08], [0.2, 0.12], [0.18, 0.18], [0.2, 0.22], [0.15, 0.27], [0.0, 0.29], [-0.13, 0.27], [-0.21, 0.17]]);
-      for (const [y, r] of [[-0.02, 0.05], [0.07, 0.048], [0.155, 0.045], [0.235, 0.04]]) { c.beginPath(); c.ellipse(0.17, y, r * 0.8, r, 0, 0, TAU); c.fill(); }  // finger tips round the carton front
-      c.beginPath(); c.ellipse(0.13, -0.09, 0.075, 0.05, -0.5, 0, TAU); c.fill();   // thumb over the top
-      c.restore();
-    });
-    return { hc, mouth, pk, S, E, Wr };
-  }
-
-  /* =====================================================================================================
-   * C06 — the boy against the window light, at the edge of the pier's shade. The straw leaves his lips;
-   *        "え？ だって、今のはミスなかったじゃん" — the curtain fills with wind and light strokes his shoulder.
+   * C06 — 彼's bust, 3/4, at the edge of the pier's shade, the curtained window behind him on the light side. The straw
+   *        leaves his lips; "え？ だって、今のはミスなかったじゃん" (V02, lip-synced) from a blank, puzzled face into an easy
+   *        half-smile — the curtain fills with wind (18.6) and a beam of sun strokes his shoulder.
    * ===================================================================================================== */
   const C06_PIER = 1440;                 // screen x where the window ends and the pier (shade) begins
   const C06_SILL = 742;                  // screen y of the window sill
@@ -629,10 +410,10 @@
       const smile = sm(17.75, 18.45, Tq);                                            // the easy half-smile grows while he says it
       const gq = sm(18.35, 18.75, Tq) * (1 - sm(19.0, 19.75, Tq));
       const lp = lips(Tq, 'boy', 0);
-      const o = c06BoyArgs(Tq, { sip: lerp(0.7, 0.34, lowerK), nod: 0.02 - 0.06 * eh + 0.07 * nod - 0.02 * jan, tilt: 0.03 * jan * DIR },
+      const o = c06BoyArgs(Tq, { sip: lerp(0.7, 0.34, lowerK), nod: 0.08 - 0.1 * eh + 0.07 * nod - 0.02 * jan, tilt: 0.03 * jan * DIR },
         { expr: smile > 0.5 ? 'gentle' : 'neutral', talk: lp.talk, mouth: Object.assign({ asym: -0.75 * smile }, lp.mouth || {}),
-          eyes: { look: [0.3 * -DIR, -0.04], open: lerp(1, 0.84, smile) + 0.22 * eh },
-          brows: { inner: 0.3 * eh + 0.1 * smile, outer: 0.25 * eh }, blush: 0.06 + 0.06 * smile, hair: { wind: 0.08 + 0.6 * gq, windDir: sAng(0) } });
+          eyes: { look: [0.3 * -DIR, -0.04 - 0.05 * eh], open: lerp(1, 0.84, smile) + 0.4 * eh },
+          brows: { inner: 0.5 * eh + 0.1 * smile, outer: 0.45 * eh }, blush: 0.06 + 0.06 * smile, hair: { wind: 0.08 + 0.6 * gq, windDir: sAng(0) } });
       info = withSipPose(() => A().figure(c, o));
       if (info && info.head && info.head.mouth) juiceInHand(c, { wrist: info.hands.R, mouth: info.head.mouth, s: C06_BOY.size, k: lowerK, light: C05_LIGHT, side: DIR });
     });
@@ -646,9 +427,9 @@
     const beam = sweep > 0 && sweep < 1 ? Math.pow(Math.sin(PI * sweep), 1.2) : 0;
     let beamFn = null, beamBox = null, beamLine = null;
     if (beam > 0 && J) {
-      // between his shoulders, nearer the near one (the window-side one hides behind his chest in 3/4)
-      const sL = J.shoulders.L, sR = J.shoulders.R, nearS = (sL[0] - sR[0]) * DIR > 0 ? sL : sR, farS = nearS === sL ? sR : sL;
-      const sx = lerp(farS[0], nearS[0], 0.62), sy = lerp(farS[1], nearS[1], 0.62) + 6;
+      // over his near shoulder (the window-side one hides behind his chest in 3/4)
+      const sL = J.shoulders.L, sR = J.shoulders.R, nearS = (sL[0] - sR[0]) * DIR > 0 ? sL : sR;
+      const sx = nearS[0] + 0.04 * C06_BOY.size * DIR, sy = nearS[1] - 0.02 * C06_BOY.size;
       const bxp = sx + DIR * lerp(-150, 190, PV.ease.inOutCubic(sweep));            // where the beam crosses the shoulder line
       const ang = sAng(0.92);                                                         // beam direction (down, away from the window)
       beamLine = [bxp, sy + 10, ang];
@@ -1221,27 +1002,32 @@
       }
     });
   }
-  // the two of them at global time T (on twos) into a buffer the size of the frame, in the plate's own coordinates
-  function c08Pair(c, T) {
+  // the two of them at global time T (on twos), each into its own frame-size buffer in the plate's coordinates (he repaints
+  // on even frames, she on odd ones: one figure per frame)
+  function c08Him(c, T) {
     c08WidePlate();
-    const P = C08_PLACE, look = sm(27.5, 27.7, T), smile = sm(27.6, 27.86, T), hisSmile = sm(27.58, 27.8, T);
-    const L8 = C05_LIGHT;
-    // 彼 on the chair at the right, the school acoustic on his thigh, turned to her
-    A().figure(c, { who: 'boy', outfit: 'uniform', pose: 'seated_chair', facing: -0.86, camPitch: 0.05, x: P.him.x, y: P.him.y, scale: P.him.pxm * 0.244, T, light: L8,
+    const P = C08_PLACE, look = sm(27.5, 27.7, T), hisSmile = sm(27.58, 27.8, T);
+    // 彼 on the chair at the right, the school acoustic on his thigh, turned to her; his laugh closes the eyes into crescents
+    A().figure(c, { who: 'boy', outfit: 'uniform', pose: 'seated_chair', facing: -0.86, camPitch: 0.05, x: P.him.x, y: P.him.y, scale: P.him.pxm * 0.244, T, light: C05_LIGHT,
       rimDir: -1.75, params: { variant: 'guitar', headDown: -0.22 * look, strum: 0.4 },
-      head: { expr: hisSmile > 0.5 ? 'smile' : 'neutral', turn: -0.12 * look, eyes: { look: [-0.6, 0.05] }, lightDir: -1.9, shade: 0.5, faceLift: 1, rim: 0.8 } });
-    // 先輩 at the piano (her back to us, facing the keys), her head turned over her right shoulder to him
-    A().figure(c, { who: 'senpai', outfit: 'uniform', pose: 'piano', facing: PI - 0.5, camPitch: 0.05, x: P.her.x, y: P.her.y, scale: P.her.pxm * 0.23, T, light: L8,
+      head: { expr: hisSmile > 0.5 ? 'smile' : 'gentle', turn: -0.12 * look, eyes: { look: [-0.6, 0.05] }, mouth: { shape: 'smile', open: 0.28 * hisSmile }, blush: 0.2 + 0.12 * hisSmile,
+        lightDir: -1.3, shade: 0.07, faceLift: 1, rim: 0.8 } });
+  }
+  function c08Her(c, T) {
+    c08WidePlate();
+    const P = C08_PLACE, look = sm(27.5, 27.7, T), smile = sm(27.6, 27.86, T);
+    // 先輩 at the piano (her back to us, facing the keys), her head turned over her right shoulder to him; the full smile
+    A().figure(c, { who: 'senpai', outfit: 'uniform', pose: 'piano', facing: PI - 0.38, camPitch: 0.05, x: P.her.x, y: P.her.y, scale: P.her.pxm * 0.23, T, light: C05_LIGHT,
       rimDir: -1.35, params: { intensity: 0.3, keys: false, bench: true, look: 'ahead' },
-      head: { expr: smile > 0.5 ? 'smile' : 'gentle', turn: -1.0 * lerp(0.7, 1, look), eyes: { look: [0.5, 0.05] }, lightDir: -1.5, shade: 0.5, faceLift: 1, rim: 0.8,
-        hair: { wind: 0.3, windDir: PI * 0.95 } } });
+      head: { expr: smile > 0.5 ? 'smile' : 'gentle', turn: -1.08 * lerp(0.7, 1, look), eyes: { look: [0.5, 0.05], smile: 0.55 * smile }, mouth: { shape: 'smile', open: 0.32 * smile }, blush: 0.25 + 0.15 * smile,
+        lightDir: -1.6, shade: 0.07, faceLift: 1, rim: 0.8, hair: { wind: 0.3, windDir: PI * 0.95 } } });
   }
   function c08Wide(ctx, T, lt) {
     const k = clamp((lt - 5.45) / 0.6);
-    const fig = onTwos('c08pair', T, 0, (c, q) => c08Pair(c, q));
+    const him = onTwos('c08him', T, 0, (c, q) => c08Him(c, q)), her = onTwos('c08her', T, 1 / 24, (c, q) => c08Her(c, q));
     ctx.save(); PV.camera(ctx, { zoom: 1.055 - 0.035 * PV.ease.outCubic(k), cx: 920, cy: 600 });
     ctx.drawImage(c08WidePlate(), 0, 0);
-    ctx.drawImage(fig, 0, 0);
+    ctx.drawImage(him, 0, 0); ctx.drawImage(her, 0, 0);
     ctx.restore();
     // the window light between them, dust turning in it
     L.glow(ctx, 1000, 330, 760, '#fff6e4', 0.42);
@@ -1285,53 +1071,4 @@
   } });
 
 
-  /* TEMP dev variants (removed before delivery) */
-  PV.g02devVariants = [];
-  {
-    const T0 = 14.1;
-    const bgv = (c) => { c.fillStyle = PV.linGrad(c, 0, 0, 480, 0, [[0, '#b39a7e'], [0.6, '#e0d2bc'], [1, '#f6eee0']]); c.fillRect(0, 0, 480, H); };
-    const her = (o) => (c, t) => { bgv(c); const T = T0 + t;
-      A().figure(c, Object.assign({ who: 'senpai', outfit: 'uniform', pose: 'stand', facing: 0.62, x: 200, y: 690 + 6.12 * 440, scale: 440, T, light: 'window', rimDir: -0.55, wind: 0.22, windDir: PI * 0.98,
-        params: { weight: 0.15, armBend: 0.15, tilt: 0.06 } }, o, { head: Object.assign({ expr: 'teary', turn: 0.05, eyes: { tears: 0.45, look: [0.42, -0.2] }, talk: true }, o.head || {}) })); };
-    // juice hand prototypes: carton + hands.js hand (back view, gripping)
-    const carton = (c, x, y, h, tilt, light) => {
-      const mB = PV.anime.mat('carton_band', light), mW = PV.anime.mat('carton', light);
-      const w = h * 0.58, dx = h * 0.22, dy = -h * 0.12, lw = Math.max(1, PV.anime.inkW(h * 2.2) * 0.8);
-      c.save(); c.translate(x, y); c.rotate(tilt); c.lineJoin = 'round';
-      const quad = (pts, fill) => { c.beginPath(); pts.forEach((p, i) => (i ? c.lineTo(p[0], p[1]) : c.moveTo(p[0], p[1]))); c.closePath(); c.fillStyle = fill; c.fill(); };
-      const x0 = -w / 2, x1 = w / 2, y0 = -h / 2, y1 = h / 2;
-      quad([[x1, y0], [x1 + dx, y0 + dy], [x1 + dx, y1 + dy], [x1, y1]], mB.shade);
-      quad([[x0, y0], [x1, y0], [x1, y1], [x0, y1]], mB.base);
-      for (const [a, b] of [[0.06, 0.3], [0.58, 0.78]]) {
-        quad([[x0, y0 + h * a], [x1, y0 + h * a], [x1, y0 + h * b], [x0, y0 + h * b]], mW.base);
-        quad([[x1, y0 + h * a], [x1 + dx, y0 + h * a + dy], [x1 + dx, y0 + h * b + dy], [x1, y0 + h * b]], mW.shade);
-      }
-      quad([[x0, y0], [x0 + dx, y0 + dy], [x1 + dx, y0 + dy], [x1, y0]], mB.hi);
-      c.strokeStyle = mB.line; c.lineWidth = lw; c.beginPath();
-      c.moveTo(x0, y1); c.lineTo(x0, y0); c.lineTo(x0 + dx, y0 + dy); c.lineTo(x1 + dx, y0 + dy); c.lineTo(x1 + dx, y1 + dy); c.lineTo(x1, y1); c.closePath(); c.moveTo(x1, y0); c.lineTo(x1, y1); c.moveTo(x0, y0); c.lineTo(x1, y0); c.stroke();
-      c.restore();
-    };
-    const hv = (o) => (c, t) => { c.fillStyle = '#d8c6b0'; c.fillRect(0, 0, 480, H);
-      carton(c, 240 + (o.cx || 0), 520 + (o.cy || 0), 170, o.tilt || 0, 'window');
-      L.hand(c, Object.assign({ x: 240, y: 700, rot: 0, scale: 1.3, side: 'R', kind: 'him', view: 'back', curl: [0.5, 0.6, 0.65, 0.7, 0.75], spread: 0.05, arm: 120, keyColor: '#fff3dc', fillColor: '#e2b8a6', tint: 0.5 }, o.h || {})); };
-    const fv = (o) => (c, t) => { c.fillStyle = '#d8c6b0'; c.fillRect(0, 0, 480, H);
-      carton(c, 240 + (o.cx || 0), 470 + (o.cy || 0), 170, o.tilt || 0, 'window');
-      L.handFist(c, Object.assign({ x: 240, y: 700, rot: 0, scale: 1.25, side: 'R', kind: 'him', clench: 0.55, shake: 0, arm: 120, keyColor: '#fff3dc', fillColor: '#e2b8a6', tint: 0.5 }, o.h || {})); };
-    PV.g02devVariants.push(fv({ h: { rot: -0.2 } }));
-    PV.g02devVariants.push(fv({ h: { view: 'side', yaw: 0, pitch: 0, rot: 0 } }));
-    PV.g02devVariants.push(fv({ h: { view: 'side', yaw: 0.3, pitch: 0.2, rot: -0.15, clench: 0.4 } }));
-    PV.g02devVariants.push(fv({ h: { view: 'back', yaw: 0.2, pitch: 0.1, rot: -1.4, clench: 0.5 }, cy: 60 }));
-  }
-
-})();
-/* TEMP g02 dev: variant comparison (removed before delivery) */
-(function () {
-  const PV = window.PV, W = PV.W, H = PV.H;
-  PV.shot('g02dev', { draw(ctx, t) {
-    const v = PV.g02devVariants || [];
-    ctx.fillStyle = '#c8b49c'; ctx.fillRect(0, 0, W, H);
-    const n = v.length, cw = W / Math.max(1, n);
-    v.forEach((fn, i) => { ctx.save(); ctx.beginPath(); ctx.rect(i * cw, 0, cw, H); ctx.clip(); ctx.translate(i * cw, 0); const t0 = performance.now(); fn(ctx, t); const dt = performance.now() - t0; ctx.restore();
-      ctx.save(); ctx.font = '22px monospace'; ctx.fillStyle = '#fff'; ctx.shadowColor = '#000'; ctx.shadowBlur = 4; ctx.fillText(i + ': ' + dt.toFixed(1) + ' ms', i * cw + 12, 30); ctx.restore(); });
-  } });
 })();

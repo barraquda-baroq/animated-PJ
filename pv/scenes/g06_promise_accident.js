@@ -1,13 +1,17 @@
 // g06_promise_accident — C20〜C24（約束の夜 → 事故の朝 → 病室）
-//   C20 夜の臨海公園：駆けてくる先輩、64.75秒に胸へ飛び込む（暖色の光の爆発とレンズの光の帯）→ 回り込み
+//   C20 夜の臨海公園：ドレス＋カーディガンの先輩が笑顔でこちらへ駆けてくる（顔が見える。ヒールの足音＝踏み込み）。
+//       64.75秒に彼の胸へ飛び込み（暖色の光の爆発とレンズの光の帯）、勢いで二人が半回転して受け止める彼の顔が見える
+//       （驚き→柔らかく）→ 回り込み＋寄り。人物は PV.anime（アニメ調の線画＋セル塗り）
 //   C21 並んで座る二人の手元（逆光の夜の肌、夜景の光が指を縁取る）：『ねえ……』の二音に合わせて指が動き、深く絡まる
-//   C22 芝生に並んで座る二人の後ろ姿（先輩は左）。74.0秒に頭が肩へ
+//   C22 芝生に並んで座る二人を斜め前から（C33・C42 と同じカメラ：facing -0.42 / camPitch 0.2。先輩は彼の左＝画面右）。
+//       V05 を照れた笑顔で口パク → 二人の目が合う → 74.0秒に頭が肩へ（目を閉じて微笑む）、彼は照れて目を逸らす
 //   C23 秋の朝・冷たい逆光。白いブラウスの肩紐を握る右手（C01・C03と同じ位置と大きさ、白い袖）。頭の中の旋律を
 //       小指→人差し指で弾き、F#5へ伸びた小指は下りない。77.7秒にフロントガラスの反射、78.2秒に白く焼ける
 //   C24 純白（デジタル無音・周辺減光なし）→ 80.5秒に白い天井の陰影へ解像 → 窓（C02の音楽室の構図、ピアノだけがない）
 //       → 82.3秒からティルトダウンしてシーツの上のギプスの右腕へ
-// 描画速度：重い静的部分は一度だけ描いてキャッシュ、柔らかい光とぼけは低解像度で一回だけ合成、C20〜C23 は全入力を
-// 1/12秒に量子化して「2コマ打ち」で同じ絵を2フレーム使う（onTwos）。
+// 描画速度：重い静的部分は一度だけ描いてキャッシュ、柔らかい光とぼけは低解像度で一回だけ合成。C21・C23 は全入力を
+// 1/12秒に量子化して「2コマ打ち」で同じ絵を2フレーム使う（onTwos）。C20・C22 は人物の芝居・水面・光を2コマ打ち
+// （全体時刻を量子化して PV.anime に渡す）、カメラだけ毎フレーム（24fps）で動かし、人物は毎フレームそのカメラで描く。
 (function () {
   'use strict';
   const PV = window.PV, L = PV.lib, W = PV.W, H = PV.H, PI = Math.PI, TAU = PI * 2;
@@ -155,9 +159,12 @@
     soft.ctx.drawImage(sharp.canvas, 0, 0, W, hz + 8, 0, 0, W, hz + 8); soft.ctx.filter = 'none';
     // the far lights as one static, slightly drifting bokeh layer is drawn per shot (they twinkle); return the lights
     // for the water's reflections, mapped through the same pre-scale
-    soft.canvas.getContext('2d').getImageData(0, 0, 1, 1);   // rasterise now (not on first use mid-shot)
+    // rasterise now (not on first use mid-shot); the mean colour of the top rows continues the sky above the frame when a
+    // camera move lowers the picture's top edge
+    const top = soft.ctx.getImageData(0, 2, W, 2).data; let r = 0, g = 0, b = 0; for (let i = 0; i < top.length; i += 4) { r += top[i]; g += top[i + 1]; b += top[i + 2]; }
+    const n = top.length / 4, skyTop = `rgb(${Math.round(r / n)},${Math.round(g / n)},${Math.round(b / n)})`;
     // (o.scale pre-scales only the image; the water is drawn under the same scale by the caller, from the raw lights)
-    return (bayCache[key] = { img: soft.canvas, lights: far.concat(near, br, fw), hz });
+    return (bayCache[key] = { img: soft.canvas, lights: far.concat(near, br, fw), hz, skyTop });
   }
   // the water, every light reflected — redrawn per frame at half resolution inside its band only
   // (rect: the band in device px of the target, which may carry a transform)
@@ -312,8 +319,9 @@
       L.bokeh(c, 0, { seed: 2002, count: 5, rmin: 70, rmax: 130, x0: 1500, x1: 2000, y0: 1000, y1: 1160, alpha: 0.22, mode: 'lighter', colors: ['#d0a246', '#c8701c', '#c2456e'] });
     });
   }
-  // the water with every light reflected, on twos: painted at half resolution into its own buffer once per drawing
-  function c20Water(tq, B) {
+  // the water with every light reflected and the far lights' bokeh, on twos: painted at half resolution into their own
+  // buffer once per drawing (the camera's parallax then only moves the buffer)
+  function c20Water(tq, B, hug) {
     const q = 0.5, b = PV.buffer('g06:c20water', Math.ceil((W + 160) * q), Math.ceil(H * q));
     if (c20Water.k !== tq) {
       c20Water.k = tq; const c = b.ctx; c.clearRect(0, 0, b.canvas.width, b.canvas.height);
@@ -321,33 +329,36 @@
       c.setTransform(q, 0, 0, q, 0, 0); c.translate(960, 560); c.scale(1.045, 1.045); c.translate(-960, -560);
       L.nightWater(c, tq, { horizonY: B.hz + 3, y1: 730, lights: B.lights, seed: 63, glow: 0.55 });
       c.restore();
+      c.save(); c.setTransform(q, 0, 0, q, 0, 0);
+      L.bokeh(c, tq, { seed: 2003, count: 34, rmin: 14, rmax: 46, x0: -40, x1: W + 40, y0: 380, y1: 600, alpha: 0.3 + 0.15 * hug, mode: 'lighter', colors: ['#d98a2e', '#e8b25a', '#fff1d6', '#d2607e', '#d98a2e'], vx: 0 });
+      c.restore();
     }
     return b.canvas;
   }
   PV.shot('C20', { draw(ctx, t, d, S) {
     const tc = clamp(t, 0, d), tq = q12(tc);
-    drawC20(ctx, tc, tq, absT(S, 'C20', tq), d);
+    // before the impact the camera is locked off, so both frames of a drawing are the same picture: draw it once and reuse
+    // it (the film grain still changes per frame in post); from the impact on, the camera moves every frame
+    if (tc < C20.tHit - 1e-6) onTwos(ctx, 'C20pre', tq, () => drawC20(ctx, tq, tq, absT(S, 'C20', tq), d));
+    else drawC20(ctx, tc, tq, absT(S, 'C20', tq), d);
   } });
   function drawC20(ctx, tc, tq, Tq, d) {
     const A = AN(), { tHit } = C20;
     const hit = tq >= tHit - 1e-6;
-    // camera (24 fps): static wide, the impact felt as a small push, then a slow orbit (parallax) and push-in to the faces
+    // camera (24 fps): locked off, the impact felt as a small push, then a slow orbit (parallax) and push-in to the faces
     const orb = PV.ease.inOut(clamp((tc - 1.95) / (d - 1.95)));
     const bump = tc >= tHit ? 0.014 * Math.exp(-(tc - tHit) / 0.16) : 0;
-    const zoom = 1 + 0.012 * sm(0, tHit, tc) + C20.cam.zoom * orb + bump, camX = C20.cam.x * orb, camY = C20.cam.y * orb;
+    const zoom = 1 + C20.cam.zoom * orb + bump, camX = C20.cam.x * orb, camY = C20.cam.y * orb;
     // warmth (on twos, it belongs to the drawing): a burst at the impact (M11's climax), then a held glow
     const burst = hit ? Math.exp(-Math.pow((tq - (tHit + 0.1)) / 0.34, 2)) : 0, hug = 0.45 * sm(tHit, tHit + 0.6, tq) + 0.55 * burst;
     // ---- the world behind them at zoom 1, each layer with its own parallax (per frame: smooth)
     const WB = PV.buffer('g06:c20world', W + 160, H), w = WB.ctx;
-    const B = bayStatic('c20bay', C20.bay, 3.2), bx = 46 * orb;
+    const B = bayStatic('c20bay', C20.bay, 3.2), bx = Math.round(46 * orb);   // (whole pixels: plain blits, no resampling)
     w.fillStyle = '#070b1f'; w.fillRect(0, 0, W + 160, H);
     w.drawImage(B.img, bx, 0);
-    w.save(); w.imageSmoothingEnabled = true; w.imageSmoothingQuality = 'low'; w.drawImage(c20Water(tq, B), 0, 0, (W + 160) * 0.5, H * 0.5, bx, 0, W + 160, H); w.restore();
-    w.save(); w.translate(bx, 0);
-    L.bokeh(w, tq, { seed: 2003, count: 34, rmin: 14, rmax: 46, x0: -40, x1: W + 40, y0: 380, y1: 600, alpha: 0.3 + 0.15 * hug, mode: 'lighter', colors: ['#d98a2e', '#e8b25a', '#fff1d6', '#d2607e', '#d98a2e'], vx: 0 });
-    w.restore();
+    w.save(); w.imageSmoothingEnabled = true; w.imageSmoothingQuality = 'low'; w.drawImage(c20Water(tq, B, hug), 0, 0, (W + 160) * 0.5, H * 0.5, bx, 0, W + 160, H); w.restore();
     // promenade edge + railing silhouette
-    w.save(); w.translate(22 * orb, 0);
+    w.save(); w.translate(Math.round(22 * orb), 0);
     w.fillStyle = '#0b1020'; w.fillRect(-100, 716, W + 360, 16);
     w.fillStyle = 'rgba(200,170,190,0.25)'; w.fillRect(-100, 716, W + 360, 2);
     w.fillStyle = '#070a14'; w.fillRect(-100, 662, W + 360, 5);
@@ -355,7 +366,7 @@
     w.fillStyle = 'rgba(255,210,150,0.2)'; w.fillRect(-100, 662, W + 360, 1.5);
     w.restore();
     w.drawImage(c20Ground(), -C20M, 0);
-    ctx.fillStyle = '#070b1f'; ctx.fillRect(0, 0, W, H);   // (the sky's top colour: the push-in lowers the world's top edge)
+    ctx.fillStyle = B.skyTop; ctx.fillRect(0, 0, W, H);   // (the sky's top colour: the push-in lowers the world's top edge)
     ctx.save();
     PV.camera(ctx, { zoom, cx: C20.cam.cx, cy: C20.cam.cy, x: camX, y: camY });
     ctx.imageSmoothingQuality = 'low';
@@ -380,8 +391,8 @@
         params: { headSide: 0, nod: lerp(0.12, 0.02, kk), lean: -0.04 * k, leanBack: 0.15 * k, dip: 0,
           WL: lerpV([0.8, -3.55, 0.2], [1.0, -4.35, 0.32], k), WR: lerpV([-0.8, -3.55, 0.2], [-1.0, -4.35, 0.32], k),
           poleL: [1, 0.2, -0.6], poleR: [-1, 0.2, -0.6],
-          handL: { f: lerpV([-0.1, 1, 0.16], [0.6, 0.1, 0.6], k), palm: lerpV([-1, 0, -0.3], [-0.3, -0.1, 0.95], k), curl: 0.42, spread: 0.12 },
-          handR: { f: lerpV([0.1, 1, 0.16], [-0.6, 0.1, 0.6], k), palm: lerpV([1, 0, -0.3], [0.3, -0.1, 0.95], k), curl: 0.42, spread: 0.12 } },
+          handL: { f: lerpV([-0.1, 1, 0.16], [0.6, 0.1, 0.6], k), palm: lerpV([-1, 0, -0.3], [-0.3, -0.1, 0.95], k), curl: lerp(0.55, 0.4, k), spread: 0.1 },
+          handR: { f: lerpV([0.1, 1, 0.16], [-0.6, 0.1, 0.6], k), palm: lerpV([1, 0, -0.3], [0.3, -0.1, 0.95], k), curl: lerp(0.55, 0.4, k), spread: 0.1 } },
         head: kk > 0.5 ? { expr: 'surprise', eyes: { look: [-0.2, -0.05] } } : { expr: 'neutral', eyes: { look: [-0.3, -0.1] } } }));
       // ---- her: the run (on twos): a bounce on every stride (the flight between the heel strikes), the arms open for the
       // leap on the last stride; a wide happy smile that reads at a distance
@@ -393,7 +404,7 @@
       ctx.save(); ctx.translate(P.x, P.y - bob); ctx.rotate(tilt); ctx.translate(-P.x, -(P.y - bob));
       A.figure(ctx, Object.assign({}, common, { who: 'senpai', outfit: 'dress_cardigan', pose: 'run', facing: R.facing, x: P.x, y: P.y - bob, scale: P.s,
         params: { speed: 0, phase: ph, stride: 1.12, arms: tq >= 1.5 ? 'open' : undefined },
-        head: { expr: 'smile', eyes: { open: 1.02, smile: 0.38 }, mouth: { shape: 'smile', open: 0.55 }, blush: 0.45 } }));
+        head: { expr: 'smile', noBlink: true, eyes: { open: 1.02, smile: 0.38 }, mouth: { shape: 'smile', open: 0.55 }, blush: 0.45 } }));
       ctx.restore();
     } else {
       // ---- the leap: she lands in his arms (legs kicked up, he leans back), the twirl brings his face round
@@ -612,12 +623,12 @@
     groundShadow(ctx, P.x + 10, P.y + 6, 2.3 * P.s, 0.32 * P.s, 0.6);
     const her = lean > 0.45
       ? { expr: 'closed', blush: 0.55, mouth: { shape: 'smile', open: 0 } }
-      : { expr: 'gentle', talk: true, blush: 0.42 + 0.12 * turn, eyes: { open: lerp(0.78, 0.95, turn), look: [lerp(0.05, -0.35, turn), lerp(0.42, -0.05, turn)] } };
+      : { expr: 'gentle', talk: true, blush: 0.42 + 0.12 * turn, eyes: { open: lerp(0.78, 0.95, turn), look: [lerp(-0.3, -0.35, turn), lerp(0.45, -0.05, turn)] } };
     const him = away > 0.5
       ? { expr: 'gentle', blush: 0.55, eyes: { open: 1.0, look: [-0.65, 0.25] }, mouth: { shape: 'smile', open: 0, asym: -0.8 } }
-      : { expr: 'neutral', blush: 0.15 + 0.22 * glance, eyes: { open: 1.1, look: [lerp(-0.1, 0.45, glance), lerp(0.15, 0.12, glance)] }, mouth: { shape: 'smile', open: 0, asym: -0.6 * glance } };
+      : { expr: 'neutral', blush: 0.15 + 0.22 * glance, eyes: { open: 1.1, look: [lerp(-0.45, 0.45, glance), lerp(0.08, 0.12, glance)] }, mouth: { shape: 'smile', open: 0, asym: -0.6 * glance } };
     A.pair(ctx, { pose: 'sit_side', x: P.x, y: P.y, scale: P.s, facing: C22.facing, camPitch: C22.camPitch, T: Tq, light: 'night', rimDir: -2.3,
-      wind: 0.3, windDir: PI,
+      wind: 0.42, windDir: PI + 0.25,                                     // 優しい風: a breeze off the water stirs the loose strands
       params: { side: 'left', lean, look, boyLook: 0.95 * glance - 0.34 * away, boyNod: 0.08 + 0.06 * glance - 0.1 * away },
       senpai: { outfit: 'dress_cardigan', head: her,
         // her right hand rests on his left hand on the grass (C21's hands)
@@ -628,6 +639,7 @@
     ctx.restore();
     ctx.drawImage(c22Near(), 0, 900, W, H - 900, 0, 900, W, H - 900);   // (the blurred blades live in the bottom band only)
   }
+
   /* ======================================================================= C23 */
   // 75.5–78.5 (t: 0–3.0). An autumn morning; the low sun is behind her: cold backlight. Her right hand holds the bag
   // strap across her white blouse — the same screen position, size and white sleeve as the hand on the keys (C03) and

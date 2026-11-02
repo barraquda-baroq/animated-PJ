@@ -2,12 +2,13 @@
  * g10_recording — ACT6「音が戻る」前半：録音 → 告白 → もう一度、再生
  *   C37 夜のテーブル（録音）            144.5–149.0  grade saturate(0.3)
  *   C38 スマホ（弦が切れ、再生が終わる） 149.0–154.0  grade saturate(0.3)
- *   C39 夜の部屋（彼の横顔、頬の光）    154.0–161.0  grade saturate(0.35)
+ *   C39 夜の部屋（彼の横顔のアップ）    154.0–161.0  grade saturate(0.35)   人物は PV.anime（彼の泣き顔＋V17 口パク、奥の先輩）
  *   C40 再生ボタン（開花）              161.0–163.5  彩度はシーン内で 0.3→0.7
  * 作画は 2コマ打ち（手・人物の芝居は 12fps）、撮影（光・粒子・カメラ）は 24fps。
  * セル（手・袖・スマホ・人物）は held() のレイアウト空間レイヤーに描き、その絵のキー（12fps / 一部 8fps・静止）が
  * 変わった時だけ描き直す。カメラ・光・粒子は毎フレームその上に重ねる（描画順に依存しない決定論的な出力）。
- * 彼女の袖はニットの袖口が手首を覆う（knitSleeve）：長袖の上から右手首を掴む。
+ * 彼女の袖はニットの袖口が手首を覆う（knitSleeve）：長袖の上から右手首を掴む（C39 の先輩の灰色のニット＝PV.anime 'home' と同じ服）。
+ * C39 の人物は PV.anime.figure（線画＋セル塗りのアニメ調。旧 figures.js の影絵は使わない）。
  * ========================================================================== */
 (function () {
   'use strict';
@@ -890,7 +891,7 @@
       who: 'boy', outfit: 'year2', costume: { top: 'tee_black' }, pose: 'stand', facing: Math.PI / 2, camPitch: 0.15,
       x: C39.boyX, y: C39.boyY - 11 * hitch + 6 * sink, scale: C39.boyS, T: C39.T0 + u, light: 'lamp', rimDir: 0.15, keyDir: L.key,
       params: { weight: 0.15, bow: 0.3 + 0.06 * sink, nod: 0.6 + 0.1 * hitch - 0.17 * firm + 0.12 * sink },
-      head: { yaw: C39.yaw, expr: 'cry', talk: true, lightDir: L.key, shade: L.shade, rim: 1.1, faceLift: L.lift,
+      head: { yaw: C39.yaw, expr: 'cry', talk: true, lightDir: L.key, shade: L.shade, rim: 1.1, rimRes: 0.6, faceLift: L.lift,
         eyes: { open: lerp(0.55, 0.32, brk) + 0.1 * firm - 0.15 * sink, squeeze: 0.3 + 0.45 * brk, sad: 0.65, tears: 0.45 + 0.47 * smooth(0.5, 4.3, u), look: [0.3, 0.6] },
         brows: { inner: 0.7 + 0.3 * brk, outer: -0.3, furrow: 0.55 + 0.3 * brk - 0.1 * firm },
         mouth: { shape: 'frown', open: 0, tremble: 0.25 + 0.6 * brk }, blush: 0.4 },
@@ -899,8 +900,6 @@
   C39.boyX = 486; C39.boyY = 2966; C39.boyS = 400;
   C39.light = { key: -2.55, shade: 0.5, lift: 0.32 };
   C39.yaw = 0.86;
-  // a second, cool rim from the streetlight: the band of the layer's own silhouette on the light side (union minus the union
-  // shifted away from the light), tinted, laid inside the figure (source-atop).  box = the region the cel covers.
   // A second rim light from a cel's own silhouette: the band of the layer's union on the light side (the union minus the union
   // shifted away from the light), tinted, faded with the distance from the source (fall = {x, y, r0, r1, min}) and laid inside
   // the figure only (source-atop).  Computed at half resolution inside box (the band is a few px wide; upscaled it stays crisp
@@ -941,7 +940,8 @@
   }
 
   // light inside his cel: the darkness of the room takes the body below the face (the lamp and the window reach the head),
-  // and her lamp's warm bounce creeps onto the front of his face — a soft fill so the face reads in the window's shade
+  // the phone's screen on the table leaves a faint cool light under his jaw, and her lamp's warm bounce creeps onto the front
+  // of his face — a soft fill so the face reads in the window's shade
   function c39boyLight(c, box, hd) {
     const e = hd.eyeL, ch = hd.chin, n = hd.nose, fx = (e[0] + ch[0]) / 2, fy = (e[1] + ch[1]) / 2;
     c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.globalCompositeOperation = 'source-atop';
@@ -951,6 +951,10 @@
     const nk = hd.neck, nx = nk[0] - 0.1 * C39.boyS, ny = nk[1] + 0.14 * C39.boyS, nr = 0.48 * C39.boyS;
     g = c.createRadialGradient(nx, ny, 0, nx, ny, nr); g.addColorStop(0, 'rgba(14,12,20,0.6)'); g.addColorStop(0.55, 'rgba(14,12,20,0.45)'); g.addColorStop(1, 'rgba(14,12,20,0)');
     c.fillStyle = g; c.fillRect(nx - nr, ny - nr, 2 * nr, 2 * nr);
+    // the phone on the table below him still glows: a faint cool kiss under the chin and the jaw
+    const ux = hd.chin[0] + 0.05 * C39.boyS, uy = hd.chin[1] + 0.2 * C39.boyS, ur = 0.32 * C39.boyS;
+    g = c.createRadialGradient(ux, uy, 0, ux, uy, ur); g.addColorStop(0, 'rgba(160,190,235,0.16)'); g.addColorStop(1, 'rgba(160,190,235,0)');
+    c.fillStyle = g; c.fillRect(ux - ur, uy - ur, 2 * ur, 2 * ur);
     const bx = n[0] + 40, by = n[1] - 10;
     g = c.createRadialGradient(bx, by, 0, bx, by, 230); g.addColorStop(0, 'rgba(255,206,150,0.2)'); g.addColorStop(0.55, 'rgba(255,206,150,0.08)'); g.addColorStop(1, 'rgba(255,206,150,0)');
     c.fillStyle = g; c.fillRect(bx - 230, by - 230, 460, 460);
@@ -961,12 +965,12 @@
   // (PV.anime.mouth, on twos) and quivering where his voice breaks.  hd = head anchors, S = head size, u = local time on twos.
   function c39profileMouth(c, hd, S, u, trem) {
     const mo = PV.anime.mouth(C39.T0 + u, 'boy'), j = N2(u * 9.1, 4.7), j2 = N2(3.3, u * 11.3);
-    const open = Math.max(mo.open * 0.8, trem * (0.12 + 0.14 * (0.5 + 0.5 * j)));
+    const open = Math.max(mo.open * 0.8, trem * (0.16 + 0.3 * (0.5 + 0.5 * j)));
     if (open < 0.02) return;
     const m = hd.mouth, no = hd.nose;
     let ax = hd.chin[0] - hd.eyeL[0], ay = hd.chin[1] - hd.eyeL[1]; const al = Math.hypot(ax, ay) || 1; ax /= al; ay /= al;   // down the face
     let ix = ay, iy = -ax; if (ix * (no[0] - m[0]) + iy * (no[1] - m[1]) > 0) { ix = -ix; iy = -iy; }                         // inward (the mouth line, away from the nose)
-    const h = open * 0.03 * S * (1 + 0.25 * trem * j2), sh = 0.003 * S * trem * j;
+    const h = open * 0.03 * S * (1 + 0.3 * trem * j2), sh = 0.005 * S * trem * j;
     const ox = m[0] + ax * sh, oy = m[1] + ay * sh;
     const A = [ox + ix * 0.028 * S, oy + iy * 0.028 * S];                                                  // the corner of the mouth (inside)
     const U = [ox - ix * 0.07 * S - ax * h * 0.45, oy - iy * 0.07 * S - ay * h * 0.45], B = [ox - ix * 0.07 * S + ax * h * 0.55, oy - iy * 0.07 * S + ay * h * 0.55];
@@ -981,9 +985,10 @@
   // where his tear stream ends on the jaw (the library draws the stream; the drop that falls from it is drawn here)
   const c39tearEnd = (hd) => [hd.chin[0] + 0.12 * (hd.eyeL[0] - hd.chin[0]) + 0.15 * (hd.mouth[0] - hd.chin[0]), hd.chin[1] + 0.12 * (hd.eyeL[1] - hd.chin[1]) + 0.15 * (hd.mouth[1] - hd.chin[1])];
 
-  // her, across the table, seated, facing him (a 3/4 toward the camera's left), lit from behind by her lamp.  u = local time
-  // on twos.  From 5.1 she holds it in (lips pressed, shoulders trembling); at 6.0 she gives way: she folds forward and her
-  // left hand comes up over her face; then she sobs.
+  // her, across the table, seated, facing him (a 3/4 toward the camera's left): the window he has at his back lights her face
+  // (cool), her own lamp behind her draws the warm rim.  u = local time on twos.  From 5.1 she holds it in (lips pressed,
+  // shoulders trembling); at 6.0 she gives way: she folds forward and her left hand comes up over her face; then she sobs.
+  // (The table hides her below the chest; her right hand stays limp in her lap.)
   function c39herArgs(u) {
     const brk = ease.outCubic(smooth(6.0, 6.45, u)), hold = smooth(5.1, 5.7, u) * (1 - smooth(6.0, 6.2, u));
     const sob = smooth(6.3, 6.6, u) * 0.5 * (1 + Math.sin(u * 13.5)) + hold * 0.5 * (1 + Math.sin(u * 21.0));
@@ -996,10 +1001,10 @@
     const handL = hu < 0.5 ? { f: [-0.3, 0.2, 1], palm: [0, 1, 0], curl: 0.45 } : { f: [-0.5, -1, 0.1], palm: [0, 0, -1], curl: 0.25, spread: 0.2 };
     return {
       who: 'senpai', outfit: 'home', pose: 'sit_ground', facing: -0.72, camPitch: 0.04,
-      x: C39.herX, y: C39.herY + 3 * sob, scale: C39.herS, T: C39.T0 + u, light: 'lamp', rimDir: 0.55, keyDir: 0.55,
+      x: C39.herX, y: C39.herY + 3 * sob, scale: C39.herS, T: C39.T0 + u, light: 'lamp', rimDir: 0.55, keyDir: -2.75,
       params: { sofa: true, knees: 'down', arms: 'lap', slump, nod: 0.1 + 0.25 * brk, tilt: 0.06 - 0.1 * brk, look: -0.25 * (1 - brk),
         armL: { W: WL, pole: [1, 0.6, -0.2], hand: handL } },
-      head: { expr: brk > 0.3 ? 'cry' : 'teary', undereye: 0.3, lightDir: 0.6, shade: 0.5, faceLift: 0.5, rim: 1.0,
+      head: { expr: brk > 0.3 ? 'cry' : 'teary', undereye: 0.3, lightDir: -2.75, shade: 0.12, faceLift: 0.62, rim: 1.0,
         eyes: brk > 0.3 ? { tears: 1 } : { tears: 0.55 + 0.2 * hold, open: 0.9 - 0.3 * hold, look: [-0.5, 0.1] },
         mouth: brk > 0.3 ? { shape: 'frown', open: 0.6 } : { shape: 'frown', open: 0.08 * (1 - hold), tremble: hold },
         brows: { inner: 0.7 + 0.3 * Math.max(hold, brk), outer: -0.25, furrow: 0.3 + 0.5 * Math.max(hold, brk) } },
@@ -1026,7 +1031,7 @@
       const tqH = Math.max(0, q12(tc - 1 / 24)), herKey = tqH < 5.05 ? 'still' : tqH;     // her drawings change one frame after his
       const HER = held('C39her', herKey, (c) => {
         const hb = { x: 1100, y: 200, w: W - 1100, h: H - 200 };
-        lowResBlurBox(c, 'C39her', 0.5, 4, hb, (cc) => {
+        lowResBlurBox(c, 'C39her', 0.5, 3, hb, (cc) => {
           PV.anime.figure(cc, c39herArgs(tqH < 5.05 ? 0 : tqH));
           // the table top in front of her (it hides her below the chest), the lamp's pool on it, the lamp's foot
           cc.fillStyle = PV.linGrad(cc, 0, 790, 0, H + 40, [[0, '#231d17'], [1, '#100d0b']]); cc.fillRect(1156, 789, W, 400);

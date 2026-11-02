@@ -402,137 +402,211 @@
       }
     });
   }
-  /* HER, astride him, seen from below (his eyes): face down toward the lens, the long wet hair hanging toward him.
-   * Gravity points at the camera, so every lock radiates from the zenith vanishing point (above her head) and grows
-   * as it nears the lens. Units: head units around her head centre. o.arm: 'raised' | 0..1 (strike) | 'rest'. */
-  const VPY = -2.3;   // the zenith vanishing point, in her head units (above her head)
-  // her hair from below: on each side a curtain that hugs the head, frames the face (covering the cheeks) and widens
-  // toward the lens, splitting at its lower edge into wet pointed clumps; behind it a few clumps fall past the far side
-  // of the shoulders; thin strays escape. Everything radiates from the zenith VP (it is all hanging toward him).
-  function c30Hair(t, o) {
-    const sw = (o.sway || 0) * 0.03, side = [], back = [], strays = [];
+  /* ============================================ anime characters (PV.anime): shared helpers for C30–C32 */
+  // Faces and hair are the library's (PV.anime.head: eyes, tears, lip-sync, wet hair); the bodies in these three close,
+  // unusual views (from below, lying on the road, the embrace) are painted here in the same style: one ink line behind
+  // the fill (outer half shows), base, one cel shade = the shape minus itself shifted toward the light, a crisp rim band
+  // on the light side. Colours always from PV.anime.mat(material, light). Clothes, cast and hands follow the design
+  // sheet (storm: 先輩 the wet pale-blue gown, white cast and sling; 彼 the soaked white school shirt).
+  const AN = PV.anime;
+  const T0 = { C29: 103.5, C30: 105.5, C31: 110.0, C32: 116.5 };
+  // the film's clock inside a cut (lip-sync and blinks need global seconds; --solo shifts S.start to 0)
+  const absT = (S, id, t) => ((S && S.start > 0.01) ? S.start : T0[id]) + t;
+  // a light between two PV.anime.LIGHT entries (k in 1/10 steps so PV.anime.mat's cache stays small)
+  const _ml = {};
+  function mixLight(a, b, k) {
+    k = Math.round(clamp(k) * 10) / 10;
+    if (k <= 0) return a; if (k >= 1) return b;
+    const key = a + b + k; if (_ml[key]) return _ml[key];
+    const A0 = AN.LIGHT[a], B0 = AN.LIGHT[b];
+    return (_ml[key] = { light: AN.mixHex(A0.light, B0.light, k), shadow: AN.mixHex(A0.shadow, B0.shadow, k), amb: lerp(A0.amb, B0.amb, k), rim: AN.mixHex(A0.rim, B0.rim, k),
+      rimA: lerp(A0.rimA, B0.rimA, k), sat: lerp(A0.sat, B0.sat, k), dark: lerp(A0.dark, B0.dark, k) });
+  }
+  const P2 = () => new Path2D();
+  const BIG = (() => { const p = new Path2D(); p.rect(-2e4, -2e4, 4e4, 4e4); return p; })();
+  // one cel-painted part. o: lw (ink px), lv ([x,y] unit vector toward the key light), shade (px), rim (px), rimCol,
+  // rimA, fill/shadeCol overrides, noInk
+  function celPart(ctx, path, m, o) {
+    ctx.save(); ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    if (o.lw > 0 && !o.noInk) { ctx.lineWidth = 2 * o.lw; ctx.strokeStyle = o.line || m.line; ctx.stroke(path); }
+    ctx.fillStyle = o.fill || m.base; ctx.fill(path);
+    if (o.shade || o.rim) {
+      ctx.save(); ctx.clip(path);
+      if (o.shade) { const p = new Path2D(BIG); p.addPath(path, new DOMMatrix([1, 0, 0, 1, o.lv[0] * o.shade, o.lv[1] * o.shade])); ctx.fillStyle = o.shadeCol || m.shade; ctx.fill(p, 'evenodd'); }
+      if (o.rim) { const p = new Path2D(BIG); p.addPath(path, new DOMMatrix([1, 0, 0, 1, -o.lv[0] * o.rim, -o.lv[1] * o.rim])); ctx.globalAlpha = o.rimA ?? 1; ctx.fillStyle = o.rimCol || m.hi; ctx.fill(p, 'evenodd'); }
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+  const pathOf = (pts, closed) => { const p = new Path2D(); spline(p, pts, closed !== false); return p; };
+  const ribbonPath = (pts, ws) => { const p = new Path2D(); ribbon(p, pts, ws); return p; };
+  // a tapered ink stroke along a polyline (screen px): w(u) = width at u
+  function inkLine(ctx, pts, w, col) { AN.taper(ctx, pts, w, col, pts.length >= 3); }
+  // wet hair clump in the library's hair colours: base, a cel shade along one side, thin ink, long broken wet glints
+  function wetClump(ctx, pts, ws, HM, o) {
+    const p = ribbonPath(pts, ws);
+    celPart(ctx, p, HM, { lw: o.lw, lv: o.lv, shade: o.shade, rim: o.rim, rimCol: o.rimCol, rimA: o.rimA, fill: o.fill, shadeCol: o.shadeCol });
+    if (o.glint > 0.02) {
+      ctx.save(); ctx.clip(p); ctx.lineCap = 'round'; ctx.strokeStyle = o.glintCol || HM.hi;
+      const n = pts.length;
+      for (let g = 0; g < 2; g++) {
+        const a0 = Math.floor(n * (0.15 + 0.22 * g)), a1 = Math.min(n - 2, a0 + Math.floor(n * 0.3)), off = (g ? -0.35 : 0.3);
+        ctx.globalAlpha = o.glint * (g ? 0.6 : 1); ctx.lineWidth = Math.max(0.8, o.lw * 0.8);
+        ctx.beginPath();
+        for (let i = a0; i <= a1; i++) { const q = pts[i], q2 = pts[Math.min(n - 1, i + 1)], dx = q2[0] - q[0], dy = q2[1] - q[1], l = Math.hypot(dx, dy) || 1, w = ws[i] * off; if (i === a0) ctx.moveTo(q[0] - dy / l * w, q[1] + dx / l * w); else ctx.lineTo(q[0] - dy / l * w, q[1] + dx / l * w); }
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+    return p;
+  }
+
+  /* ====================================================================== C30 her */
+  // HER, astride him, from below (his eyes): her face turned down to him — a frontal face seen a little from below
+  // (pitch +), crying and shouting V09; the long wet hair hangs toward the lens on both sides of the face (every lock
+  // radiates from a vanishing point above her head and widens as it nears the lens), the shoulders hunched over him in
+  // the wet gown, the white cast in its sling across her belly, the left fist: raised / striking / pressed on his chest.
+  // World px = the D1 framing; the stills zoom in with the camera. N = neck point, S = head size (chin→crown).
+  const C30H = { N: [960, 590], S: 340 };
+  // the wet hair hanging toward the lens: on each side 7 clumps rooted round the side of the head (temple → below the
+  // ear). Gravity points at the lens, so they hang down the frame and fan out a little (the lower roots more), WIDEN
+  // toward the lens (perspective) and end in sharp wet points. [rootT, length, max half-width, angle from vertical, bend]
+  const C30CL = [[0.0, 1.75, 0.06, 0.07, 0.5], [0.14, 2.05, 0.095, 0.1, -0.4], [0.3, 1.6, 0.075, 0.15, 0.6], [0.46, 2.15, 0.115, 0.2, -0.3],
+    [0.63, 1.8, 0.085, 0.27, 0.45], [0.8, 2.0, 0.105, 0.34, -0.5], [1.0, 1.55, 0.07, 0.42, 0.35]];
+  function c30HairGeo(tq, sw) {
+    const [nx, ny] = C30H.N, S = C30H.S, vp = [nx, ny - 1.55 * S], groups = [], strays = [], back = [];
     for (const s of [-1, 1]) {
-      const ph = t * 1.6 + (s > 0 ? 1.1 : 0), wb = sw * sin(ph);
-      const outer = [[s * 0.1, -0.64], [s * 0.36, -0.55], [s * 0.5, -0.3], [s * 0.54, 0.08], [s * 0.6, 0.6], [s * 0.74 + wb * 0.5, 1.25], [s * 0.88 + wb, 1.95]];
-      const tips = [];
-      for (let j = 0; j < 5; j++) {
-        const r = R1(j + (s > 0 ? 10 : 0), 571), r2 = R1(j + (s > 0 ? 10 : 0), 572);
-        const x = s * (0.86 - 0.12 * j) + wb * (1 - 0.15 * j), y = 2.0 + 0.55 * r - 0.08 * j;
-        tips.push([x, y, 1]); tips.push([s * (0.8 - 0.12 * j - 0.02) + wb * 0.8, 1.55 + 0.25 * r2]);
+      const g = [];
+      C30CL.forEach(([rt, len, wm, th, bend], j) => {
+        const r = R1(j + (s > 0 ? 10 : 0), 801), r2 = R1(j + (s > 0 ? 10 : 0), 802);
+        // exit point on the head outline (temple → below the ear); the clump starts a little inside it (hidden by the
+        // face and the cap, which are painted over it) so no clump end shows
+        const ex = [nx + s * S * (0.42 + 0.035 * Math.sin(rt * PI) + 0.01 * r), ny - S * (0.72 - 0.5 * rt)], hc = [nx, ny - 0.45 * S];
+        const il = Math.hypot(hc[0] - ex[0], hc[1] - ex[1]) || 1, root = [ex[0] + (hc[0] - ex[0]) / il * 0.09 * S, ex[1] + (hc[1] - ex[1]) / il * 0.09 * S];
+        const L = S * len * (0.92 + 0.16 * r), wob = sw * 0.018 * sin(tq * 1.7 + j * 1.3 + (s > 0 ? 2 : 0));
+        const a = HP - s * (th + 0.04 * (r - 0.5)) + wob, d = [cos(a) * L, sin(a) * L], pn = [-sin(a), cos(a)];
+        const bn = S * 0.04 * bend * (0.7 + 0.6 * r2), pts = [], ws = [], m = 16, w0 = S * 0.04, w1 = S * wm * (0.85 + 0.3 * r2);
+        for (let i = 0; i <= m; i++) {
+          const u = i / m, b = Math.sin(PI * u) * bn - 0.25 * bn * Math.sin(TAU * u);
+          pts.push([root[0] + d[0] * u + pn[0] * b, root[1] + d[1] * u + pn[1] * b]);
+          ws.push(lerp(w0, w1, Math.pow(u, 0.75)) * Math.pow(1 - sm(0.7, 1, u), 0.85) + 0.5);
+        }
+        g.push({ s, j, pts, ws, tip: pts[m], r, len });
+      });
+      groups.push(g.reverse());   // outer (lower) clumps first, the ones beside the face on top
+      for (let j = 0; j < 4; j++) {   // behind: clumps that fall past the far side of the shoulders (darker)
+        const r = R1(j + (s > 0 ? 20 : 0), 803), root = [nx + s * S * (0.36 + 0.03 * j), ny - S * (0.66 - 0.12 * j)];
+        const L = S * (1.2 + 0.3 * r), a = HP - s * (0.5 + 0.1 * j), pts = [], ws = [];
+        for (let i = 0; i <= 10; i++) { const u = i / 10; pts.push([root[0] + cos(a) * L * u, root[1] + sin(a) * L * u]); ws.push(S * (0.04 + 0.06 * u) * Math.pow(1 - sm(0.7, 1, u), 0.8) + 0.5); }
+        back.push({ s, pts, ws, tip: pts[10] });
       }
-      tips.pop();
-      const inner = [[s * 0.33, 1.45], [s * 0.3, 0.92], [s * 0.31, 0.56], [s * 0.36, 0.2], [s * 0.36, -0.14], [s * 0.3, -0.38], [s * 0.1, -0.47]];
-      side.push({ s, pts: outer.concat(tips, inner) });
-      for (let j = 0; j < 3; j++) {   // behind: past the far side of the shoulders
-        const r = R1(j + (s > 0 ? 20 : 0), 573), x0 = s * (0.4 + 0.05 * j), y0 = -0.25 + 0.2 * j, m = 1.6 + 0.5 * r;
-        const tip = [x0 * m + s * (0.35 + 0.15 * j), VPY + (y0 - VPY) * m];
-        back.push({ s, pts: [[x0, y0], [lerp(x0, tip[0], 0.5) + s * 0.1, lerp(y0, tip[1], 0.5)], tip], ws: [0.12, 0.13 + 0.04 * r, 0.004] });
-      }
-      for (let j = 0; j < 3; j++) {   // strays crossing the curtain edge
-        const r = R1(j + (s > 0 ? 30 : 0), 574), x0 = s * (0.44 + 0.04 * j), y0 = -0.2 + 0.25 * j, m = 1.5 + 0.6 * r;
-        strays.push({ s, p0: [x0, y0], p2: [x0 * m + s * 0.25 * r + wb, VPY + (y0 - VPY) * m], c: s * (0.1 + 0.1 * r) });
+      for (let j = 0; j < 3; j++) {   // thin wet strands escaping across the curtain edge
+        const r = R1(j + (s > 0 ? 30 : 0), 804), root = [nx + s * S * (0.44 + 0.02 * j), ny - S * (0.66 - 0.2 * j)];
+        const L = S * (0.9 + 0.6 * r), a = HP - s * (0.02 + 0.2 * r), pts = [];
+        for (let i = 0; i <= 8; i++) { const u = i / 8; pts.push([root[0] + cos(a) * L * u + s * S * 0.02 * sin(u * 5 + j), root[1] + sin(a) * L * u]); }
+        strays.push({ s, pts });
       }
     }
-    return { side, back, strays };
+    return { groups, back, strays, vp };
   }
-  function herArm2(k) {   // left arm (screen right): 0 raised beside her head → 1 the fist on his chest (near the lens)
-    const e = E.inCubic(clamp(k));
-    return { Sh: [1.06, 1.12], El: [lerp(1.55, 1.36, e), lerp(0.4, 2.3, e)], Wr: [lerp(1.32, 1.08, e), lerp(-0.4, 3.3, e)], fr: lerp(0.19, 0.5, e) };
-  }
-  function herFromBelow(ctx, t, o) {
-    const br = o.breath || 0, fl = o.flash || 0;
-    const HR = c30Hair(t, { sway: o.sway === undefined ? 1 : o.sway });
-    const shY = 1.08 - 0.07 * br;                                  // her shoulders heave
-    const k = o.arm === 'raised' ? 0 : o.arm === 'rest' ? 1 : clamp(o.arm);
-    const A = herArm2(k);
-    const face = [[0, -0.42], [0.3, -0.36], [0.37, -0.12], [0.35, 0.12], [0.27, 0.3], [0.14, 0.44], [0, 0.52], [-0.14, 0.44], [-0.27, 0.3], [-0.35, 0.12], [-0.37, -0.12], [-0.3, -0.36]];
-    L.figureRender(ctx, o, null, (F) => {
-      // 1) the back of her head (a smooth dome; we look at it from below) and the hair falling past her far shoulders
-      F.layer({}, (c) => {
-        c.beginPath(); c.ellipse(0, -0.08, 0.5, 0.58, 0, 0, TAU); c.fill();
-        c.beginPath(); for (const b of HR.back) ribbon(c, b.pts, b.ws); c.fill();
-      });
-      // 2) shoulders and chest (the wet hospital gown), foreshortened toward her hips at the bottom of the frame
-      F.layer({ fill: F.tone(0.14, '#5c6c94'), inner: 0.45 }, (c) => {
-        blob(c, [[-0.16, 0.62], [-0.42, shY - 0.2], [-0.86, shY - 0.1], [-1.14, shY + 0.04], [-1.27, shY + 0.32], [-1.22, 1.9], [-1.06, 3.1], [-1.0, 4.6, 1],
-                 [1.0, 4.6, 1], [1.06, 3.1], [1.22, 1.9], [1.27, shY + 0.32], [1.14, shY + 0.04], [0.86, shY - 0.1], [0.42, shY - 0.2], [0.16, 0.62]]);
-      });
-      // 3) the neck (the throat, from below) and her face, turned down to him: in shadow, lighter than the hair
-      F.layer({ fill: F.tone(0.18, '#7080a8') }, (c) => { limb(c, [0, 0.4], [0, 0.95], 0.13, 0.16); blob(c, face); });
-      F.raw((c) => { // the wet deck below mirrors the storm light: a faint cool underlight on the chin and throat (no features)
-        c.save(); c.globalCompositeOperation = 'source-atop';
-        const g = c.createRadialGradient(0, 0.62, 0.05, 0, 0.45, 0.55); g.addColorStop(0, PV.rgba('#9fb2de', 0.16 + 0.22 * fl)); g.addColorStop(1, PV.rgba('#9fb2de', 0));
-        c.fillStyle = g; c.fillRect(-0.6, -0.1, 1.2, 1.2);
-        const g2 = c.createLinearGradient(-0.4, 0, 0.25, 0); g2.addColorStop(0, 'rgba(4,6,12,0.32)'); g2.addColorStop(1, 'rgba(4,6,12,0)');
-        c.fillStyle = g2; c.fillRect(-0.45, -0.5, 0.7, 1.5); c.restore();
-      });
-      // 4) the fringe: wet pointed clumps over her forehead and eyes
-      F.layer({ inner: 0.35 }, (c) => {
-        c.beginPath();
-        for (let q = 0; q < 6; q++) {
-          const x = -0.31 + 0.62 * q / 5 + 0.03 * (R1(q, 531) - 0.5), y0 = -0.46 + 0.12 * Math.pow(Math.abs(x) / 0.36, 2);
-          const len = 0.3 + 0.16 * R1(q, 532) - 0.06 * Math.abs(x), dx = x * 0.14 + 0.012 * sin(t * 1.6 + q);
-          ribbon(c, [[x * 0.95, y0], [x + dx * 0.5, y0 + len * 0.55], [x + dx, y0 + len]], [0.085, 0.06, 0.004]);
-        }
-        ribbon(c, [[-0.24, -0.12], [-0.27, 0.12], [-0.2, 0.36], [-0.13, 0.5]], [0.022, 0.018, 0.012, 0.003]);   // wet strands stuck to her cheeks
-        ribbon(c, [[0.2, -0.16], [0.25, 0.06], [0.22, 0.3]], [0.018, 0.014, 0.003]);
-        c.fill();
-      });
-      // 5) the white cast in its sling across her chest (her right forearm, elbow at her right side = screen left)
-      if (o.cast !== false) F.raw((c) => {
-        c.save(); c.lineCap = 'round';
-        const El = [-1.08, 1.66], Wr = [0.12, 1.46];
-        c.fillStyle = PV.mix('#202838', '#56627e', 0.3 + 0.7 * fl);            // the sling pouch under the cast
-        c.beginPath(); c.moveTo(El[0] - 0.12, El[1] - 0.05); c.quadraticCurveTo(-0.45, 2.12, Wr[0] + 0.22, Wr[1] + 0.22); c.lineTo(Wr[0] + 0.12, Wr[1] + 0.05); c.quadraticCurveTo(-0.45, 1.86, El[0], El[1] - 0.12); c.closePath(); c.fill();
-        const g = c.createLinearGradient(0, 1.32, 0, 1.86); g.addColorStop(0, PV.mix('#b1bcd4', '#f2f6ff', fl)); g.addColorStop(0.5, PV.mix('#7a87a2', '#d2dcf0', fl)); g.addColorStop(1, PV.mix('#2a3348', '#7c89a4', fl));
-        c.fillStyle = g; c.beginPath();                               // a tapered plaster cylinder, rounded at the elbow
-        const dx = Wr[0] - El[0], dy = Wr[1] - El[1], l = Math.hypot(dx, dy), nx = -dy / l, ny = dx / l, r0 = 0.2, r1 = 0.14;
-        c.moveTo(El[0] + nx * r0, El[1] + ny * r0); c.lineTo(Wr[0] + nx * r1, Wr[1] + ny * r1); c.lineTo(Wr[0] - nx * r1, Wr[1] - ny * r1); c.lineTo(El[0] - nx * r0, El[1] - ny * r0);
-        c.arc(El[0], El[1], r0, Math.atan2(-ny, -nx), Math.atan2(ny, nx), false); c.closePath(); c.fill();
-        c.strokeStyle = PV.rgba('#2a3348', 0.35); c.lineWidth = 0.012;   // wraps of the bandage
-        for (const f of [0.3, 0.55, 0.78]) { const x = lerp(El[0], Wr[0], f), y = lerp(El[1], Wr[1], f), rr = lerp(r0, r1, f); c.beginPath(); c.moveTo(x + nx * rr, y + ny * rr); c.quadraticCurveTo(x + 0.04, y, x - nx * rr, y - ny * rr); c.stroke(); }
-        c.fillStyle = PV.mix('#141a28', '#39445e', fl);               // her fingers peeking out of the cast
-        for (let q = 0; q < 4; q++) { c.beginPath(); c.ellipse(Wr[0] + 0.1 + 0.02 * q, Wr[1] - 0.09 + 0.06 * q, 0.06, 0.028, 0.2, 0, TAU); c.fill(); }
-        c.strokeStyle = PV.mix('#384360', '#a3b0cc', fl); c.lineWidth = 0.035;   // the strap from the pouch up round her neck
-        c.beginPath(); c.moveTo(Wr[0] + 0.05, Wr[1] - 0.05); c.quadraticCurveTo(0.3, 1.0, 0.13, 0.82); c.stroke();
-        c.restore();
-      });
-      // 6) her left arm and fist (screen right): raised, striking, or resting on his chest (near the lens: big)
-      if (o.arm !== 'hidden') F.layer({ fill: F.tone(0.12, '#5c6c94'), inner: 0.7 }, (c) => {
-        limb(c, A.Sh, A.El, 0.2, 0.15); limb(c, A.El, A.Wr, 0.15, 0.12 + 0.12 * k);
-        const fx = A.Wr[0] - 0.02, fy = A.Wr[1] + A.fr * 0.45 * (k > 0.5 ? 1 : -1);
-        c.beginPath(); c.ellipse(fx, fy, A.fr, A.fr * 1.08, -0.25, 0, TAU); c.fill();
-        for (let q = 0; q < 4; q++) { const a = (k > 0.5 ? 1.0 : -2.5) + q * 0.42; c.beginPath(); c.arc(fx + cos(a) * A.fr * 0.82, fy + sin(a) * A.fr * 0.86, A.fr * 0.3, 0, TAU); c.fill(); }
-      });
-      // 7) the near curtains framing her face, hanging in front of her shoulders toward the lens; stray strands
-      F.layer({ inner: 0.55 }, (c) => {
-        c.beginPath(); for (const sd of HR.side) spline(c, sd.pts, true); c.fill();
-        c.lineWidth = 0.014; c.beginPath(); for (const st of HR.strays) { c.moveTo(st.p0[0], st.p0[1]); c.quadraticCurveTo(lerp(st.p0[0], st.p2[0], 0.5) + st.c, lerp(st.p0[1], st.p2[1], 0.5), st.p2[0], st.p2[1]); } c.stroke();
-      });
-      // 8) wet sheen: long broken highlights along the flow of the curtains (catch the flash)
-      F.raw((c) => {
-        c.save(); c.globalCompositeOperation = 'source-atop'; c.lineCap = 'round'; c.lineWidth = 0.012;
-        for (const sd of HR.side) for (let q = 0; q < 4; q++) {
-          const s = sd.s, x0 = s * (0.4 + 0.05 * q), a = (0.12 + 0.4 * fl) * (0.6 + 0.4 * R1(q + (s > 0 ? 5 : 0), 581));
-          c.strokeStyle = PV.rgba('#dfe9ff', a); c.beginPath(); c.moveTo(x0, -0.1 + 0.15 * q); c.quadraticCurveTo(s * (0.5 + 0.08 * q), 0.6, s * (0.55 + 0.1 * q), 1.2 + 0.2 * q); c.stroke();
-        }
-        c.restore();
-      });
+  // paint one curtain group: silhouette ink behind the whole group, then each clump (base + the cel shade on the side
+  // toward the face + the sky's rim on the outer edge + wet glints), thin lines between overlapping clumps
+  function c30Curtain(ctx, g, HM, o) {
+    const paths = g.map((c) => ribbonPath(c.pts, c.ws));
+    ctx.save(); ctx.lineJoin = 'round'; ctx.strokeStyle = HM.line; ctx.lineWidth = 2 * o.lw; for (const p of paths) ctx.stroke(p); ctx.restore();
+    g.forEach((c, i) => {
+      const lv = [c.s * 0.55, -0.83];
+      wetClump(ctx, c.pts, c.ws, HM, { lw: 0, lv, shade: o.S * 0.045, rim: o.S * 0.012, rimCol: o.rimCol, rimA: o.rimA, glint: o.glint * (0.6 + 0.4 * c.r), glintCol: o.glintCol });
+      if (i > 0) { ctx.save(); ctx.lineJoin = 'round'; ctx.strokeStyle = HM.line; ctx.lineWidth = o.lw * 0.55; ctx.globalAlpha = 0.85; ctx.stroke(paths[i]); ctx.restore(); }
     });
-    return { locks: HR.side.map((sd) => ({ tip: sd.pts[7 + 2 * Math.floor(R1(sd.s > 0 ? 1 : 2, 591) * 3)], s: sd.s, id: sd.s })).concat(HR.side.map((sd) => ({ tip: sd.pts[11], s: sd.s, id: sd.s * 2 }))), A, k };
   }
-  // drops falling from the tips of her hair (and her chin) toward his face: they come at the camera (grow, fly outward)
-  function c30Drips(ctx, t, o, locks) {
-    const u = 92 * o.scale, vx = o.x, vy = o.y + VPY * u;
+  // her left arm: 0 raised beside her head → 1 down on his chest (the fist below the frame, near the lens). World px.
+  function c30Arm(k, br) {
+    const [nx, ny] = C30H.N, S = C30H.S, e = E.inCubic(clamp(k));
+    const sh = [nx + 0.6 * S, ny + 0.36 * S - 0.04 * S * br];
+    const el = [nx + lerp(1.08, 0.9, e) * S, ny + lerp(-0.12, 0.98, e) * S];
+    const wr = [nx + lerp(0.98, 1.02, e) * S, ny + lerp(-0.78, 1.8, e) * S];
+    return { sh, el, wr, wUp: lerp(0.13, 0.14, e) * S, wEl: lerp(0.1, 0.12, e) * S, wWr: lerp(0.075, 0.14, e) * S, fs: lerp(1.25, 2.1, e), k: e };
+  }
+  // a capsule (two radii) as a Path2D
+  function capsulePath(p0, p1, r0, r1) {
+    const dx = p1[0] - p0[0], dy = p1[1] - p0[1], l = Math.hypot(dx, dy) || 1e-6, nx = -dy / l, ny = dx / l, a = Math.atan2(dy, dx), p = new Path2D();
+    p.moveTo(p0[0] + nx * r0, p0[1] + ny * r0); p.lineTo(p1[0] + nx * r1, p1[1] + ny * r1);
+    p.arc(p1[0], p1[1], r1, a + HP, a - HP, true); p.lineTo(p0[0] - nx * r0, p0[1] - ny * r0); p.arc(p0[0], p0[1], r0, a - HP, a + HP, true); p.closePath(); return p;
+  }
+  // the figure, in the current ctx (camera already applied). o: tq (on twos), T (global, on twos), fl (flash, quantised),
+  // arm ('raised' | 0..1 | 'rest'), br (breath 0..1), face {expr, eyes, brows, mouth, roll, yaw}
+  function c30Her(ctx, o) {
+    const [nx, ny0] = C30H.N, S = C30H.S, br = o.br, fl = o.fl;
+    const ny = ny0 - 0.035 * S * br;                                            // the shoulders heave (the head goes with them)
+    const Lt = mixLight('storm', 'lightning', 0.15 + 0.75 * fl), FL = AN.faceLight(Lt);
+    const lv = [0, -1], lw = AN.inkW(S) * 1.05;
+    const gown = AN.mat('gown', AN.faceLight(Lt, 0.5), { wet: 1 }), skin = AN.mat('skin', FL), HM = AN.mat('hair_senpai', Lt, { wet: 1 });
+    const rimCol = Lt.rim || '#dfe8ff', rimA = 0.55 + 0.45 * fl;
+    const HG = c30HairGeo(o.tq, 1);
+    const hairDark = { base: AN.mixHex(HM.shade, HM.deep, 0.4), shade: HM.deep, hi: HM.shade, line: HM.line };
+    const glintCol = AN.mixHex(HM.hi, '#ffffff', 0.35), glint = 0.22 + 0.5 * fl;
+    // 1) the hair that falls past the far side of her shoulders
+    for (const b of HG.back) wetClump(ctx, b.pts, b.ws, hairDark, { lw: lw * 0.7, lv, shade: S * 0.03, rim: S * 0.01, rimCol, rimA: rimA * 0.5, glint: glint * 0.5, glintCol: HM.hi });
+    // 2) the neck (the head's own neck, foreshortened from below), then the gown: hunched shoulders and the chest that
+    //    recedes toward his belly at the bottom of the frame
+    const ho = { who: 'senpai', x: nx, y: ny, size: S, yaw: o.face.yaw || 0, pitch: 0.12, roll: o.face.roll || 0, light: Lt, rimDir: -HP, lightDir: -HP, shade: 0.07,
+      rim: 1.15, T: o.T, seed: 3, hair: { style: 'wet', still: true }, expr: o.face.expr, eyes: o.face.eyes, brows: o.face.brows, mouth: o.face.mouth, blush: o.face.blush, talk: o.face.talk };
+    AN.head(ctx, Object.assign({}, ho, { layer: 'neck', neckLen: 0.42, neckFade: true, neckFlare: false }));
+    const sh = 0.04 * S * br, tz = [
+      [nx - 0.13 * S, ny + 0.14 * S], [nx - 0.38 * S, ny + 0.22 * S - sh], [nx - 0.62 * S, ny + 0.33 * S - sh], [nx - 0.76 * S, ny + 0.46 * S - sh], [nx - 0.8 * S, ny + 0.68 * S],
+      [nx - 0.72 * S, ny + 1.2 * S], [nx - 0.64 * S, ny + 2.2 * S, 1], [nx + 0.64 * S, ny + 2.2 * S, 1], [nx + 0.72 * S, ny + 1.2 * S], [nx + 0.8 * S, ny + 0.68 * S],
+      [nx + 0.76 * S, ny + 0.46 * S - sh], [nx + 0.62 * S, ny + 0.33 * S - sh], [nx + 0.38 * S, ny + 0.22 * S - sh], [nx + 0.13 * S, ny + 0.14 * S], [nx, ny + 0.3 * S]];
+    const torso = pathOf(tz);
+    celPart(ctx, torso, gown, { lw, lv, shade: S * 0.11, rim: S * 0.022, rimCol, rimA });
+    // the open pajama collar (two flaps meeting in a V) and the placket
+    ctx.save(); ctx.clip(torso);
+    const flapL = pathOf([[nx - 0.15 * S, ny + 0.14 * S], [nx - 0.36 * S, ny + 0.24 * S - sh], [nx - 0.3 * S, ny + 0.5 * S], [nx - 0.02 * S, ny + 0.66 * S, 1], [nx - 0.05 * S, ny + 0.4 * S]]);
+    const flapR = pathOf([[nx + 0.15 * S, ny + 0.14 * S], [nx + 0.36 * S, ny + 0.24 * S - sh], [nx + 0.3 * S, ny + 0.5 * S], [nx + 0.02 * S, ny + 0.66 * S, 1], [nx + 0.05 * S, ny + 0.4 * S]]);
+    const vne = pathOf([[nx - 0.15 * S, ny + 0.15 * S], [nx, ny + 0.62 * S, 1], [nx + 0.15 * S, ny + 0.15 * S]]);
+    celPart(ctx, vne, skin, { lw: lw * 0.6, lv, shade: S * 0.06, shadeCol: skin.shade });
+    celPart(ctx, flapL, gown, { lw: lw * 0.6, lv, shade: S * 0.03, rim: S * 0.01, rimCol, rimA: rimA * 0.7 });
+    celPart(ctx, flapR, gown, { lw: lw * 0.6, lv, shade: S * 0.03, rim: S * 0.01, rimCol, rimA: rimA * 0.7 });
+    inkLine(ctx, [[nx + 0.02 * S, ny + 0.66 * S], [nx + 0.03 * S, ny + 1.3 * S], [nx + 0.04 * S, ny + 2.2 * S]], (u) => lw * 0.55 * (1 - 0.6 * u), gown.line);
+    ctx.fillStyle = gown.shade; for (const yy of [0.95, 1.5]) { ctx.beginPath(); ctx.arc(nx + 0.08 * S, ny + yy * S, S * 0.018, 0, TAU); ctx.fill(); }
+    for (const s of [-1, 1]) inkLine(ctx, [[nx + s * 0.55 * S, ny + 0.4 * S], [nx + s * 0.45 * S, ny + 0.75 * S], [nx + s * 0.38 * S, ny + 1.05 * S]], (u) => lw * 0.45 * Math.sin(PI * u), gown.line);
+    // 3) the right forearm in the white cast, carried by the sling across her belly (hands.js armCast; the straps run up
+    //    under the collar: clipped to the gown)
+    L.armCast(ctx, { x: nx + 0.2 * S, y: ny + 1.0 * S - 0.02 * S * br, rot: HP + 0.1, scale: S * 0.0033, arm: 200, kind: 'her', t: o.tq, tremble: 0.4, sling: true, yaw: -0.25, pitch: 0.4,
+      keyColor: FL.light, fillColor: AN.mixHex(FL.shadow, FL.light, 0.45), tint: 0.9, slingColor: AN.mixHex('#7f8fb6', '#cad6f0', fl), castColor: AN.mixHex('#a9b5d2', '#f4f6fc', fl) });
+    ctx.restore();
+    // 4) her left arm and fist
+    const k = o.arm === 'raised' ? 0 : o.arm === 'rest' ? 1 : clamp(o.arm), A2 = c30Arm(k, br);
+    const up = capsulePath(A2.sh, A2.el, A2.wUp, A2.wEl), fore = capsulePath(A2.el, A2.wr, A2.wEl * 0.95, A2.wWr);
+    const fistDraw = () => {
+      if (o.arm === 'rest') return;   // down on his chest: the fist is below the frame (behind the hair, near the lens)
+      const dx = A2.wr[0] - A2.el[0], dy = A2.wr[1] - A2.el[1], ang = Math.atan2(dy, dx) + HP;
+      L.handFist(ctx, { side: 'L', kind: 'her', x: A2.wr[0], y: A2.wr[1], scale: S * 0.0036 * A2.fs, rot: ang, view: 'palm', yaw: 0.45, pitch: -0.15, clench: 1, shake: 0.8, t: o.tq, arm: 12,
+        keyColor: FL.light, fillColor: AN.mixHex(FL.shadow, FL.light, 0.45), tint: 0.9, blur: o.arm === 'raised' ? 0 : 3 });
+    };
+    const armDraw = () => { const parts = A2.k < 0.5 ? [fore, up] : [up, fore]; for (const pp of parts) celPart(ctx, pp, gown, { lw, lv, shade: S * 0.05, rim: S * 0.02, rimCol, rimA }); fistDraw(); };
+    if (A2.k < 0.5) armDraw();
+    if (A2.k >= 0.5) armDraw();
+    // 5) the curtains toward the lens: they come out from behind the head and hang in front of her shoulders, framing
+    //    the face
+    for (const g of HG.groups) c30Curtain(ctx, g, HM, { lw: lw * 0.9, S, rimCol, rimA, glint, glintCol });
+    for (const st of HG.strays) inkLine(ctx, st.pts, (u) => Math.max(0.6, lw * 0.9 * (1 - u)), HM.base);
+    // 6) the head (face, cap, bangs, the wet locks pasted to the cheeks)
+    const anchors = AN.head(ctx, Object.assign({}, ho, { layer: 'front' }));
+    const tips = []; for (const g of HG.groups) for (const c of g) if (c.r > 0.3) tips.push(c.tip);
+    return { anchors, tips, vp: HG.vp, A2 };
+  }
+  // drops falling from the tips of her hair (and tears from her chin) toward his face: they come at the lens (grow, fly out)
+  function c30Drips(ctx, t, tips, vp, fl, chin) {
     ctx.save(); ctx.lineCap = 'round';
-    const srcs = locks.map((lk) => lk.tip);
+    const srcs = tips.concat(chin ? [chin, chin] : []);
     srcs.forEach((tp, i) => {
-      const per = 0.7 + 0.6 * R1(i, 522), k = (((t + R1(i, 523) * per) % per) + per) % per / per;
-      const x0 = o.x + tp[0] * u, y0 = o.y + tp[1] * u;
-      if (k < 0.35) { const r = 2.5 + 5 * (k / 0.35); ctx.fillStyle = `rgba(190,206,236,${(0.45 + 0.4 * (o.flash || 0)).toFixed(3)})`; ctx.beginPath(); ctx.arc(x0, y0 + r * 0.6, r, 0, TAU); ctx.fill(); return; }
+      const isTear = chin && i >= tips.length, per = isTear ? 0.55 + 0.2 * (i - tips.length) : 0.7 + 0.6 * R1(i, 522), k = (((t + R1(i, 523) * per) % per) + per) % per / per;
+      const x0 = tp[0], y0 = tp[1];
+      if (k < 0.35) { const r = (isTear ? 3 : 2.5) + 5 * (k / 0.35); ctx.fillStyle = `rgba(214,226,250,${(0.5 + 0.4 * fl).toFixed(3)})`; ctx.beginPath(); ctx.arc(x0, y0 + r * 0.6, r, 0, TAU); ctx.fill(); return; }
       const kk = (k - 0.35) / 0.65, z = 1 / (1 - 0.8 * kk * kk), z2 = 1 / (1 - 0.8 * Math.max(0, kk - 0.07) ** 2);
-      const dx = (x0 - vx) * z + vx, dy = (y0 - vy) * z + vy, dx2 = (x0 - vx) * z2 + vx, dy2 = (y0 - vy) * z2 + vy;
-      ctx.strokeStyle = `rgba(200,214,240,${(0.32 + 0.4 * (o.flash || 0)).toFixed(3)})`; ctx.lineWidth = 4 * z; ctx.beginPath(); ctx.moveTo(dx2, dy2); ctx.lineTo(dx, dy); ctx.stroke();
+      const dx = (x0 - vp[0]) * z + vp[0], dy = (y0 - vp[1]) * z + vp[1], dx2 = (x0 - vp[0]) * z2 + vp[0], dy2 = (y0 - vp[1]) * z2 + vp[1];
+      ctx.strokeStyle = `rgba(214,226,250,${((isTear ? 0.55 : 0.32) + 0.4 * fl).toFixed(3)})`; ctx.lineWidth = (isTear ? 5 : 4) * z; ctx.beginPath(); ctx.moveTo(dx2, dy2); ctx.lineTo(dx, dy); ctx.stroke();
     });
     ctx.restore();
   }
@@ -548,15 +622,30 @@
     if (t < 4.0) return 'D3';
     return 'E';
   }
+  // per still: camera [zoom, cy, rot], the sky crop, and the acting (the feeling changes from still to still)
+  const C30F = {
+    raised: { cam: [1.0, 450, 0], off: [0, 0] }, smear: { cam: [1.0, 450, 0], off: [0, 0] }, impact: { cam: [1.0, 450, 0], off: [0, 0] },
+    D1: { cam: [1.0, 450, 0], off: [0, 0] }, D2: { cam: [1.3, 455, 0.035], off: [-60, 30] }, D3: { cam: [1.62, 462, -0.04], off: [50, 60] }, E: { cam: [1.9, 470, 0.02], off: [-20, 80] },
+  };
+  function c30Face(fr, t) {
+    // raised / the strike: teeth clenched in fury and grief; D1–D2: the crying shout (V09, lip-sync); the line breaks off
+    // at 108.5 → D3 she sobs, eyes squeezed; E: the scream's tail in the lightning
+    if (fr === 'raised' || fr === 'smear' || fr === 'impact') return { expr: 'shout', eyes: { tears: 0.9, look: [0, 0.15] }, brows: { furrow: 1 }, mouth: { shape: 'shout', open: 0.75 }, yaw: 0.04, roll: -0.05 };
+    if (fr === 'D1') return { expr: 'shout', eyes: { tears: 1, look: [0, 0.18] }, brows: { furrow: 1 }, mouth: { shape: 'shout', open: 0.18 }, talk: true, yaw: -0.03, roll: 0.03 };
+    if (fr === 'D2') return { expr: 'shout', eyes: { tears: 1, look: [0, 0.2], open: 0.85 }, brows: { furrow: 1 }, mouth: { shape: 'shout', open: 0.22 }, talk: true, yaw: 0.05, roll: -0.06 };
+    if (fr === 'D3') return { expr: 'teary', eyes: { tears: 1, open: 0.9, sad: 0.75, squeeze: 0.12, look: [0, 0.22] }, brows: { inner: 1, outer: -0.45, furrow: 0.9 }, mouth: { shape: 'shout', open: 0.45 + 0.25 * Math.max(0, sin(t * 11)), tremble: 0.7 }, blush: 0.55, yaw: -0.04, roll: 0.07 };
+    return { expr: 'cry', eyes: { tears: 1, open: 0.1, squeeze: 1, sad: 1 }, brows: { inner: 1, outer: -0.5, furrow: 1 }, mouth: { shape: 'shout', open: 1, tremble: 0.4 }, blush: 0.6, yaw: 0.02, roll: -0.03 };
+  }
   const c30FigCache = { key: null, res: null };
-  const C30F = { raised: [1.0, 420, 420], D1: [1.0, 420, 420], smear: [1.0, 420, 420], impact: [1.0, 420, 420], D2: [1.26, 420, 440, [-60, 30]], D3: [1.55, 420, 470, [50, 60]], E: [1.8, 420, 520, [-20, 80]] };
-  PV.shot('C30', { draw(ctx, tIn, d) {
+  PV.shot('C30', { draw(ctx, tIn, d, S) {
     const t = cutT(tIn, d), fr = c30Frame(t);
     const fl = flashOf(t, C30.strobes);
     // impact shakes: landing on his back, the fist on his chest
     const shk = (t0, a, dk) => (t > t0 ? a * Math.exp(-(t - t0) / dk) : 0);
     const amp = shk(C30.land, 34, 0.09) + shk(C30.hit, 30, 0.07);
     const sx = amp * N2(t * 40, 3), sy = amp * N2(5, t * 40);
+    // her face is a close-up in a dark frame lit by strobes: less bloom so the thin lines of the eyes stay crisp
+    S.post = Object.assign({}, S.post, { bloom: fr === 'tumble' || fr === 'sky' ? 0.28 : 0.17 });
     ctx.save(); ctx.translate(sx, sy);
     if (fr === 'tumble') {
       // the world rolls over: a pre-blurred view of the deck and the sky spun with an accumulation blur (no moiré)
@@ -581,73 +670,81 @@
       ctx.restore();
       rainAxial(ctx, t, { vp: [860, 360], dir: -1, count: 220, seed: 301, alpha: 0.3 + 0.5 * fl, speed: 7, zNear: 0.8, zFar: 7, color: '200,214,240' });
     } else {
-      // her, astride him, against the storm sky. Each strobe is a new, closer still; she pants between them.
-      const fz = C30F[fr], tt = Math.floor(t * 12) / 12;          // her figure moves on twos (2-koma)
-      const breath = 0.5 + 0.5 * sin(tt * 8.2) * (0.6 + 0.4 * N2(tt * 1.3, 7));
-      const head = [960, fz[1] - 10 * breath], sc = 2.0;
-      const cam = { zoom: fz[0], cx: 960, cy: fz[2] };
+      // her, astride him, against the storm sky. Each strobe is a new, closer still; she pants and shouts between them.
+      const F = C30F[fr], tq = AN.onTwos(t), Tq = absT(S, 'C30', tq);   // her figure moves on twos (2-koma)
+      const br = 0.5 + 0.5 * sin(tq * 8.2) * (0.6 + 0.4 * N2(tq * 1.3, 7));
+      const cam = { zoom: F.cam[0], cx: 960, cy: F.cam[1], rot: F.cam[2] };
       // the sky: each strobe still is its own framing → a different 1:1 crop of the cached sky (no scaled blit)
-      const amb = Math.max(fl, 0.14), off = fz[3] || [0, 0];
+      const amb = Math.max(fl, 0.14), off = F.off;
       ctx.drawImage(c30SkyCache('her', false), off[0] - SKM, off[1] - SKM);
       ctx.globalAlpha = clamp(amb); ctx.drawImage(c30SkyCache('her', true), off[0] - SKM, off[1] - SKM); ctx.globalAlpha = 1;
       ctx.save(); PV.camera(ctx, cam);
       if (fl > 0.25 && (fr === 'D1' || fr === 'D3' || fr === 'raised')) L.lightning(ctx, L.lightningPath(fr === 'D3' ? 3013 : 3011, 1700, 80, 260, 320, 0.42, 8), clamp(fl), '#e9f1ff');
-      rainAxial(ctx, t, { vp: [960, head[1] + VPY * 92 * sc], dir: -1, zMin: 2.2, count: 260, seed: 302, alpha: 0.3 + 0.5 * fl, speed: 7, zNear: 0.8, zFar: 7, color: '200,214,240' });
+      const vpS = [960, C30H.N[1] - 1.35 * C30H.S];
+      rainAxial(ctx, t, { vp: vpS, dir: -1, zMin: 2.2, count: 260, seed: 302, alpha: 0.3 + 0.5 * fl, speed: 7, zNear: 0.8, zFar: 7, color: '200,214,240' });
+      ctx.restore();
       let arm = 'rest';
       if (fr === 'raised') arm = 'raised'; else if (fr === 'smear') arm = 0.8;
-      const fo = { x: head[0], y: head[1], scale: sc, light: -HP, rimColor: '#dfe9ff', rim: fr === 'E' ? 1.8 : 1.2, backlight: clamp(0.4 + 0.6 * fl + (fr === 'E' ? 0.25 : 0)), glow: 0.5 + 0.5 * fl, fill: '#0a0e18', breath, flash: fl, arm, sway: 1, fps: 12 };
+      const flQ = Math.round(fl * 10) / 10, face = c30Face(fr, tq);
+      // the figure layer is cached by its full input key (time on twos, flash in 1/10 steps): any render order gives the
+      // same pixels; a sequential render repaints it only every other frame
+      const key = fr + '|' + tq.toFixed(4) + '|' + flQ + '|' + arm, fb = PV.buffer('g08:c30fig', W + 2 * MG, H + 2 * MG);
+      let res = c30FigCache.key === key ? c30FigCache.res : null;
+      if (!res) {
+        fb.ctx.clearRect(0, 0, W + 2 * MG, H + 2 * MG); fb.ctx.save(); fb.ctx.translate(MG, MG); PV.camera(fb.ctx, cam);
+        res = c30Her(fb.ctx, { tq, T: Tq, fl: flQ, arm, br, face });
+        res.m = fb.ctx.getTransform(); fb.ctx.restore(); c30FigCache.key = key; c30FigCache.res = res;
+      }
       if (fr === 'smear') {
         // ONE smear frame: the fist already half-way down (big, near the lens), its trail stretched back up to where it
         // was raised, plus speed lines along the path
-        const u = 92 * sc, a0 = herArm2(0), a1 = herArm2(0.8), P0 = [head[0] + a0.Wr[0] * u, head[1] + (a0.Wr[1] - 0.1) * u], P1 = [head[0] + a1.Wr[0] * u, head[1] + (a1.Wr[1] + 0.2) * u];
-        const dx = P1[0] - P0[0], dy = P1[1] - P0[1], l = Math.hypot(dx, dy), nx = -dy / l, ny = dx / l, w0 = 0.06 * u, w1 = 0.42 * u;
-        const g = ctx.createLinearGradient(P0[0], P0[1], P1[0], P1[1]); g.addColorStop(0, 'rgba(10,14,24,0)'); g.addColorStop(0.55, 'rgba(10,14,24,0.7)'); g.addColorStop(1, 'rgba(10,14,24,0.96)');
-        ctx.save(); ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(P0[0] + nx * w0, P0[1] + ny * w0); ctx.quadraticCurveTo((P0[0] + P1[0]) / 2 + nx * w1 * 1.1 + 0.25 * u, (P0[1] + P1[1]) / 2 + ny * w1, P1[0] + nx * w1, P1[1] + ny * w1);
-        ctx.lineTo(P1[0] - nx * w1, P1[1] - ny * w1); ctx.quadraticCurveTo((P0[0] + P1[0]) / 2 - nx * w1 * 0.6 + 0.25 * u, (P0[1] + P1[1]) / 2 - ny * w1 * 0.6, P0[0] - nx * w0, P0[1] - ny * w0); ctx.closePath(); ctx.fill();
+        ctx.save(); PV.camera(ctx, cam);
+        const a0 = c30Arm(0, br), a1 = c30Arm(0.8, br), P0 = a0.wr, P1 = a1.wr, u = C30H.S;
+        const dx = P1[0] - P0[0], dy = P1[1] - P0[1], l = Math.hypot(dx, dy), nx = -dy / l, ny = dx / l, w0 = 0.06 * u, w1 = 0.36 * u;
+        const g = ctx.createLinearGradient(P0[0], P0[1], P1[0], P1[1]); g.addColorStop(0, 'rgba(14,18,30,0)'); g.addColorStop(0.55, 'rgba(14,18,30,0.6)'); g.addColorStop(1, 'rgba(14,18,30,0.9)');
+        ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(P0[0] + nx * w0, P0[1] + ny * w0); ctx.quadraticCurveTo((P0[0] + P1[0]) / 2 + nx * w1 * 1.1 + 0.2 * u, (P0[1] + P1[1]) / 2 + ny * w1, P1[0] + nx * w1, P1[1] + ny * w1);
+        ctx.lineTo(P1[0] - nx * w1, P1[1] - ny * w1); ctx.quadraticCurveTo((P0[0] + P1[0]) / 2 - nx * w1 * 0.6 + 0.2 * u, (P0[1] + P1[1]) / 2 - ny * w1 * 0.6, P0[0] - nx * w0, P0[1] - ny * w0); ctx.closePath(); ctx.fill();
         ctx.strokeStyle = 'rgba(223,233,255,0.5)'; ctx.lineCap = 'round';
-        for (let i = 0; i < 9; i++) { const f = (i + 0.5) / 9, o2 = (f - 0.5) * 2 * w1 * 1.3, x = P0[0] + dx * 0.15 + nx * o2 + 0.25 * u * sin(PI * 0.5), y = P0[1] + dy * 0.15 + ny * o2, L2 = l * (0.45 + 0.4 * R1(i, 541));
+        for (let i = 0; i < 9; i++) { const f = (i + 0.5) / 9, o2 = (f - 0.5) * 2 * w1 * 1.3, x = P0[0] + dx * 0.15 + nx * o2, y = P0[1] + dy * 0.15 + ny * o2, L2 = l * (0.45 + 0.4 * R1(i, 541));
           ctx.lineWidth = 2 + 3 * R1(i, 542); ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + dx / l * L2, y + dy / l * L2); ctx.stroke(); }
         ctx.restore();
       }
-      // the figure layer is cached by its full input key (time on twos, flash in 1/20 steps): any render order gives
-      // the same pixels, a sequential render redraws it only every other frame
-      fo.flash = Math.round(fl * 20) / 20; fo.backlight = clamp(0.4 + 0.6 * fo.flash + (fr === 'E' ? 0.25 : 0)); fo.glow = 0.5 + 0.5 * fo.flash;
-      const key = fr + '|' + tt.toFixed(4) + '|' + fo.flash + '|' + arm, fb = PV.buffer('g08:c30fig', W + 2 * MG, H + 2 * MG);
-      let res = c30FigCache.key === key ? c30FigCache.res : null;
-      if (!res) { fb.ctx.clearRect(0, 0, W + 2 * MG, H + 2 * MG); fb.ctx.save(); fb.ctx.translate(MG, MG); PV.camera(fb.ctx, cam); res = herFromBelow(fb.ctx, tt, fo); fb.ctx.restore(); c30FigCache.key = key; c30FigCache.res = res; }
       ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.translate(sx, sy); ctx.drawImage(fb.canvas, MG, MG, W, H, 0, 0, W, H); ctx.restore();
-      c30Drips(ctx, t, { x: head[0], y: head[1], scale: sc, flash: fl }, res.locks);
-      ctx.restore();
+      // drops from her hair tips and tears from her chin, falling toward his face
+      { ctx.save(); PV.camera(ctx, cam); const ch = res.anchors && res.anchors.chin; c30Drips(ctx, t, res.tips, res.vp, fl, null); ctx.restore(); }
       // rain between them (near, toward the lens)
-      rainAxial(ctx, t, { vp: [960, (head[1] + VPY * 92 * sc - fz[2]) * fz[0] + fz[2]], dir: -1, zMax: 2.2, count: 150, seed: 303, alpha: 0.4 + 0.4 * fl, speed: 7, zNear: 0.8, zFar: 7, width: 1.5, color: '206,218,242' });
+      rainAxial(ctx, t, { vp: [960 + (vpS[0] - 960) * F.cam[0], (vpS[1] - F.cam[1]) * F.cam[0] + F.cam[1]], dir: -1, zMax: 2.2, count: 150, seed: 303, alpha: 0.36 + 0.4 * fl, speed: 7, zNear: 0.8, zFar: 7, width: 1.5, color: '206,218,242' });
       if (fr === 'impact') {
-        // the impact frame: two frames of a stark negative — white world, her black silhouette, speed lines to the hit
+        // the impact frame: two frames of a stark negative — white world, her dark figure, speed lines to the hit
         ctx.save(); ctx.globalCompositeOperation = 'difference'; ctx.fillStyle = '#e8eeff'; ctx.fillRect(0, 0, W, H); ctx.restore();
         ctx.save(); ctx.globalCompositeOperation = 'saturation'; ctx.fillStyle = '#808080'; ctx.fillRect(0, 0, W, H); ctx.restore();
-        const hx = 1080, hy = 1150; ctx.save(); ctx.strokeStyle = 'rgba(10,12,20,0.75)'; ctx.lineCap = 'round';
-        for (let i = 0; i < 40; i++) { const a = R1(i, 551) * TAU, r0 = 260 + 300 * R1(i, 552), r1 = r0 + 500 + 900 * R1(i, 553); ctx.lineWidth = 2 + 6 * R1(i, 554); ctx.beginPath(); ctx.moveTo(hx + cos(a) * r0, hy + sin(a) * r0); ctx.lineTo(hx + cos(a) * r1, hy + sin(a) * r1); ctx.stroke(); }
+        const hx = 1350, hy = 1150; ctx.save(); ctx.strokeStyle = 'rgba(10,12,20,0.75)'; ctx.lineCap = 'round';
+        for (let i = 0; i < 40; i++) { const a = R1(i, 551) * TAU, r0 = 300 + 300 * R1(i, 552), r1 = r0 + 500 + 900 * R1(i, 553); ctx.lineWidth = 2 + 6 * R1(i, 554); ctx.beginPath(); ctx.moveTo(hx + cos(a) * r0, hy + sin(a) * r0); ctx.lineTo(hx + cos(a) * r1, hy + sin(a) * r1); ctx.stroke(); }
         ctx.restore();
       }
     }
     ctx.restore();
     // light: flash wash; the white-out of the scream (109.5)
-    if (fl > 0.01 && fr !== 'impact') { ctx.save(); ctx.globalCompositeOperation = 'screen'; ctx.fillStyle = `rgba(206,220,255,${(0.18 * fl).toFixed(3)})`; ctx.fillRect(0, 0, W, H); ctx.restore(); }
+    if (fl > 0.01 && fr !== 'impact') { ctx.save(); ctx.globalCompositeOperation = 'screen'; ctx.fillStyle = `rgba(206,220,255,${(0.14 * fl).toFixed(3)})`; ctx.fillRect(0, 0, W, H); ctx.restore(); }
     const wo = t >= 4.0 ? Math.exp(-(t - 4.0) / 0.14) : 0;
     if (wo > 0.01) { ctx.fillStyle = `rgba(245,248,255,${clamp(wo).toFixed(3)})`; ctx.fillRect(0, 0, W, H); }
     if (fr !== 'impact') ctx.drawImage(vignette('c30', 0.3, 1.0, '3,5,10', 0.55), 0, 0);
   } });
 
   /* ====================================================================== C31 */
-  // One low side view, the camera almost on the wet deck. He lies on his back (head to the right); she has
-  // collapsed onto his chest, motionless (原作「被さる身体はピクリともしない」), her face hidden, her long wet hair
-  // poured over his shoulder onto the road. The rain falls slowly. 115.0 she raises her upper body and throws her
-  // head back to the sky; the camera follows her up (slow tilt + pan). 115.82 the lightning behind her.
-  // World units: head units (u px at zoom 1), origin = the road under his hips, x toward his head.
-  const C31 = { flash: [[0.0, 0.5, 0.3], [2.9, 0.4, 0.22], [5.82, 0.45, 1], [6.3, 0.3, 0.5]], u: 184, hip: [0.35, -1.06] };
+  // At road level, close on their heads: he lies on his back (head to the right), his face turned up and a little toward
+  // us, the wet bangs pasted to his forehead — he says V10 to her (lip-sync). She has collapsed over his chest; her
+  // head has dropped onto the wet road beside his neck, her face toward us through the wet strands, tears running,
+  // eyes dull (原作「隣にある荒い息。色がない先輩の顔」「被さる身体はピクリともしない」). As his line lands her eyes fill
+  // and close; 115.0 she raises her upper body and cries up at the sky — the camera follows her up and out (slow tilt +
+  // pan + pull back), 115.82 the lightning behind her. World = px of the static framing (the road contact line at
+  // C31W.road); the camera maps world → screen as C + z·(p − f).
+  const C31 = { flash: [[0.0, 0.5, 0.3], [2.9, 0.4, 0.22], [5.82, 0.45, 1], [6.3, 0.3, 0.5]] };
+  const C31W = { road: 930, Sb: 360, Nb: [1218, 768], Sh: 330, hipLie: [-60, 640], hipUp: [-70, 705], Ls: 720 };
   const C31BM = [180, 290];   // backdrop cache margins (the camera pans left/up across it)
   function c31Cam(t) {
     const k = E.inOutCubic(clamp((t - 5.05) / 1.35));     // static while she lies on him (storyboard: static → slow tilt up)
-    return { fx: lerp(2.6, 0.45, k), fy: lerp(-1.3, -2.75, k), z: lerp(1.3, 1.1, k), k };
+    return { fx: lerp(1010, 40, k), fy: lerp(690, -120, k), z: lerp(1.22, 1.0, k), k };
   }
   // the storm behind them (sky, clouds lit from inside, the bridge tower, the far railing on the horizon), painted
   // once per light state into a margin-padded cache; the far backdrop follows the camera with parallax, unscaled
@@ -667,105 +764,120 @@
       c.restore();
     });
   }
-  // her pose: rise of the spine, the head thrown back, sobbing shoulders
+  // her pose: R = rise of the spine (115.0), tilt = the head thrown back, sob = the shoulders heaving as she cries
   function c31HerPose(t) {
     return { R: E.inOutCubic(clamp((t - 5.0) / 1.15)), tilt: E.inOutCubic(clamp((t - 5.4) / 0.95)), sob: t > 5.9 ? Math.max(0, sin((t - 5.9) * 9.5)) * sm(5.9, 6.2, t) : 0 };
   }
-  // both bodies in one figure pass (one silhouette, inner rims where she lies over him). o: figure options in px;
-  // pz: pose. Returns world points for drips (hair tips).
-  function c31Pair(ctx, t, o, pz) {
-    const { R, tilt, sob } = pz, br = o.breath || 0;
-    const H0 = C31.hip, phi = lerp(-0.25, -HP - 0.06, R) - 0.03 * sob, uS = [cos(phi), sin(phi)], nS = [-uS[1], uS[0]];
-    const P = (a, n) => [H0[0] + uS[0] * a + nS[0] * n, H0[1] + uS[1] * a + nS[1] * n];
-    const Lt = 2.0 + 0.03 * sob;
-    const hAng = phi + lerp(0.95, -0.62, tilt) + 0.05 * sob, dH = [cos(hAng), sin(hAng)], nH = [-dH[1], dH[0]];
-    const nb = P(Lt - 0.04, 0.04), hc = [nb[0] + dH[0] * 0.6, nb[1] + dH[1] * 0.6];
-    const H2 = (a, b) => [hc[0] + dH[0] * a + nH[0] * b, hc[1] + dH[1] * a + nH[1] * b];
+  // acting, by the line (V10 110.4–115.1: 「自分のために生きられないなら」110.45–112.0 /「……」/「俺のために生き」112.65–113.3 /
+  // 「てよ」114.2–114.75). t = cut time on twos.
+  function c31Acting(t, pz) {
+    // him: first the sky (the late thunder 110.1), then his eyes go to her and stay; resolve hardens on 「俺のために」
+    const toHer = sm(0.25, 0.75, t), resolve = sm(2.5, 3.0, t);
+    const him = { expr: 'determined', eyes: { open: lerp(1.05, 1.0, toHer), look: [lerp(0.05, -0.5, toHer), lerp(-0.45, 0.35, toHer)], tears: 0.35 + 0.25 * sm(3.5, 4.6, t), hlK: 1.15 },
+      brows: { inner: lerp(0.45, -0.2, resolve), outer: 0.1, furrow: lerp(0.35, 0.6, resolve) }, talk: true, blush: 0.12 };
+    // her: dull, wet, motionless → 114.3 the words reach her: the eyes widen and fill, the lips shake → 114.8 they close,
+    // the sob breaks → 115.0 she rises crying aloud (the voice is lost in the rain)
+    const hear = sm(4.25, 4.6, t), close = sm(4.75, 5.0, t), up = pz.R;
+    let her;
+    if (up < 0.05 && close < 0.5) her = { expr: 'teary', eyes: { open: lerp(0.72, 0.98, hear), tears: 1, shine: lerp(0.3, 0.85, hear), dull: lerp(0.65, 0.1, hear), sad: lerp(0.3, 0.7, hear), look: [0.25, 0.1] },
+      brows: { inner: lerp(0.25, 1, hear), outer: -0.2, furrow: lerp(0.1, 0.6, hear) }, mouth: { shape: 'frown', open: lerp(0.18, 0.3, hear), tremble: hear * 0.8 }, blush: 0.15, noBlink: true };
+    else her = { expr: 'cry', eyes: { tears: 1, open: lerp(0.2, 0.08, up), squeeze: 1, sad: 1 }, brows: { inner: 1, outer: -0.5, furrow: 1 },
+      mouth: { shape: 'shout', open: lerp(0.45, 0.85, up) + 0.12 * pz.sob, tremble: 0.6 }, blush: 0.55 };
+    return { him, her };
+  }
+  // both of them in world px. o: tq, T (global, on twos), fl (flash, quantised), pz (her pose). Returns drip sources.
+  function c31Pair(ctx, o) {
+    const { R, tilt, sob } = o.pz, fl = o.fl, W31 = C31W, road = W31.road;
+    const Lt = mixLight('storm', 'lightning', 0.12 + 0.75 * fl), FL = AN.faceLight(Lt), lv = [0, -1];
+    const rimCol = Lt.rim || '#dfe8ff', rimA = 0.6 + 0.4 * fl;
+    const skin = AN.mat('skin', FL), cloth = Lt;   // clothes stay in the storm's dark (only the faces are lifted)
+    const shirtM = AN.mat('shirt', cloth, { wet: 1 }), gownM = AN.mat('gown', cloth, { wet: 1 }), HMh = AN.mat('hair_senpai', Lt, { wet: 1 }), HMb = AN.mat('hair_boy', Lt, { wet: 1 });
+    const shirt = { base: AN.mixHex(AN.mixHex(shirtM.base, skin.base, 0.3), shirtM.shade, 0.35), shade: AN.mixHex(shirtM.shade, shirtM.deep, 0.45), deep: shirtM.deep, hi: shirtM.hi, line: shirtM.line };
+    const gown = { base: AN.mixHex(gownM.base, gownM.shade, 0.45), shade: AN.mixHex(gownM.shade, gownM.deep, 0.55), deep: gownM.deep, hi: gownM.hi, line: gownM.line };
+    const act = c31Acting(o.tq, o.pz);
+    const Sb = W31.Sb, Sh = W31.Sh, Nb = W31.Nb, lwB = AN.inkW(Sb) * 1.05, lwH = AN.inkW(Sh) * 1.05;
+    const br = 0.5 + 0.5 * sin(o.tq * 2.6);                   // his chest rises and falls under her
+    // ---- HIM, on his back (dark in the storm, the sky's rim along his chest): his neck runs into the open collar; the
+    //      near shoulder rounds down to the road; the chest goes on under her to the left
+    const neckP = capsulePath([Nb[0] + 0.04 * Sb, Nb[1] + 0.01 * Sb], [Nb[0] - 0.3 * Sb, Nb[1] + 0.05 * Sb], 0.115 * Sb, 0.13 * Sb);
+    celPart(ctx, neckP, skin, { lw: lwB * 0.8, lv, shade: Sb * 0.07, shadeCol: skin.shade });
+    const body = pathOf([[Nb[0] - 0.2 * Sb, Nb[1] - 0.16 * Sb], [Nb[0] - 0.42 * Sb, Nb[1] - 0.36 * Sb - 0.02 * Sb * br], [Nb[0] - 0.95 * Sb, Nb[1] - 0.47 * Sb - 0.03 * Sb * br], [Nb[0] - 1.8 * Sb, Nb[1] - 0.45 * Sb],
+      [-2600, Nb[1] - 0.38 * Sb, 1], [-2600, road + 4, 1], [Nb[0] - 0.55 * Sb, road + 4], [Nb[0] - 0.3 * Sb, road - 0.07 * Sb], [Nb[0] - 0.2 * Sb, Nb[1] + 0.2 * Sb], [Nb[0] - 0.24 * Sb, Nb[1] + 0.06 * Sb]]);
+    celPart(ctx, body, shirt, { lw: lwB, lv, shade: Sb * 0.16, rim: Sb * 0.02, rimCol, rimA });
+    ctx.save(); ctx.clip(body);
+    // the open collar (two points lying on his chest and toward the road) and wet folds pulled across the chest
+    const col1 = pathOf([[Nb[0] - 0.2 * Sb, Nb[1] - 0.14 * Sb], [Nb[0] - 0.36 * Sb, Nb[1] - 0.3 * Sb], [Nb[0] - 0.6 * Sb, Nb[1] - 0.2 * Sb, 1], [Nb[0] - 0.34 * Sb, Nb[1] - 0.1 * Sb]]);
+    const col2 = pathOf([[Nb[0] - 0.22 * Sb, Nb[1] + 0.16 * Sb], [Nb[0] - 0.36 * Sb, Nb[1] + 0.3 * Sb], [Nb[0] - 0.62 * Sb, Nb[1] + 0.22 * Sb, 1], [Nb[0] - 0.36 * Sb, Nb[1] + 0.1 * Sb]]);
+    celPart(ctx, col1, shirt, { lw: lwB * 0.6, lv, shade: Sb * 0.03, rim: Sb * 0.012, rimCol, rimA: rimA * 0.8 });
+    celPart(ctx, col2, shirt, { lw: lwB * 0.6, lv, shade: Sb * 0.05 });
+    for (let i = 0; i < 3; i++) { const x0 = Nb[0] - (0.8 + 0.34 * i) * Sb; inkLine(ctx, [[x0, Nb[1] - 0.42 * Sb], [x0 - 0.1 * Sb, Nb[1] - 0.12 * Sb], [x0 - 0.06 * Sb, Nb[1] + 0.22 * Sb]], (u) => lwB * 0.45 * Math.sin(PI * u), shirtM.line); }
+    ctx.restore();
+    // his head: lying, crown to the right, face up and turned a little toward us; wet bangs pasted to the forehead
+    const himHead = { who: 'boy', x: Nb[0], y: Nb[1], size: Sb, yaw: -0.5, pitch: 0, roll: HP + 0.04, light: Lt, rimDir: -HP, lightDir: -HP, shade: 0.08, rim: 1.1, T: o.T, seed: 7,
+      hair: { style: 'wet', still: true, wind: 1.6, windDir: 0.35 }, expr: act.him.expr, eyes: act.him.eyes, brows: act.him.brows, mouth: act.him.mouth, blush: act.him.blush, talk: act.him.talk };   // lying on his back: gravity pulls the wet bangs back off his eyes, toward the crown
+    AN.head(ctx, himHead);
+    // ---- HER: the spine from the hips over his chest; lying: the head dropped onto the road beside his neck
+    const hip = [lerp(W31.hipLie[0], W31.hipUp[0], R), lerp(W31.hipLie[1], W31.hipUp[1], R)];
+    const phiLie = 0.13, phiUp = -HP + 0.14, phi = lerp(phiLie, phiUp, R) + 0.03 * sob, u = [cos(phi), sin(phi)], nrm = [-u[1], u[0]];
+    const Ls = W31.Ls * (1 + 0.01 * sob), nb = [hip[0] + u[0] * Ls, hip[1] + u[1] * Ls];
+    const phiN = phi + lerp(0.14, -0.05, R) - 0.25 * tilt, uN = [cos(phiN), sin(phiN)];
+    const Nh = [nb[0] + uN[0] * 0.34 * Sh, nb[1] + uN[1] * 0.34 * Sh];
+    const P = (a, b) => [hip[0] + u[0] * a + nrm[0] * b, hip[1] + u[1] * a + nrm[1] * b];   // a along the spine, b to her front (+, toward his body when lying)
+    // her torso (the wet gown): back contour (−nrm) and front (+nrm) from the hips to the shoulders
+    const prof = [[0, -0.34, 0.3], [0.2, -0.3, 0.24], [0.4, -0.28, 0.25], [0.6, -0.29, 0.36], [0.74, -0.3, 0.37], [0.86, -0.28, 0.27], [0.95, -0.22, 0.17], [1.0, -0.12, 0.11]];
+    const tp = []; prof.forEach(([a, bb]) => tp.push(P(a * Ls, bb * Sh))); for (let i = prof.length - 1; i >= 0; i--) tp.push(P(prof[i][0] * Ls, prof[i][2] * Sh));
+    const torso = pathOf(tp);
+    // her near (right) thigh, knee on the road beside him, once she is up
+    if (R > 0.05) { const kn = [hip[0] + 0.85 * Sh, road - 0.05 * Sh], th = capsulePath(P(0.02 * Ls, 0.1 * Sh), kn, 0.3 * Sh, 0.2 * Sh); ctx.save(); ctx.globalAlpha = sm(0.05, 0.4, R); celPart(ctx, th, gown, { lw: lwH, lv, shade: Sh * 0.08, rim: Sh * 0.02, rimCol, rimA }); ctx.restore(); }
+    celPart(ctx, torso, gown, { lw: lwH, lv: [lerp(0.15, -0.55, R), lerp(-1, -0.8, R)], shade: Sh * 0.12, rim: Sh * 0.026, rimCol, rimA });
+    ctx.save(); ctx.clip(torso);   // the wet gown clings: a few folds pulled toward the shoulder, the side seam
+    for (let i = 0; i < 3; i++) inkLine(ctx, [P((0.48 + 0.14 * i) * Ls, -0.2 * Sh), P((0.56 + 0.14 * i) * Ls, 0.02 * Sh), P((0.6 + 0.15 * i) * Ls, 0.2 * Sh)], (q) => lwH * 0.5 * Math.sin(PI * q), gown.line);
+    inkLine(ctx, [P(0.1 * Ls, 0.05 * Sh), P(0.5 * Ls, 0.03 * Sh), P(0.86 * Ls, 0.06 * Sh)], (q) => lwH * 0.4 * Math.sin(PI * q), gown.line);
+    ctx.restore();
+    // the neck
+    const neckH = capsulePath(nb, Nh, 0.11 * Sh, 0.095 * Sh);
+    celPart(ctx, neckH, skin, { lw: lwH * 0.8, lv, shade: Sh * 0.05, shadeCol: skin.shade });
+    // her head: the library head (face, wet bangs, the locks that hang across her face; the long curtain falls toward
+    // the road — clipped at the road line, it does not go through it)
+    const herHead = { who: 'senpai', x: Nh[0], y: Nh[1], size: Sh, yaw: lerp(-0.05, 0.62, sm(0, 1, R)), pitch: 0.45 * tilt, roll: phiN + HP - 0.2 * tilt, light: Lt, rimDir: -HP, lightDir: -HP, shade: 0.08, rim: 1.15, T: o.T, seed: 3,
+      hair: { style: 'wet', still: true }, expr: act.her.expr, eyes: act.her.eyes, brows: act.her.brows, mouth: act.her.mouth, blush: act.her.blush, noBlink: act.her.noBlink };
+    ctx.save(); ctx.beginPath(); ctx.rect(-4000, -4000, 9000, road + 4 + 4000); ctx.clip();
+    AN.headBack(ctx, herHead);
+    ctx.restore();
+    // her near (right) arm: lying, the upper arm down her side to the road; up, the upper arm hangs at her side and the
+    // forearm in the white cast is carried by the sling across her belly — from this side we see the elbow end of the
+    // cast, the sling pouch under it and the strap going up across her chest to the far shoulder
+    const lvB = [lerp(0, -0.5, R), lerp(-1, -0.85, R)];   // up: the lightning sky is behind her (rim on her back)
+    const sh = P(0.9 * Ls, 0.06 * Sh), el = R < 0.5 ? [sh[0] + 0.12 * Sh, road - 0.12 * Sh] : P(0.6 * Ls, 0.1 * Sh);
+    if (R > 0.35) {
+      const a = sm(0.35, 0.7, R), cc = P(0.58 * Ls, 0.3 * Sh), cr = 0.15 * Sh;
+      ctx.save(); ctx.globalAlpha = a;
+      const strap = ribbonPath([P(0.6 * Ls, 0.36 * Sh), P(0.78 * Ls, 0.28 * Sh), P(0.97 * Ls, 0.02 * Sh)], [0.03 * Sh, 0.032 * Sh, 0.03 * Sh]);
+      const sl = { base: AN.mixHex('#55618a', '#c6d2ee', fl), shade: AN.mixHex('#323b58', '#8592b6', fl), line: '#262c40', hi: '#dfe8ff' };
+      celPart(ctx, strap, sl, { lw: lwH * 0.6, lv: lvB, shade: Sh * 0.015 });
+      const pouch = pathOf([[cc[0] - cr * 1.25, cc[1] - cr * 0.2], [cc[0] - cr * 0.9, cc[1] + cr * 1.15], [cc[0] + cr * 1.1, cc[1] + cr * 1.05], [cc[0] + cr * 1.3, cc[1] - cr * 0.1, 1], [cc[0], cc[1] + cr * 0.4]]);
+      const castEnd = pathOf([[cc[0] - cr, cc[1] - cr * 0.85], [cc[0] + cr * 0.95, cc[1] - cr * 0.9], [cc[0] + cr * 1.1, cc[1] + cr * 0.7], [cc[0] - cr * 0.9, cc[1] + cr * 0.75]]);
+      celPart(ctx, castEnd, { base: AN.mixHex('#aab6d2', '#f4f6fc', fl), shade: AN.mixHex('#707ca0', '#c4cde4', fl), line: '#46506c', hi: '#ffffff' }, { lw: lwH * 0.8, lv: lvB, shade: Sh * 0.06, rim: Sh * 0.02, rimCol, rimA });
+      celPart(ctx, pouch, sl, { lw: lwH * 0.7, lv: lvB, shade: Sh * 0.05 });
+      ctx.restore();
+    }
+    celPart(ctx, capsulePath(sh, el, 0.125 * Sh, 0.1 * Sh), gown, { lw: lwH, lv: lvB, shade: Sh * 0.05, rim: Sh * 0.018, rimCol, rimA });
+    const anc = AN.head(ctx, Object.assign({}, herHead, { layer: 'front' }));
+    // wet strands spread on the road toward the lens (lying), and drip sources
     const tips = [];
-    L.figureRender(ctx, o, null, (F) => {
-      // HIM on his back, head on the road to the right (face up, never acted), knees a little up, his near arm on the road
-      F.layer({ fill: F.tone(0.04) }, (c) => {
-        const ch = -1.12 - 0.025 * br;
-        blob(c, [[-0.55, 0.0, 1], [-0.62, -0.52], [-0.3, -0.86], [0.4, -0.96], [1.2, -0.98], [1.9, ch + 0.04], [2.5, ch], [2.95, -1.02], [3.25, -0.82], [3.35, -0.55], [3.4, 0.0, 1]]);
-        limb(c, [-0.4, -0.42], [-1.9, -0.56], 0.42, 0.27); limb(c, [-1.9, -0.56], [-3.3, -0.16], 0.26, 0.17);   // thigh, shin (knee a little up)
-        blob(c, [[-3.5, 0.0, 1], [-3.48, -0.26], [-3.2, -0.3], [-2.9, -0.12], [-2.95, 0.0, 1]]);                    // shoe
-        limb(c, [3.2, -0.62], [3.62, -0.6], 0.2, 0.18);                                                         // neck
-        // head: the back of the skull on the road, the face turned up (brow, nose, chin as a soft line only)
-        blob(c, [[3.55, -0.05], [3.5, -0.42], [3.58, -0.72], [3.68, -0.82], [3.76, -0.86], [3.84, -0.92], [3.9, -0.94], [3.97, -0.9], [4.08, -0.9], [4.22, -0.86], [4.38, -0.74], [4.48, -0.5], [4.44, -0.2], [4.24, 0.0]]);
-        blob(c, [[4.28, -0.78], [4.5, -0.66], [4.66, -0.48], [4.78, -0.26], [4.84, -0.06], [4.6, -0.01], [4.36, -0.02], [4.3, -0.4]]);   // his hair spread on the road
-        limb(c, [3.0, -0.72], [1.95, -0.24], 0.19, 0.15); limb(c, [1.95, -0.24], [0.95, -0.1], 0.15, 0.11);           // near arm on the road
-        c.beginPath(); c.ellipse(0.78, -0.1, 0.17, 0.09, 0.1, 0, TAU); c.fill();
-      });
-      F.raw((c) => { // wet leather catches the storm light in thin streaks along his chest and sleeve
-        const fl = o.flash || 0; c.save(); c.globalCompositeOperation = 'source-atop'; c.lineCap = 'round';
-        c.strokeStyle = PV.rgba('#cfdcff', 0.14 + 0.4 * fl); c.lineWidth = 0.018;
-        c.beginPath(); spline(c, [[0.6, -0.9], [1.4, -0.96], [2.3, -1.05]], false); c.stroke();
-        c.beginPath(); spline(c, [[2.7, -0.72], [2.2, -0.42], [1.5, -0.22]], false); c.stroke();
-        c.restore();
-      });
-      // HER far arm (hangs on the far side; seen once she sits up), then her body
-      if (R > 0.05) F.layer({ fill: F.tone(0.08, '#5c6c94'), alpha: R }, (c) => { c.save(); c.globalAlpha = clamp(R * 1.5); limb(c, P(Lt - 0.12, -0.1), P(Lt - 1.05, -0.02), 0.13, 0.1); limb(c, P(Lt - 1.05, -0.02), P(Lt - 1.75, 0.2), 0.1, 0.08); c.restore(); });
-      F.layer({ fill: F.tone(0.13, '#5c6c94'), inner: 0.5 }, (c) => {
-        limb(c, [H0[0] - 0.05, H0[1] + 0.05], [-0.28, -0.14], 0.36, 0.2); limb(c, [-0.28, -0.14], [-1.45, -0.09], 0.19, 0.1);   // near thigh, knee on the road, shin
-        // torso: the wet hospital gown, back (−n) and front (+n) contours from the hips to the shoulders
-        const prof = [[-0.12, -0.38, 0.34], [0.45, -0.3, 0.27], [0.95, -0.29, 0.29], [1.35, -0.35, 0.37], [1.62, -0.36, 0.33], [1.85, -0.3, 0.22], [Lt - 0.02, -0.2, 0.14], [Lt + 0.08, -0.1, 0.1]];
-        const pts = []; prof.forEach(([a, b]) => pts.push(P(a, b))); for (let i = prof.length - 1; i >= 0; i--) pts.push(P(prof[i][0], prof[i][2]));
-        blob(c, pts);
-        limb(c, nb, H2(-0.2, 0.05), 0.12, 0.12);                          // neck
-        // head in profile (no mouth): buried by his neck at first, then thrown back to the sky
-        blob(c, [H2(0.5, 0.0), H2(0.44, 0.27), H2(0.3, 0.39), H2(0.2, 0.41, 1), H2(0.14, 0.44), H2(0.03, 0.55, 1), H2(-0.05, 0.45), H2(-0.1, 0.47), H2(-0.16, 0.45), H2(-0.21, 0.47), H2(-0.29, 0.42), H2(-0.37, 0.3), H2(-0.42, 0.14), H2(-0.38, -0.04), H2(-0.3, -0.3), H2(-0.05, -0.46), H2(0.25, -0.42), H2(0.45, -0.24)]);
-      });
-      // her near arm: the cast in its sling across her belly (white), the upper arm down her side
-      F.layer({ fill: F.tone(0.16, '#5c6c94'), inner: 0.6 * sm(0.2, 0.7, R) }, (c) => { limb(c, P(Lt - 0.12, -0.04), P(Lt - 0.95, 0.12), 0.17, 0.12); });
-      F.raw((c) => {
-        const fl = o.flash || 0, El = P(Lt - 0.98, 0.14), Wr = P(Lt - 0.86, 0.58); if (R < 0.12) return; c.save(); c.globalAlpha = sm(0.12, 0.55, R); c.lineCap = 'round';
-        c.fillStyle = PV.mix('#232b40', '#5a6684', fl);                   // the sling pouch, sagging under the cast
-        blob(c, [[El[0] - 0.02, El[1] + 0.02], P(Lt - 1.1, 0.34), [Wr[0] + 0.02, Wr[1] + 0.03, 1], P(Lt - 0.74, 0.34), P(Lt - 0.84, 0.12)]);
-        const g = c.createLinearGradient(El[0], El[1] - 0.2, El[0], El[1] + 0.25); g.addColorStop(0, PV.mix('#b8c4dc', '#f2f6ff', fl)); g.addColorStop(1, PV.mix('#3a4560', '#8c99b6', fl));
-        c.strokeStyle = g; c.lineWidth = 0.26; c.beginPath(); c.moveTo(El[0], El[1]); c.lineTo(Wr[0], Wr[1]); c.stroke();
-        c.strokeStyle = PV.rgba('#2a3348', 0.35); c.lineWidth = 0.012;   // bandage wraps
-        for (const f of [0.35, 0.65]) { const x = lerp(El[0], Wr[0], f), y = lerp(El[1], Wr[1], f); c.beginPath(); c.moveTo(x - uS[0] * 0.12, y - uS[1] * 0.12); c.lineTo(x + uS[0] * 0.12, y + uS[1] * 0.12); c.stroke(); }
-        c.strokeStyle = PV.mix('#3c4762', '#9aa8c6', fl); c.lineWidth = 0.04;   // the strap up to her neck
-        const nk = P(Lt - 0.02, 0.12), m = P(Lt - 0.5, 0.45); c.beginPath(); c.moveTo(Wr[0], Wr[1]); c.quadraticCurveTo(m[0], m[1], nk[0], nk[1]); c.stroke();
-        c.restore();
-      });
-      // her wet hair. Collapsed: from her head it pours over his shoulder to the road and spreads on the wet asphalt
-      // toward the lens. Risen: it hangs heavy down her back. (point-wise blend between the two drapes)
-      const hairPaths = [];
-      F.layer({ inner: 0.55 }, (c) => {
-        c.beginPath(); c.ellipse(H2(0.1, -0.16)[0], H2(0.1, -0.16)[1], 0.5, 0.36, hAng, 0, TAU);   // the hair over the back of the skull (the profile stays clear)
-        const n = 15, hx = hc[0];
-        for (let i = 0; i < n; i++) {
-          const f = i / (n - 1), r = R1(i, 311), r2 = R1(i, 312), sw = 0.025 * sin(t * 1.4 + i) * R;
-          const root = H2(lerp(0.4, -0.3, f), lerp(-0.34, -0.06, f));
-          // collapsed: over the crown and his shoulder, down to the road, then spread out on the wet asphalt
-          const sx = hx + 0.1 + (f - 0.5) * 1.1, rd = [sx + 0.3 * (r - 0.5), -0.03];
-          const lyA = [lerp(root[0], sx, 0.35) + 0.1, root[1] + 0.1], lyB = [sx + 0.08, lerp(root[1], 0, 0.55)], lyC = rd, lyD = [rd[0] + (f - 0.5) * 0.9 + 0.2 * (r - 0.5), 0.12 + 0.36 * r2];
-          // risen: heavy, down her back
-          const bx = root[0] - 0.08 - 0.12 * r;
-          const upA = [bx - 0.03, root[1] + 0.45], upB = [bx - 0.07 - 0.05 * r, root[1] + 0.95], upC = [bx - 0.1 - 0.08 * r + sw, root[1] + 1.4 + 0.2 * r2], upD = [bx - 0.12 - 0.1 * r + sw, root[1] + 1.8 + 0.35 * r2];
-          const k = E.inOut(clamp(R * 1.1 - 0.05 * f));
-          const L3 = (a, b) => [lerp(a[0], b[0], k), lerp(a[1], b[1], k)];
-          const ctrl = [root, L3(lyA, upA), L3(lyB, upB), L3(lyC, upC), L3(lyD, upD)];
-          const pts = [], ws = [], w0 = 0.09 + 0.07 * r2;
-          for (let j = 0; j <= 12; j++) {   // Catmull-Rom through the control points
-            const q = j / 12 * 4, s0 = Math.min(3, Math.floor(q)), u = q - s0, p0 = ctrl[Math.max(0, s0 - 1)], p1 = ctrl[s0], p2 = ctrl[s0 + 1], p3 = ctrl[Math.min(4, s0 + 2)];
-            const cr = (a, b, cc, d) => 0.5 * (2 * b + (-a + cc) * u + (2 * a - 5 * b + 4 * cc - d) * u * u + (-a + 3 * b - 3 * cc + d) * u * u * u);
-            pts.push([cr(p0[0], p1[0], p2[0], p3[0]), cr(p0[1], p1[1], p2[1], p3[1])]);
-            const qq = j / 12; ws.push(w0 * (0.85 + 0.7 * qq * (1 - k)) * Math.pow(1 - sm(0.74, 1, qq), 0.7) + 0.004);
-          }
-          ribbon(c, pts, ws); hairPaths.push({ pts, ws, i });
-          if (r > 0.45) tips.push({ p: pts[12], lie: 1 - k, i });
-        }
-        c.fill();
-      });
-      F.raw((c) => { // wet sheen along some locks
-        const fl = o.flash || 0; c.save(); c.globalCompositeOperation = 'source-atop'; c.strokeStyle = PV.rgba('#dfe9ff', 0.14 + 0.5 * fl); c.lineCap = 'round'; c.lineWidth = 0.014;
-        for (const hp of hairPaths) { if (R1(hp.i, 318) < 0.55) continue; c.beginPath(); for (let j = 2; j < 9; j++) { const q = hp.pts[j]; if (j === 2) c.moveTo(q[0] + hp.ws[j] * 0.3, q[1]); else c.lineTo(q[0] + hp.ws[j] * 0.3, q[1]); } c.stroke(); }
-        c.restore();
-      });
-    });
-    return { tips, head: hc };
+    if (R < 0.6) {
+      ctx.save(); ctx.globalAlpha = 1 - sm(0.2, 0.6, R);
+      for (let i = 0; i < 7; i++) {
+        const r = R1(i, 311), x0 = Nh[0] + (0.05 + 0.13 * i) * Sh, len = (0.25 + 0.3 * r) * Sh, pts = [];
+        for (let j = 0; j <= 6; j++) { const q = j / 6; pts.push([x0 + (i - 3) * 0.04 * Sh * q, road + 2 + q * len * 0.35 + 0.02 * Sh * sin(q * 4 + i)]); }
+        AN.taper(ctx, pts, (q) => Math.max(0.8, Sh * 0.022 * (1 - q) * (0.6 + 0.6 * r)), HMh.base, true);
+        if (r > 0.4) tips.push({ p: pts[6], lie: 1 });
+      }
+      ctx.restore();
+    }
+    if (R > 0.3) for (let i = 0; i < 4; i++) tips.push({ p: [Nh[0] - (0.35 + 0.08 * i) * Sh, Nh[1] + (1.3 + 0.25 * R1(i, 331)) * Sh], lie: 0 });
+    tips.push({ p: [Nb[0] + 0.55 * Sb, road - 0.02 * Sb], lie: 1 });   // his hair on the road
+    return { tips, chin: anc.chin };
   }
   // slow rain: fat drops falling slowly (the world holding its breath), with glints in the flash
   function slowRain(ctx, t, o) {
@@ -779,28 +891,27 @@
     }
     ctx.restore();
   }
-  PV.shot('C31', { draw(ctx, tIn, d) {
+  PV.shot('C31', { draw(ctx, tIn, d, S) {
     const t = cutT(tIn, d);
-    const fl = flashOf(t, C31.flash), cm = c31Cam(t), u = C31.u * cm.z;
-    const toS = (p) => [960 + (p[0] - cm.fx) * u, 540 + (p[1] - cm.fy) * u];
+    const fl = flashOf(t, C31.flash), cm = c31Cam(t);
+    const toS = (p) => [960 + (p[0] - cm.fx) * cm.z, 540 + (p[1] - cm.fy) * cm.z];
+    S.post = Object.assign({}, S.post, { bloom: 0.2 });   // two faces close up in a dark frame: keep the eye lines crisp
     // 1) the storm backdrop (far: parallax, unscaled 1:1 blits), its lit version with the flash
-    const bx = (cm.fx - 2.6) * C31.u * 0.35, by = (cm.fy + 1.3) * C31.u * 1.1 * 0.85;
+    const bx = clamp((cm.fx - 1010) * 0.18, -178, 18), by = clamp((cm.fy - 690) * 0.33, -288, 18);
     ctx.drawImage(c31Backdrop(false), -C31BM[0] - bx, -C31BM[1] - by);
     if (fl > 0.01) { ctx.save(); ctx.globalAlpha = clamp(fl); ctx.drawImage(c31Backdrop(true), -C31BM[0] - bx, -C31BM[1] - by); ctx.restore(); }
     if (fl > 0.3) { const ox = -C31BM[0] - bx + 40, oy = -C31BM[1] - by; L.lightning(ctx, L.lightningPath(3101, ox + 1330, oy + 140, ox + 1200, oy + 980, 0.36, 7), clamp((fl - 0.3) / 0.7), '#e9f1ff'); }
-    // 2) the two of them (one figure pass), held on twos; motionless while she lies on him
-    const pz = c31HerPose(t), tq = Math.floor(t * 12) / 12, breath = t < 5 ? 0.5 + 0.5 * sin(tq * 2.6) : 0.5;
-    // held on twos: painted with the pose, flash and camera of the quantised time, re-projected on the in-between frame
-    const cQ = c31Cam(tq), flQ = Math.round(flashOf(tq, C31.flash) * 20) / 20, uQ = C31.u * cQ.z;
-    const toCam = (c) => ({ z: c.z * C31.u, fx: c.fx, fy: c.fy });
-    const held = heldLayer('c31pair', (tq < 5 ? 'lie|' + flQ : tq.toFixed(4)), toCam(cQ), toCam(cm), (c) => {
-      const pzq = tq < 5 ? { R: 0, tilt: 0, sob: 0 } : c31HerPose(tq);
-      const o = { x: 960 - cQ.fx * uQ, y: 540 - cQ.fy * uQ, scale: C31.u / 92 * cQ.z, light: -HP - 0.35 + 0.95 * pzq.R, rimColor: '#dfe9ff', rim: 1.25 + 0.6 * flQ, backlight: clamp(0.18 + 0.55 * flQ), glow: 0.25 + 0.45 * flQ, fill: '#0a0e18', fps: 0, flash: flQ, breath: 0 };
-      return c31Pair(c, tq < 5 ? 0 : tq, o, pzq);
+    // 2) the two of them, held on twos (acting, lip-sync and blinks move on twos): painted with the pose, flash and camera
+    //    of the quantised time, re-projected to the camera of the in-between frame
+    const tq = AN.onTwos(t), Tq = absT(S, 'C31', tq), cQ = c31Cam(tq), flQ = Math.round(flashOf(tq, C31.flash) * 10) / 10;
+    const held = heldLayer('c31pair', tq.toFixed(4) + '|' + flQ, cQ, cm, (c) => {
+      c.save(); c.translate(960, 540); c.scale(cQ.z, cQ.z); c.translate(-cQ.fx, -cQ.fy);
+      const r = c31Pair(c, { tq, T: Tq, fl: flQ, pz: c31HerPose(tq) });
+      c.restore(); return r;
     });
-    const res = held.res, fb = held; held.draw(ctx);
+    const res = held.res; held.draw(ctx);
     // 3) the wet road mirrors everything above it (darker, broken by ripples)
-    const roadY = Math.round(toS([0, 0])[1]);
+    const roadY = Math.round(toS([0, C31W.road])[1]);
     if (roadY < H) {
       const h = H - roadY, src = Math.max(0, roadY - h), cp = buf('c31cp', W, Math.max(2, roadY - src));
       cp.ctx.drawImage(ctx.canvas, 0, src, W, roadY - src, 0, 0, W, roadY - src);
@@ -818,7 +929,7 @@
     res.tips.forEach((tp, i) => {
       const p = toS(tp.p), per = 1.3 + R1(i, 371), k = (((t + R1(i, 372) * per) % per) + per) % per / per;
       const ground = tp.lie > 0.5 ? p[1] + 4 : roadY;
-      if (k < 0.5) { const rr = 2.5 + 3.5 * k / 0.5; ctx.fillStyle = `rgba(206,220,250,${(0.5 + 0.4 * fl).toFixed(3)})`; ctx.beginPath(); ctx.arc(p[0], p[1] + rr, rr, 0, TAU); ctx.fill(); return; }
+      if (k < 0.5) { const rr = (2.5 + 3.5 * k / 0.5) * cm.z; ctx.fillStyle = `rgba(206,220,250,${(0.5 + 0.4 * fl).toFixed(3)})`; ctx.beginPath(); ctx.arc(p[0], p[1] + rr, rr, 0, TAU); ctx.fill(); return; }
       const kk = (k - 0.5) / 0.5;
       if (tp.lie > 0.5 || kk > 0.45) { const k3 = tp.lie > 0.5 ? kk : (kk - 0.45) / 0.55; ctx.strokeStyle = `rgba(220,232,255,${(0.55 * (1 - k3)).toFixed(3)})`; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.ellipse(p[0], Math.min(ground, H + 50), 6 + 46 * k3, (6 + 46 * k3) * 0.22, 0, 0, TAU); ctx.stroke(); }
       else { const yy = lerp(p[1], roadY, kk / 0.45); ctx.strokeStyle = 'rgba(206,220,250,0.6)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(p[0], yy - 14); ctx.lineTo(p[0], yy); ctx.stroke(); }
@@ -831,12 +942,12 @@
   } });
 
   /* ====================================================================== C32 */
-  // 116.7 he sits up and pulls her in. From behind her: two backlit silhouettes on the white bridge — her back with
-  // the white sling band across it (as at the railing in C28), her left arm hanging limp over his arm (されるがまま),
-  // his bowed head over her right shoulder, his arms round her. As the music turns to D major a pale light opens in
-  // the clouds behind them. From the second half of the line the camera pushes in to HIS RIGHT HAND on her back —
-  // the fingers dug into the wet gown, the ends of the fingers blanched white (原作4198). 122.9 the lightning's white
-  // freezes the frame (123.3 the sound is cut; hard cut to C33).
+  // 116.7 he sits up and pulls her in. Seen from behind her left shoulder: her face in front, turned to us on his
+  // shoulder — the wide wet eyes of someone being held (されるがまま) — and his determined face over her right shoulder,
+  // saying V11 (lip-sync), the eyes wet; the white sling strap at the back of her neck, her left arm hanging limp over
+  // his arm. As the music turns to D major a pale light opens in the clouds behind them. From 「先輩の右手になるよ」 the
+  // camera pushes in to HIS RIGHT HAND on her back — the fingers dug into the wet gown, the ends of the fingers blanched
+  // white (原作4198). 122.9 the lightning's white freezes the frame (123.3 the sound is cut; hard cut to C33).
   const C32 = { pull: 0.2, push: [3.35, 6.2], freeze: 6.4, flash: [[0.24, 0.42, 1], [2.55, 0.36, 0.55], [4.7, 0.3, 0.35]], sc: 2.6, waist: [900, 860] };
   const c32Embrace = (t) => E.outCubic(clamp((t - C32.pull) / 0.65));
   const c32Grip = (t) => 0.3 * c32Embrace(t) + 0.7 * sm(1.0, 6.2, t);
@@ -860,97 +971,87 @@
       c.fillStyle = `rgba(170,190,235,${(0.08 + 0.25 * fl).toFixed(3)})`; c.fillRect(-200, 704, W + 400, 3);
     });
   }
-  // the two of them. Units: head units, origin = her waist. e = embrace 0..1. Returns his right-hand anchor & forearm.
-  function c32Geo(t, e, sob) {
-    const G = {};
-    G.her = { sh: -1.6 + 0.03 * sob, head: [lerp(0.02, -0.1, e), lerp(-2.62, -2.5, e) + 0.03 * sob], hTilt: lerp(0.05, -0.16, e) };
-    G.him = { dy: lerp(1.6, 0, E.outCubic(e)), head: [lerp(0.12, 0.5, e), lerp(-0.2, -2.08, E.outCubic(e))], hTilt: lerp(-0.2, 0.35, e) };
-    const up = G.him.dy;                                         // his arms come up with him as he sits up
-    G.rH = [lerp(-0.7, -0.24, e), lerp(-0.98, -0.98, e) + up];   // his right hand on her back (her left shoulder blade)
-    G.rEl = [lerp(-1.15, -1.1, e), lerp(-0.74, -0.74, e) + up];
-    G.lH = [lerp(0.7, 0.34, e), lerp(-1.22, -1.22, e) + up];     // his left hand (her right shoulder blade, under her hair)
-    G.lEl = [lerp(1.12, 1.05, e), lerp(-0.82, -0.82, e) + up];
-    return G;
+  // The embrace, from behind her left shoulder (world px = the two-shot framing). Her head in front, on his right
+  // shoulder, the face turned to us (3/4 left): wide wet eyes, されるがまま; his determined face over her right shoulder
+  // (3/4 right), V11 lip-sync, wet eyes. His right arm comes round under her limp left arm and his right hand grips her
+  // back (the push-in target); his left arm holds her lower back. e = the pull (he sits up and draws her in).
+  const C32L = { her: { N: [742, 572], S: 300 }, him: { N: [1196, 548], S: 318 }, wrist: [646, 806], rot: HP - 0.2, hs: 1.14 };
+  function c32Acting(t) {
+    // V11 117.0–121.4: 「全部は無理だけど」117.1–118.1 /「……」/「俺が」118.7–119.1 /「……」/「先輩の右手になるよ」119.75–121.2
+    const e = c32Embrace(t), land = sm(3.25, 3.9, t), cry = sm(4.4, 5.2, t);
+    const him = { expr: 'determined', eyes: { tears: 0.55 + 0.3 * land, look: [0.25, 0.1], open: 1.05 - 0.6 * (1 - sm(0.1, 0.5, t)) }, brows: { inner: lerp(0.35, -0.3, sm(1.2, 2.2, t)), outer: 0.15, furrow: 0.55 }, talk: true, blush: 0.15 };
+    const her = { expr: 'surprise', eyes: { open: lerp(0.9, 1.15, sm(0.2, 0.6, t)) - 0.3 * cry, wide: lerp(0.4, 0.9, sm(0.2, 0.6, t)) * (1 - 0.6 * cry), tears: lerp(0.55, 1, land), sad: 0.4 * land, look: [-0.15, 0.05] },
+      brows: { inner: lerp(0.6, 1, land), outer: lerp(0.4, -0.3, land), furrow: 0.5 * land }, mouth: { shape: land > 0.5 ? 'frown' : 'o', open: lerp(0.28, 0.22, land), tremble: 0.7 * land }, blush: 0.3 + 0.2 * land, noBlink: true };
+    return { him, her, e };
   }
-  function c32Pair(ctx, t, o, G, sob) {
-    const hr = G.her, hm = G.him, fl = o.flash || 0, tq = Math.floor(t * 12) / 12, pk = o.pk || 0;
-    L.figureRender(ctx, o, null, (F) => {
-      // HIM (behind her, facing us): shoulders wider than hers, the bowed head over her right shoulder (messy hair)
-      F.layer({ fill: F.tone(0.03) }, (c) => {
-        const y = hm.dy;
-        blob(c, [[-1.0, 0.7 + y], [-1.08, -1.0 + y], [-1.0, -1.42 + y], [-0.7, -1.62 + y], [0.0, -1.66 + y], [0.72, -1.64 + y], [1.04, -1.46 + y], [1.12, -1.0 + y], [1.05, 0.7 + y]]);
-        limb(c, [-0.98, -1.35 + y], G.rEl, 0.22, 0.18); limb(c, [1.03, -1.35 + y], G.lEl, 0.22, 0.18);   // upper arms
-        c.save(); c.translate(hm.head[0], hm.head[1]); c.rotate(hm.hTilt);
-        blob(c, [[0.0, -0.52], [0.26, -0.5], [0.44, -0.36], [0.53, -0.14], [0.6, 0.0, 1], [0.5, 0.06], [0.48, 0.24], [0.34, 0.4], [0.1, 0.46], [-0.16, 0.42], [-0.38, 0.3], [-0.5, 0.12], [-0.6, 0.02, 1], [-0.52, -0.14], [-0.42, -0.36], [-0.24, -0.5]]);
-        for (let q = 0; q < 6; q++) { const a = -2.6 + q * 0.42, r0 = [0.46 * cos(a), 0.48 * sin(a)], dir = a + 0.35 * (R1(q, 381) - 0.3); ribbon(c, [r0, [r0[0] + 0.1 * cos(dir), r0[1] + 0.1 * sin(dir)], [r0[0] + 0.17 * cos(dir + 0.25), r0[1] + 0.17 * sin(dir + 0.25)]], [0.07, 0.045, 0.004]); }
-        c.fill();
-        c.restore();
-      });
-      // HER back: the wet hospital gown, narrow shoulders, waist; her head tilted onto his shoulder
-      F.layer({ fill: F.tone(0.12, '#5c6c94'), inner: 0.45 }, (c) => {
-        const s = hr.sh;
-        blob(c, [[-0.6, 0.7], [-0.5, 0.15], [-0.47, -0.45], [-0.6, -1.1], [-0.74, s + 0.12], [-0.6, s - 0.06], [-0.2, s - 0.16], [-0.12, -1.92],
-                 [0.14, -1.92], [0.22, s - 0.16], [0.62, s - 0.06], [0.76, s + 0.12], [0.62, -1.1], [0.49, -0.45], [0.52, 0.15], [0.62, 0.7]]);
-        c.save(); c.translate(hr.head[0], hr.head[1]); c.rotate(hr.hTilt); c.beginPath(); c.ellipse(0, 0, 0.44, 0.52, 0, 0, TAU); c.fill(); c.restore();
-      });
-      // his forearms across her back and his left hand (far, under her hair); the right hand is the hand rig
-      F.layer({ fill: F.tone(0.04), inner: 0.6 }, (c) => {
-        limb(c, G.rEl, [G.rH[0] - 0.42, G.rH[1] + 0.08], 0.18, 0.13);
-        limb(c, G.lEl, [G.lH[0] + 0.3, G.lH[1] + 0.05], 0.18, 0.13);
-        c.beginPath(); c.ellipse(G.lH[0] + 0.05, G.lH[1], 0.2, 0.12, -0.25, 0, TAU); c.fill();
-      });
-      // the white sling band across her back (from under her hair to her right elbow) and the cast's elbow peeking out
-      F.raw((c) => {
-        c.save(); c.lineCap = 'round';
-        c.strokeStyle = PV.mix('#5a6684', '#d8e2f6', 0.25 + 0.75 * fl); c.lineWidth = 0.075;
-        c.beginPath(); c.moveTo(0.02, -1.86); c.quadraticCurveTo(0.34, -1.38, 0.62, -0.86); c.stroke();
-        const g = c.createLinearGradient(0.5, -1.0, 0.82, -0.6); g.addColorStop(0, PV.mix('#8e9bb8', '#eef3ff', fl)); g.addColorStop(1, PV.mix('#3a4560', '#8c99b6', fl));
-        c.fillStyle = g; c.beginPath(); c.moveTo(0.52, -1.02); c.quadraticCurveTo(0.74, -0.96, 0.8, -0.74); c.lineTo(0.86, -0.56); c.quadraticCurveTo(0.7, -0.66, 0.56, -0.7); c.quadraticCurveTo(0.5, -0.86, 0.52, -1.02); c.fill();
-        c.restore();
-      });
-      // her left arm, hanging limp over his arm (されるがまま): shoulder, elbow, the open hand, fingers down
-      F.layer({ fill: F.tone(0.22, '#6878a4'), inner: 1.0 }, (c) => {
-        const sh = [-0.66, hr.sh + 0.1], el = [-1.0, -0.5], wr = [-1.1, 0.36 + 0.02 * sob];
-        limb(c, sh, el, 0.15, 0.115); limb(c, el, wr, 0.11, 0.08);
-        blob(c, [[wr[0] - 0.07, wr[1] - 0.02], [wr[0] + 0.07, wr[1]], [wr[0] + 0.07, wr[1] + 0.2], [wr[0] + 0.03, wr[1] + 0.34], [wr[0] - 0.04, wr[1] + 0.3], [wr[0] - 0.08, wr[1] + 0.16]]);
-      });
-      F.raw((c) => { // the limp arm catches the storm light along its outer edge (されるがまま垂れた左腕)
-        c.save(); c.globalCompositeOperation = 'source-atop'; c.lineCap = 'round'; c.strokeStyle = PV.rgba('#dfe9ff', 0.32 + 0.4 * fl); c.lineWidth = 0.022;
-        const sh = [-0.66, hr.sh + 0.1], el = [-1.0, -0.5], wr = [-1.1, 0.36 + 0.02 * sob];
-        c.beginPath(); c.moveTo(sh[0] - 0.13, sh[1] + 0.08); c.quadraticCurveTo(el[0] - 0.13, el[1], el[0] - 0.11, el[1] + 0.1); c.quadraticCurveTo(wr[0] - 0.1, (el[1] + wr[1]) / 2, wr[0] - 0.08, wr[1] + 0.14); c.stroke();
-        c.restore();
-      });
-      // her long wet hair down her back, clumped; following the head tilt
-      F.layer({ inner: 0.55 * (1 - 0.75 * pk) }, (c) => {
-        c.beginPath();
-        const n = 15, ca = cos(hr.hTilt), sa = sin(hr.hTilt);
-        for (let i = 0; i < n; i++) {
-          const f = i / (n - 1), r = R1(i, 321), r2 = R1(i, 322);
-          const lx = (f - 0.5) * 0.8, ly = -0.28 + 0.24 * Math.abs(f - 0.5);
-          const root = [hr.head[0] + lx * ca - ly * sa, hr.head[1] + lx * sa + ly * ca];
-          const tip = [root[0] * 0.45 + (f - 0.5) * 0.62 + 0.1 * (r - 0.5) + 0.06, -0.05 + 0.42 * r2 - 0.25 * Math.abs(f - 0.5)];
-          const mid = [lerp(root[0], tip[0], 0.45) + (f - 0.5) * 0.18, lerp(root[1], tip[1], 0.45)], sw = 0.012 * sin(tq * 1.7 + i);
-          const pts = [], ws = [], m = 12, w0 = 0.055 + 0.045 * r2;
-          for (let j = 0; j <= m; j++) { const q = j / m, iq = 1 - q; pts.push([iq * iq * root[0] + 2 * iq * q * mid[0] + q * q * tip[0] + sw * q, iq * iq * root[1] + 2 * iq * q * mid[1] + q * q * tip[1]]); ws.push(w0 * (1.0 + 0.45 * q) * Math.pow(1 - sm(0.72, 1, q), 0.75) + 0.004); }
-          ribbon(c, pts, ws);
-        }
-        c.ellipse(hr.head[0], hr.head[1] - 0.04, 0.46, 0.5, hr.hTilt, PI, TAU); c.fill();
-      });
-      F.raw((c) => { // wet sheen on her hair
-        c.save(); c.globalCompositeOperation = 'source-atop'; c.lineCap = 'round'; c.strokeStyle = PV.rgba('#dfe9ff', (0.1 + 0.32 * fl) * (1 - 0.8 * pk)); c.lineWidth = 0.011;
-        for (let i = 0; i < 6; i++) { const x = hr.head[0] + (R1(i, 331) - 0.5) * 0.6; c.beginPath(); c.moveTo(x, hr.head[1] + 0.25); c.quadraticCurveTo(x + 0.04, -1.4, x * 0.55 + 0.05, -0.75 - 0.3 * R1(i, 332)); c.stroke(); }
-        c.restore();
-      });
-    });
+  function c32Pair(ctx, o) {
+    const t = o.tq, fl = o.fl, sob = o.sob, A = c32Acting(t), e = A.e, eo = E.outCubic(e);
+    const Lt = mixLight('storm', 'lightning', 0.15 + 0.55 * fl + 0.12 * o.hope), FL = AN.faceLight(Lt);
+    const lv = [0.15, -0.99], rimCol = Lt.rim || '#e4ecff', rimA = 0.6 + 0.4 * fl;
+    const skin = AN.mat('skin', FL), shirtM = AN.mat('shirt', Lt, { wet: 1 }), gownM = AN.mat('gown', Lt, { wet: 1 });
+    const shirt = { base: AN.mixHex(AN.mixHex(shirtM.base, skin.base, 0.25), shirtM.shade, 0.3), shade: AN.mixHex(shirtM.shade, shirtM.deep, 0.45), deep: shirtM.deep, hi: shirtM.hi, line: shirtM.line };
+    const gown = { base: AN.mixHex(gownM.base, gownM.shade, 0.4), shade: AN.mixHex(gownM.shade, gownM.deep, 0.5), deep: gownM.deep, hi: gownM.hi, line: gownM.line };
+    const Hh = C32L.her, Hm = C32L.him, Sh = Hh.S, Sm = Hm.S, lwH = AN.inkW(Sh) * 1.05, lwM = AN.inkW(Sm) * 1.05;
+    // the pull: he comes up from below; her head drops onto his shoulder; the shoulders heave as she sobs
+    const mdy = (1 - eo) * 0.95 * Sm, hdy = (1 - eo) * -0.12 * Sh + 0.012 * Sh * sob;
+    const Nm = [Hm.N[0] + (1 - eo) * 0.1 * Sm, Hm.N[1] + mdy], Nh = [Hh.N[0], Hh.N[1] + hdy];
+    // ---- HIM (behind her): the soaked white shirt, open collar, his left shoulder beyond hers
+    const torsoM = pathOf([[Nm[0] - 0.14 * Sm, Nm[1] + 0.2 * Sm], [Nm[0] - 0.75 * Sm, Nm[1] + 0.4 * Sm], [Nm[0] - 0.85 * Sm, Nm[1] + 2.2 * Sm, 1], [Nm[0] + 0.78 * Sm, Nm[1] + 2.2 * Sm, 1],
+      [Nm[0] + 0.72 * Sm, Nm[1] + 0.62 * Sm], [Nm[0] + 0.6 * Sm, Nm[1] + 0.36 * Sm], [Nm[0] + 0.14 * Sm, Nm[1] + 0.2 * Sm]]);
+    const ho = { who: 'boy', x: Nm[0], y: Nm[1], size: Sm, yaw: 0.5, pitch: -0.04, roll: 0.08, light: Lt, rimDir: -HP + 0.2, lightDir: -HP + 0.2, shade: 0.08, rim: 1.1, T: o.T, seed: 7,
+      hair: { style: 'wet', still: true }, expr: A.him.expr, eyes: A.him.eyes, brows: A.him.brows, mouth: A.him.mouth, blush: A.him.blush, talk: A.him.talk };
+    AN.headBack(ctx, ho);
+    AN.head(ctx, Object.assign({}, ho, { layer: 'neck', neckLen: 0.5, neckFade: true, neckFlare: true }));
+    celPart(ctx, torsoM, shirt, { lw: lwM, lv, shade: Sm * 0.12, rim: Sm * 0.02, rimCol, rimA });
+    ctx.save(); ctx.clip(torsoM);
+    celPart(ctx, pathOf([[Nm[0] + 0.02 * Sm, Nm[1] + 0.16 * Sm], [Nm[0] + 0.3 * Sm, Nm[1] + 0.26 * Sm], [Nm[0] + 0.22 * Sm, Nm[1] + 0.52 * Sm, 1], [Nm[0] + 0.08 * Sm, Nm[1] + 0.36 * Sm]]), shirt, { lw: lwM * 0.6, lv, shade: Sm * 0.03, rim: Sm * 0.012, rimCol, rimA });
+    for (let i = 0; i < 3; i++) inkLine(ctx, [[Nm[0] + (0.2 + 0.14 * i) * Sm, Nm[1] + 0.7 * Sm], [Nm[0] + (0.1 + 0.16 * i) * Sm, Nm[1] + 1.0 * Sm], [Nm[0] + (0.12 + 0.16 * i) * Sm, Nm[1] + 1.4 * Sm]], (q) => lwM * 0.45 * Math.sin(PI * q), shirt.line);
+    ctx.restore();
+    AN.head(ctx, Object.assign({}, ho, { layer: 'front' }));
+    // ---- HER (in front): her back in the wet gown, seen from behind her left shoulder
+    const torsoH = pathOf([[Nh[0] - 0.1 * Sh, Nh[1] + 0.16 * Sh], [Nh[0] - 0.46 * Sh, Nh[1] + 0.26 * Sh], [Nh[0] - 0.66 * Sh, Nh[1] + 0.44 * Sh], [Nh[0] - 0.66 * Sh, Nh[1] + 1.2 * Sh], [Nh[0] - 0.6 * Sh, Nh[1] + 2.3 * Sh, 1],
+      [Nh[0] + 0.56 * Sh, Nh[1] + 2.3 * Sh, 1], [Nh[0] + 0.64 * Sh, Nh[1] + 1.05 * Sh], [Nh[0] + 0.6 * Sh, Nh[1] + 0.42 * Sh], [Nh[0] + 0.4 * Sh, Nh[1] + 0.24 * Sh], [Nh[0] + 0.1 * Sh, Nh[1] + 0.16 * Sh]]);
+    const hoH = { who: 'senpai', x: Nh[0], y: Nh[1], size: Sh, yaw: -0.58, pitch: 0.02, roll: lerp(0.04, -0.16, eo), light: Lt, rimDir: -HP + 0.2, lightDir: -HP + 0.2, shade: 0.08, rim: 1.15, T: o.T, seed: 3,
+      hair: { style: 'wet', still: true }, expr: A.her.expr, eyes: A.her.eyes, brows: A.her.brows, mouth: A.her.mouth, blush: A.her.blush, noBlink: A.her.noBlink };
+    AN.head(ctx, Object.assign({}, hoH, { layer: 'neck', neckLen: 0.45, neckFade: true, neckFlare: true }));
+    celPart(ctx, torsoH, gown, { lw: lwH, lv, shade: Sh * 0.12, rim: Sh * 0.024, rimCol, rimA });
+    ctx.save(); ctx.clip(torsoH);   // the shoulder blades and the spine under the clinging wet cloth
+    inkLine(ctx, [[Nh[0] - 0.04 * Sh, Nh[1] + 0.4 * Sh], [Nh[0] - 0.02 * Sh, Nh[1] + 1.2 * Sh], [Nh[0] + 0.02 * Sh, Nh[1] + 2.2 * Sh]], (q) => lwH * 0.5 * Math.sin(PI * q), gown.line);
+    for (const s of [-1, 1]) inkLine(ctx, [[Nh[0] + s * 0.42 * Sh, Nh[1] + 0.55 * Sh], [Nh[0] + s * 0.3 * Sh, Nh[1] + 0.85 * Sh], [Nh[0] + s * 0.14 * Sh, Nh[1] + 0.95 * Sh]], (q) => lwH * 0.45 * Math.sin(PI * q), gown.line);
+    ctx.restore();
+    // his left arm round her right side: the hand on her lower back (the far hand: simple, in shadow)
+    if (eo > 0.05) {
+      ctx.save(); ctx.globalAlpha = sm(0.05, 0.4, eo);
+      const sh2 = [Nm[0] + 0.62 * Sm, Nm[1] + 0.6 * Sm], el2 = [Nm[0] + 0.5 * Sm, Nm[1] + 1.5 * Sm], wr2 = [Hh.N[0] + 0.32 * Sh, Hh.N[1] + 1.62 * Sh];
+      celPart(ctx, capsulePath(sh2, el2, 0.14 * Sm, 0.12 * Sm), shirt, { lw: lwM, lv, shade: Sm * 0.05, rim: Sm * 0.015, rimCol, rimA });
+      celPart(ctx, capsulePath(el2, wr2, 0.12 * Sm, 0.1 * Sm), shirt, { lw: lwM, lv, shade: Sm * 0.05, rim: Sm * 0.015, rimCol, rimA });
+      L.hand(ctx, { side: 'L', kind: 'him', view: 'back', pitch: 0.25, yaw: 0.1, x: wr2[0] + 0.04 * Sm, y: wr2[1], rot: -HP - 0.12, scale: Sm * 0.0034, curl: [0.3, 0.4, 0.45, 0.5, 0.55], spread: 0.2, arm: 10,
+        keyColor: FL.light, fillColor: AN.mixHex(FL.shadow, FL.light, 0.4), tint: 0.9 });
+      ctx.restore();
+    }
+    // her long wet hair down her back (the library's curtain, painted over her back)
+    AN.headBack(ctx, hoH);
+    // the white sling strap across the base of her neck (as at the railing in C28)
+    const strap = ribbonPath([[Nh[0] - 0.32 * Sh, Nh[1] + 0.3 * Sh], [Nh[0] - 0.05 * Sh, Nh[1] + 0.26 * Sh], [Nh[0] + 0.3 * Sh, Nh[1] + 0.28 * Sh], [Nh[0] + 0.52 * Sh, Nh[1] + 0.4 * Sh]], [0.035 * Sh, 0.035 * Sh, 0.035 * Sh, 0.03 * Sh]);
+    celPart(ctx, strap, { base: AN.mixHex('#8c99bb', '#e6edfb', fl), shade: AN.mixHex('#56628a', '#b0bcd8', fl), line: '#3a4360', hi: '#ffffff' }, { lw: lwH * 0.6, lv, shade: Sh * 0.015 });
+    // his right arm comes round under her limp left arm: the forearm (wet sleeve) across her back to the wrist
+    const wr = C32L.wrist, fa0 = [Nh[0] - 0.74 * Sh, Nh[1] + 0.98 * Sh];
+    if (eo > 0.05) { ctx.save(); ctx.globalAlpha = sm(0.05, 0.4, eo); celPart(ctx, capsulePath(fa0, [wr[0] - 0.02 * Sh, wr[1] + 0.02 * Sh], 0.12 * Sm, 0.105 * Sm), shirt, { lw: lwM, lv, shade: Sm * 0.05, rim: Sm * 0.016, rimCol, rimA }); ctx.restore(); }
+    // her left arm hanging limp (されるがまま): over his arm at her side
+    const sh = [Nh[0] - 0.6 * Sh, Nh[1] + 0.42 * Sh], el = [Nh[0] - 0.74 * Sh, Nh[1] + 1.22 * Sh + 0.01 * Sh * sob], wr3 = [Nh[0] - 0.72 * Sh, Nh[1] + 2.0 * Sh];
+    celPart(ctx, capsulePath(sh, el, 0.125 * Sh, 0.1 * Sh), gown, { lw: lwH, lv, shade: Sh * 0.05, rim: Sh * 0.018, rimCol, rimA });
+    celPart(ctx, capsulePath(el, wr3, 0.1 * Sh, 0.085 * Sh), gown, { lw: lwH, lv, shade: Sh * 0.05, rim: Sh * 0.018, rimCol, rimA });
+    // her face (front layer) last: she is nearest
+    AN.head(ctx, Object.assign({}, hoH, { layer: 'front' }));
   }
-  PV.shot('C32', { draw(ctx, tIn, d) {
+  PV.shot('C32', { draw(ctx, tIn, d, S) {
     const tRaw = cutT(tIn, d), t = Math.min(tRaw, C32.freeze);       // 122.9: the frame freezes in the lightning
+    S.post = Object.assign({}, S.post, { bloom: 0.2 });   // two faces close in a dark frame: keep the thin eye lines
     const fl = flashOf(t, C32.flash), e = c32Embrace(t), grip = c32Grip(t);
     const sob = Math.max(0, sin(t * 7.3)) * (0.5 + 0.5 * N2(t * 0.9, 2)) * sm(0.6, 1.2, t);
-    const u = 92 * C32.sc, wst = C32.waist, G = c32Geo(t, e, sob);
-    const handW = [wst[0] + G.rH[0] * u, wst[1] + G.rH[1] * u];   // world anchor of his right hand
-    const c32Cam = (tt) => { const ee = c32Embrace(tt), GG = c32Geo(tt, ee, 0), hw = [wst[0] + GG.rH[0] * u, wst[1] + GG.rH[1] * u], p = E.inOutCubic(clamp((tt - C32.push[0]) / (C32.push[1] - C32.push[0])));
-      return { z: lerp(1.0 + 0.012 * tt, 4.0, Math.pow(p, 1.5)), fx: lerp(960, hw[0] + 30, p), fy: lerp(540, hw[1] + 10, p), pk: p }; };
+    const u = 92 * C32.sc, WR = C32L.wrist, hw = [WR[0] + 0.52 * 195 * C32L.hs, WR[1] - 0.1 * 195 * C32L.hs];   // the push target: his knuckles
+    const c32Cam = (tt) => { const p = E.inOutCubic(clamp((tt - C32.push[0]) / (C32.push[1] - C32.push[0])));
+      return { z: lerp(1.0 + 0.012 * tt, 4.0, Math.pow(p, 1.5)), fx: lerp(960, hw[0], p), fy: lerp(540, hw[1], p), pk: p }; };
     const cN = c32Cam(t), pk = cN.pk, zoom = cN.z;
     const cam = { zoom, cx: cN.fx, cy: cN.fy, x: 960 - cN.fx, y: 540 - cN.fy };
     // 1) the storm and the white bridge; a pale light opens behind their heads as the music turns to D major.
@@ -967,26 +1068,28 @@
     // (held on twos: painted with the pose, flash and camera of the quantised time, re-projected on the in-between frame)
     const tq = Math.min(Math.floor(t * 12) / 12, C32.freeze), cQ = c32Cam(tq), flQ = flashOf(tq, C32.flash), eQ = c32Embrace(tq);
     const sobQ = Math.max(0, sin(tq * 7.3)) * (0.5 + 0.5 * N2(tq * 0.9, 2)) * sm(0.6, 1.2, tq), hopeQ = sm(0.6, 5.5, tq);
-    const pair = heldLayer('c32pair', tq.toFixed(4), cQ, cN, (c) => {
+    const flQ10 = Math.round(flQ * 10) / 10, Tq = absT(S, 'C32', tq);
+    const pair = heldLayer('c32pair', tq.toFixed(4) + '|' + flQ10, cQ, cN, (c) => {
       c.save(); PV.camera(c, { zoom: cQ.z, cx: cQ.fx, cy: cQ.fy, x: 960 - cQ.fx, y: 540 - cQ.fy });
-      c32Pair(c, tq, { x: wst[0], y: wst[1], scale: C32.sc, light: -HP + 0.15, rimColor: '#e4ecff', rim: 1.3 + 0.5 * flQ, backlight: clamp(0.18 + 0.5 * flQ + 0.15 * hopeQ), glow: 0.3 + 0.4 * flQ, fill: '#090c15', fps: 0, flash: flQ, pk: cQ.pk }, c32Geo(tq, eQ, sobQ), sobQ);
+      c32Pair(c, { tq, T: Tq, fl: flQ10, sob: sobQ, hope: hopeQ });
       c.restore();
     }, cQ.z > 1.6 ? 0.5 : 1);   // close in, her back and hair are only the backdrop of the hand: half resolution
     ctx.restore(); pair.draw(ctx); ctx.save(); PV.camera(ctx, cam);
     // 3) his right hand on her back, the back of the hand toward us, the fingers clawed into the wet cloth. In the wide
     //    shot it is as dark as the silhouettes; the push-in reveals it (the knuckles and the bent finger ends white).
-    const GQ = c32Geo(tq, eQ, sobQ), hx = wst[0] + GQ.rH[0] * u, hy = wst[1] + GQ.rH[1] * u, gripQ = c32Grip(tq), cl = 0.3 + 0.7 * gripQ, trem = 0.025 * gripQ;
+    const gripQ = c32Grip(tq), cl = 0.3 + 0.7 * gripQ, trem = 0.025 * gripQ;
     const pose = { F: [0, 1, 2, 3].map((i) => ({ flex: [0.3 + 0.27 * cl + 0.03 * i + trem * N2(tq * 6 + i, 1), 0.62 + 0.68 * cl + trem * N2(tq * 6 + i, 2), 0.4 + 0.36 * cl], splay: [-0.08, -0.02, 0.04, 0.1][i] })), T: { abd: 0.55, opp: 0.25, flex: [0.25, 0.35], twist: 0 } };
     const hb = buf('c32hand'), hcx = hb.ctx;
     hcx.save(); PV.camera(hcx, cam);
-    const key = mixHex('#6a77a0', '#c4d0ee', fl), fill = mixHex('#181e32', '#3a4466', fl);
-    const rig = L.hand(hcx, { side: 'R', kind: 'him', view: 'back', pitch: 0.3, yaw: -0.15, x: hx - 0.6 * u, y: hy + 0.12 * u, rot: HP - 0.22, scale: 1.05, pose, arm: 52, sleeve: '#0c0a09', sleeveAt: 30, light: -1.9, keyColor: key, fillColor: fill, tint: 1.0, calluses: false });
+    const FLh = AN.faceLight(mixLight('storm', 'lightning', 0.15 + 0.55 * flQ10)), key = FLh.light, fill = AN.mixHex(FLh.shadow, FLh.light, 0.4);
+    const sleeveC = AN.mixHex(AN.mat('shirt', mixLight('storm', 'lightning', 0.15 + 0.55 * flQ10), { wet: 1 }).base, '#1c2234', 0.35);
+    const rig = L.hand(hcx, { side: 'R', kind: 'him', view: 'back', pitch: 0.3, yaw: -0.15, x: WR[0], y: WR[1] + 3 * sobQ, rot: C32L.rot, scale: C32L.hs, pose, arm: 46, sleeve: sleeveC, sleeveAt: 26, light: -1.9, keyColor: key, fillColor: fill, tint: 0.95, calluses: false });
     hcx.restore();
     const ends = [];
     hcx.save(); hcx.globalCompositeOperation = 'source-atop';
     const hxs = rig.joints.flat().map((q) => q.x).concat([rig.wrist.x]), hys = rig.joints.flat().map((q) => q.y).concat([rig.wrist.y]), hpad = 260 * zoom;
     const hb0 = [Math.max(0, Math.min(...hxs) - hpad), Math.max(0, Math.min(...hys) - hpad), Math.min(W, Math.max(...hxs) + hpad), Math.min(H, Math.max(...hys) + hpad)];
-    hcx.fillStyle = `rgba(7,10,18,${(lerp(0.8, 0.3, sm(0.12, 0.8, pk)) * (1 - 0.45 * fl)).toFixed(3)})`; hcx.fillRect(hb0[0], hb0[1], hb0[2] - hb0[0], hb0[3] - hb0[1]);   // dark in the two-shot
+    hcx.fillStyle = `rgba(7,10,18,${(lerp(0.3, 0.12, sm(0.12, 0.8, pk)) * (1 - 0.45 * fl)).toFixed(3)})`; hcx.fillRect(hb0[0], hb0[1], hb0[2] - hb0[0], hb0[3] - hb0[1]);   // a little dim in the two-shot (the storm)
     if (e < 0.35) { hcx.globalCompositeOperation = 'destination-in'; hcx.fillStyle = `rgba(0,0,0,${sm(0.05, 0.35, e).toFixed(3)})`; hcx.fillRect(0, 0, W, H); hcx.globalCompositeOperation = 'source-atop'; }
     // the strain blanches him: pale on the knuckles and on the bent ends of the fingers, elongated along each segment
     const blanch = (p0, p1, al, wd) => {

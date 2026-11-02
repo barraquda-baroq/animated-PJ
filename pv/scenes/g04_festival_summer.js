@@ -109,418 +109,12 @@
   }
   // deterministic camera shake
   // dev profiler: PV._g04prof = true → per-section ms in PV._g04profOut (forces rasterisation at each mark)
-  function profiler(ctx) {
+  function profiler(ctx, keep) {
     if (!PV._g04prof) return () => {};
-    let t0 = performance.now(); const out = (PV._g04profOut = {});
+    let t0 = performance.now(); const out = keep && PV._g04profOut ? PV._g04profOut : (PV._g04profOut = {});
     return (name) => { ctx.getImageData(0, 0, 1, 1); const t1 = performance.now(); out[name] = (out[name] || 0) + (t1 - t0); t0 = t1; };
   }
   function shake(t, amp, freq, seed) { return { x: N2(t * freq, seed + 1.3) * amp, y: N2(seed + 7.7, t * freq) * amp, r: N2(t * freq * 0.7, seed + 3.1) * amp * 0.0009 }; }
-
-  /* ======================================================================= C13 — the gym */
-  // camera behind the two at waist height (~0.95 m), looking out over the rope at the audience and the far wall.
-  const C13 = { nod: 1.1, blast: 1.5 };
-  const EYE = 600, FOC = 1100, CAMH = 0.95;
-  const yAt = (h, d) => EYE - FOC * (h - CAMH) / d;
-  const AMB = '#ffbf6b', MAG = '#ff5fa8', CYA = '#5fd7ff', RED = '#ff3b30';
-  // where the gallery follow-spots hang (screen px): they are aimed at the performers, i.e. at us
-  const SPOTS = [{ x: 205, y: 452, col: CYA }, { x: 905, y: 448, col: AMB }, { x: 1735, y: 450, col: MAG }];
-
-  // the far wall: ceiling trusses, the clock, black-out curtains (slivers of daylight), the gallery, lower wall
-  const PADX = 48, PADY = 30;
-  function gymWall(lit) {
-    return PV.cached('g04:gymWall5:' + (lit ? 'lit' : 'dark'), W + PADX * 2, H + PADY * 2, (c) => {
-      c.scale((W + PADX * 2) / W, (H + PADY * 2) / H);
-      const r = PV.rng(41);
-      let g = c.createLinearGradient(0, 0, 0, H);
-      if (lit) { g.addColorStop(0, '#120d18'); g.addColorStop(0.3, '#2a1c2c'); g.addColorStop(0.5, '#4a2e3a'); g.addColorStop(0.62, '#3a2430'); g.addColorStop(1, '#140f16'); }
-      else { g.addColorStop(0, '#08080d'); g.addColorStop(0.3, '#10101a'); g.addColorStop(0.5, '#171724'); g.addColorStop(0.62, '#14141f'); g.addColorStop(1, '#0b0b11'); }
-      c.fillStyle = g; c.fillRect(0, 0, W, H);
-      // ceiling seen at a slant: truss chords crowd together toward the wall top (y≈236), lattice between, dark lamp cans
-      const tc = lit ? '#0d0910' : '#050508';
-      c.fillStyle = tc; c.strokeStyle = tc;
-      const chords = [[-6, 30], [92, 22], [160, 15], [204, 10], [228, 7]];
-      for (const [y, h] of chords) c.fillRect(0, y, W, h);
-      for (let k = 0; k < chords.length - 1; k++) {
-        const y0 = chords[k][0] + chords[k][1], y1 = chords[k + 1][0], step = 140 - k * 22;
-        c.lineWidth = 6 - k; c.beginPath();
-        for (let x = -step; x < W + step; x += step) { c.moveTo(x, y0); c.lineTo(x + step / 2, y1); c.lineTo(x + step, y0); }
-        c.stroke();
-      }
-      for (let x = 160; x < W; x += 400) { c.beginPath(); c.ellipse(x, 124, 34, 13, 0, 0, TAU); c.fill(); }
-      for (let x = 260; x < W; x += 300) { c.beginPath(); c.ellipse(x, 186, 20, 7, 0, 0, TAU); c.fill(); }
-      if (lit) { c.fillStyle = 'rgba(255,190,150,0.14)'; for (let x = 160; x < W; x += 400) { c.beginPath(); c.ellipse(x, 120, 30, 5, 0, 0, TAU); c.fill(); } }
-      // the upper wall band + the clock (体育館の時計)
-      c.fillStyle = lit ? '#2c1f2a' : '#0e0e16'; c.fillRect(0, 236, W, 64);
-      { const x = 960, y = 268, rr = 25;
-        c.fillStyle = lit ? '#1c141b' : '#09090e'; c.beginPath(); c.arc(x, y, rr + 4, 0, TAU); c.fill();
-        c.fillStyle = lit ? '#8f8488' : '#2a2a36'; c.beginPath(); c.arc(x, y, rr, 0, TAU); c.fill();
-        c.strokeStyle = lit ? '#2a2026' : '#121219'; c.lineWidth = 1.6;
-        for (let k = 0; k < 12; k++) { const a = k / 12 * TAU; c.beginPath(); c.moveTo(x + Math.cos(a) * rr * 0.78, y + Math.sin(a) * rr * 0.78); c.lineTo(x + Math.cos(a) * rr * 0.9, y + Math.sin(a) * rr * 0.9); c.stroke(); }
-        c.lineWidth = 2.8; c.beginPath(); c.moveTo(x, y); c.lineTo(x + Math.cos(-2.2) * rr * 0.5, y + Math.sin(-2.2) * rr * 0.5); c.stroke();
-        c.lineWidth = 1.9; c.beginPath(); c.moveTo(x, y); c.lineTo(x + Math.cos(0.45) * rr * 0.78, y + Math.sin(0.45) * rr * 0.78); c.stroke();
-      }
-      // black-out curtains in bays (heavy folds), slivers of daylight where they don't meet
-      const cy0 = 300, cy1 = 446;
-      for (let bay = 0; bay < 6; bay++) {
-        const bx0 = bay * 320 + 22, bx1 = bx0 + 276;
-        for (let x = bx0; x < bx1; x += 2) {
-          const u = (x - bx0) / (bx1 - bx0), fold = 0.5 + 0.5 * Math.sin(x * 0.14 + bay * 2 + Math.sin(x * 0.031) * 2.2);
-          const v = lit ? 22 + 34 * fold : 11 + 9 * fold;
-          c.fillStyle = lit ? `rgb(${Math.round(v * 1.3 + 8)},${Math.round(v * 0.6)},${Math.round(v * 0.8)})` : `rgb(${Math.round(v * 0.92)},${Math.round(v * 0.86)},${Math.round(v * 1.1)})`;
-          const sag = 5 * Math.sin(u * Math.PI);
-          c.fillRect(x, cy0 + sag, 2, cy1 - cy0 - sag);
-        }
-        for (const sx of [bx0 + 3, bx0 + 130 + r() * 30, bx1 - 4]) {
-          if (r() < 0.72) continue;
-          const gg = c.createLinearGradient(0, cy0, 0, cy1); gg.addColorStop(0, `rgba(225,238,255,${lit ? 0.3 : 0.6})`); gg.addColorStop(0.75, `rgba(190,210,240,${lit ? 0.1 : 0.2})`); gg.addColorStop(1, 'rgba(190,210,240,0)');
-          c.fillStyle = gg; c.fillRect(sx, cy0 + 3, 1.6 + r() * 1.4, (cy1 - cy0) * (0.55 + 0.45 * r()));
-        }
-      }
-      c.fillStyle = lit ? '#231822' : '#0b0b11';
-      for (let bay = 0; bay <= 6; bay++) c.fillRect(bay * 320 - 22, 236, 44, 250);
-      // the gallery: railing + slab
-      c.fillStyle = lit ? '#1c121a' : '#060609';
-      c.fillRect(0, 446, W, 5); for (let x = 5; x < W; x += 12) c.fillRect(x, 449, 2.2, 34); c.fillRect(0, 482, W, 16);
-      if (lit) { c.fillStyle = 'rgba(255,205,160,0.28)'; c.fillRect(0, 446, W, 1.4); }
-      // lower wall (mostly behind the audience)
-      g = c.createLinearGradient(0, 498, 0, 650);
-      if (lit) { g.addColorStop(0, '#3a2830'); g.addColorStop(1, '#22161c'); } else { g.addColorStop(0, '#11101a'); g.addColorStop(1, '#0c0b11'); }
-      c.fillStyle = g; c.fillRect(0, 498, W, 160);
-      c.fillStyle = 'rgba(0,0,0,0.3)'; for (let y = 516; y < 650; y += 18) c.fillRect(0, y, W, 1.2);
-      // baked: the low work lights at both sides, and the hall haze at the eye line
-      for (const [x, y] of [[40, 640], [1890, 640]]) { light(c, x, y, 560, '#ffad5e', lit ? 0.12 : 0.26); light(c, x, y, 120, '#ffd59a', lit ? 0.2 : 0.5); }
-      g = c.createLinearGradient(0, 260, 0, 780);
-      g.addColorStop(0, 'rgba(60,50,80,0)'); g.addColorStop(0.6, lit ? 'rgba(190,120,150,0.34)' : 'rgba(64,58,90,0.2)'); g.addColorStop(1, 'rgba(60,50,80,0)');
-      c.fillStyle = g; c.fillRect(-60, 260, W + 120, 520);
-      // the gallery spots' glow (behind the audience's heads: they are backlit by it)
-      if (lit) { c.save(); c.globalCompositeOperation = 'screen'; for (const S0 of SPOTS) { light(c, S0.x, S0.y, 300, S0.col, 0.55); light(c, S0.x, S0.y, 64, '#ffffff', 0.95); } c.restore(); }
-      // the floor in front of the rope (varnish: the spots smear down it as long streaks)
-      const y0 = yAt(0, 4.4) + 2;
-      g = c.createLinearGradient(0, y0, 0, H + 40); g.addColorStop(0, lit ? '#2c1c26' : '#100f17'); g.addColorStop(1, lit ? '#140d14' : '#07070b');
-      c.fillStyle = g; c.fillRect(-60, y0, W + 120, H + 40 - y0);
-      c.strokeStyle = lit ? 'rgba(255,200,150,0.2)' : 'rgba(130,120,150,0.08)'; c.lineWidth = 3;
-      c.beginPath(); c.moveTo(-60, y0 + 70); c.lineTo(W + 60, y0 + 62); c.stroke();
-      c.beginPath(); c.moveTo(760, y0); c.lineTo(540, H + 40); c.stroke();
-      if (lit) for (const S0 of SPOTS) {
-        c.save(); c.globalCompositeOperation = 'screen'; c.translate(S0.x + (S0.x - 960) * 0.08, y0 + 40); c.scale(1, 4.2);
-        const g2 = c.createRadialGradient(0, 0, 0, 0, 0, 90); g2.addColorStop(0, PV.rgba(S0.col, 0.34)); g2.addColorStop(0.45, PV.rgba(S0.col, 0.12)); g2.addColorStop(1, PV.rgba(S0.col, 0));
-        c.fillStyle = g2; c.fillRect(-90, -10, 180, 100); c.restore();
-      }
-    });
-  }
-  function exitSigns(ctx) {
-    for (const [x, y] of [[96, 518], [1830, 518]]) {
-      ctx.fillStyle = '#0b2c1a'; ctx.fillRect(x - 27, y - 10, 54, 20);
-      ctx.fillStyle = 'rgba(90,255,160,0.8)'; ctx.fillRect(x - 25, y - 8, 50, 16);
-      ctx.fillStyle = 'rgba(235,255,245,0.9)'; ctx.beginPath(); ctx.arc(x - 9, y - 3, 2.2, 0, TAU); ctx.fill(); ctx.fillRect(x - 11, y - 0.5, 3.4, 6); ctx.fillRect(x + 5, y - 6, 8, 12);
-      light(ctx, x, y, 64, '#5cff9a', 0.2);
-    }
-  }
-
-  // the audience: one mass of heads and shoulders in depth rows (hazier when further), phones held up
-  function crowdModel() {
-    if (crowdModel.m) return crowdModel.m;
-    const r = PV.rng(1307), rows = [];
-    const depths = [22, 17, 13, 10, 7.8, 6.1];
-    for (let k = 0; k < depths.length; k++) {
-      const d = depths[k], people = [];
-      const step = FOC * 0.5 / d;
-      for (let x = -90 + r() * step; x < W + 90; x += step * (0.62 + r() * 0.62)) {
-        const dd = d * (0.93 + r() * 0.14), hh = 1.5 + r() * 0.3;
-        const hr = FOC * 0.105 / dd, hy = yAt(hh - 0.12, dd);
-        const kr = r(), hk = kr < 0.36 ? 0 : kr < 0.6 ? 1 : kr < 0.74 ? 2 : kr < 0.9 ? 3 : 4; // short, long, ponytail, bob, cap
-        const pr = r(), phone = pr < (k >= 3 ? 0.15 : 0.1) ? (r() < 0.5 ? 'raised' : 'chest') : null;
-        people.push({ x: x + (r() - 0.5) * step * 0.3, hy, hr, sw: FOC * (0.2 + r() * 0.04) / dd, hk, tilt: (r() - 0.5) * 0.3, phone, side: r() < 0.5 ? -1 : 1, seed: r() * 100, floor: yAt(0, dd) });
-      }
-      rows.push({ d, people });
-    }
-    return (crowdModel.m = rows);
-  }
-  function drawPerson(c, p) {
-    const { x, hy, hr, sw } = p, nk = hy + hr * 1.12, shy = hy + hr * 1.95;
-    c.beginPath();
-    c.moveTo(x - hr * 0.42, nk);
-    c.bezierCurveTo(x - hr * 0.5, shy - hr * 0.45, x - sw * 0.7, shy - hr * 0.42, x - sw * 0.94, shy);    // trapezius → shoulder
-    c.quadraticCurveTo(x - sw * 1.08, shy + hr * 0.35, x - sw * 1.04, shy + hr * 1.6);                   // deltoid → arm
-    c.lineTo(x - sw * 0.98, p.floor + 4); c.lineTo(x + sw * 0.98, p.floor + 4); c.lineTo(x + sw * 1.04, shy + hr * 1.6);
-    c.quadraticCurveTo(x + sw * 1.08, shy + hr * 0.35, x + sw * 0.94, shy);
-    c.bezierCurveTo(x + sw * 0.7, shy - hr * 0.42, x + hr * 0.5, shy - hr * 0.45, x + hr * 0.42, nk);
-    c.closePath(); c.fill();
-    c.beginPath(); c.ellipse(x, hy, hr * 0.84, hr, p.tilt, 0, TAU); c.fill();
-    if (p.hk === 1) { c.beginPath(); c.moveTo(x - hr * 0.9, hy - hr * 0.2); c.quadraticCurveTo(x - hr * 1.15, hy + hr * 1.6, x - hr * 0.9, hy + hr * 2.3); c.lineTo(x + hr * 0.9, hy + hr * 2.3); c.quadraticCurveTo(x + hr * 1.15, hy + hr * 1.6, x + hr * 0.9, hy - hr * 0.2); c.closePath(); c.fill(); }
-    else if (p.hk === 2) { c.beginPath(); c.ellipse(x + p.side * hr * 0.75, hy - hr * 0.35, hr * 0.38, hr * 0.42, 0.5 * p.side, 0, TAU); c.fill(); }
-    else if (p.hk === 3) { c.beginPath(); c.ellipse(x, hy + hr * 0.2, hr * 1.06, hr * 0.98, p.tilt, 0, TAU); c.fill(); }
-    else if (p.hk === 4) { c.beginPath(); c.ellipse(x + p.side * hr * 0.3, hy - hr * 0.62, hr * 1.25, hr * 0.28, 0, 0, TAU); c.fill(); }
-    if (p.phone === 'raised') {
-      const s = p.side, ax = x + s * sw * 0.8, ay = shy + hr * 0.2, wx = x + s * sw * 0.45, wy = hy - hr * 2.6;
-      c.lineCap = 'round'; c.lineWidth = hr * 0.62; c.beginPath(); c.moveTo(ax, ay); c.quadraticCurveTo(ax + s * hr * 0.6, hy - hr * 0.4, wx, wy); c.stroke();
-      c.fillRect(wx - hr * 0.36, wy - hr * 1.2, hr * 0.72, hr * 1.25);
-      p.ph = [wx, wy - hr * 0.58, hr * 0.6, hr * 1.05];
-    } else if (p.phone === 'chest') p.ph = [x + p.side * sw * 0.25, shy + hr * 0.9, hr * 0.6, hr * 1.05];
-  }
-  const CRY0 = 330, CRH = 500, GROUPS = [[0, 1, 2], [3, 4, 5]];
-  function crowdRow(gi) {
-    return PV.cached('g04:crowd3:' + gi, W, CRH, (c) => {
-      const rows = crowdModel(), n = rows.length;
-      c.translate(0, -CRY0);
-      for (const k of GROUPS[gi]) { const far = 1 - k / (n - 1); c.fillStyle = PV.mix('#09090f', '#1c1a29', far * 0.85); c.strokeStyle = c.fillStyle; for (const p of rows[k].people) drawPerson(c, p); }
-    });
-  }
-  // lit crowd = silhouette with the rim baked in (one draw per group when the lights are on)
-  function crowdLit(gi) {
-    return PV.cached('g04:crowdLit3:' + gi, W, CRH, (c) => { c.drawImage(crowdRow(gi), 0, 0); c.globalCompositeOperation = 'screen'; c.globalAlpha = 0.55 + 0.2 * gi; c.drawImage(crowdRim(gi), 0, 0); });
-  }
-  // the rim the spots draw on the crowd's heads and shoulders (they are backlit from the gallery)
-  function crowdRim(gi) {
-    return PV.cached('g04:crowdRim3:' + gi, W, CRH, (c) => {
-      const s = crowdRow(gi), off = 2.6 + gi * 1.4;
-      c.drawImage(s, 0, 0);
-      c.globalCompositeOperation = 'destination-out'; c.drawImage(s, 0, off); c.drawImage(s, off * 0.6, off * 0.7); c.drawImage(s, -off * 0.6, off * 0.7);
-      c.globalCompositeOperation = 'source-in';
-      const g = c.createLinearGradient(0, 0, W, 0);
-      g.addColorStop(0, '#9ce6ff'); g.addColorStop(0.24, '#bfe9ff'); g.addColorStop(0.38, '#ffd7a0'); g.addColorStop(0.58, '#ffcf90'); g.addColorStop(0.76, '#ffa6d2'); g.addColorStop(1, '#ff86c0');
-      c.fillStyle = g; c.fillRect(0, 0, W, H); c.globalCompositeOperation = 'source-over';
-    });
-  }
-  // rope barrier (chrome posts, red rope) between the players and the front row
-  function ropeBarrier(ctx, lit) {
-    const d = 4.4, top = yAt(0.95, d), bot = yAt(0, d);
-    const posts = [-40, 330, 700, 1070, 1440, 1810, 2180];
-    for (let i = 0; i < posts.length; i++) {
-      const x = posts[i];
-      ctx.fillStyle = lit ? '#6a5560' : '#1a1a24'; ctx.fillRect(x - 4, top, 8, bot - top);
-      ctx.fillStyle = lit ? '#e8d6d0' : '#3a3a48'; ctx.beginPath(); ctx.arc(x, top, 8, 0, TAU); ctx.fill();
-      ctx.fillStyle = lit ? '#3a2a32' : '#111118'; ctx.beginPath(); ctx.ellipse(x, bot, 30, 7, 0, 0, TAU); ctx.fill();
-      if (lit) { ctx.fillStyle = 'rgba(255,240,230,0.85)'; ctx.fillRect(x - 2.5, top + 6, 1.6, (bot - top) * 0.8); }
-      if (i < posts.length - 1) {
-        const x1 = posts[i + 1]; ctx.strokeStyle = lit ? '#c4283a' : '#3a1418'; ctx.lineWidth = 6;
-        ctx.beginPath(); ctx.moveTo(x + 6, top + 4); ctx.quadraticCurveTo((x + x1) / 2, top + 46, x1 - 6, top + 4); ctx.stroke();
-        if (lit) { ctx.strokeStyle = 'rgba(255,170,170,0.5)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(x + 6, top + 2); ctx.quadraticCurveTo((x + x1) / 2, top + 43, x1 - 6, top + 2); ctx.stroke(); }
-      }
-    }
-  }
-  // small open-back combo amp seen from behind/above: tolex box, top control panel with the red jewel, glowing valves
-  function ampBack(ctx, t, x, y, s, lit, kick) {
-    ctx.save(); ctx.translate(x, y); ctx.scale(s, s);
-    const w = 240, h = 200, top = 34;
-    // floor shadow
-    ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.beginPath(); ctx.ellipse(0, 4, w * 0.62, 16, 0, 0, TAU); ctx.fill();
-    // top surface (seen from above), chrome control strip on the rear edge, knobs, the red jewel
-    ctx.fillStyle = lit ? '#2d2228' : '#121218'; ctx.beginPath(); ctx.moveTo(-w / 2, -h); ctx.lineTo(-w / 2 + 14, -h - top); ctx.lineTo(w / 2 + 14, -h - top); ctx.lineTo(w / 2, -h); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = lit ? '#b9aab0' : '#3e3c48'; ctx.beginPath(); ctx.moveTo(-w / 2 + 6, -h - 4); ctx.lineTo(-w / 2 + 10, -h - 15); ctx.lineTo(w / 2 + 6, -h - 15); ctx.lineTo(w / 2 + 2, -h - 4); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = '#0a0a0e'; for (let k = 0; k < 6; k++) { ctx.beginPath(); ctx.ellipse(-w / 2 + 34 + k * 28, -h - 9.5, 6.5, 3.6, 0, 0, TAU); ctx.fill(); }
-    // handle
-    ctx.strokeStyle = '#0a0a0e'; ctx.lineWidth = 7; ctx.beginPath(); ctx.moveTo(-36, -h - top + 12); ctx.quadraticCurveTo(7, -h - top - 12, 50, -h - top + 12); ctx.stroke();
-    // the back: tolex frame, an open upper half (chassis + valves) and the speaker's magnet in the lower half
-    ctx.fillStyle = lit ? '#1f171c' : '#0b0b10'; ctx.fillRect(-w / 2, -h, w, h);
-    ctx.fillStyle = lit ? '#0e0a0d' : '#040406'; ctx.fillRect(-w / 2 + 14, -h + 22, w - 28, 62); ctx.fillRect(-w / 2 + 14, -h + 104, w - 28, 80);
-    ctx.fillStyle = lit ? '#2a2026' : '#0f0f15'; ctx.fillRect(-w / 2 + 14, -h + 84, w - 28, 20);
-    // valves: warm glow (brightens and wobbles with the blast)
-    const gl = 0.75 + 0.25 * N2(t * 4, 3) + 0.6 * kick;
-    for (let k = 0; k < 4; k++) {
-      const vx = -w / 2 + 44 + k * 46, vy = -h + 56;
-      ctx.fillStyle = `rgba(255,${150 + k * 6},70,${0.65 * Math.min(1, gl)})`; ctx.beginPath(); ctx.roundRect(vx - 7, vy - 20, 14, 30, 6); ctx.fill();
-      ctx.fillStyle = `rgba(255,230,180,${0.8 * Math.min(1, gl)})`; ctx.fillRect(vx - 1.5, vy - 12, 3, 12);
-    }
-    // the speaker seen from behind: the back of the paper cone (it pumps with the chord), basket struts, magnet
-    { const pump = 1 + 0.07 * kick * Math.sin(t * 2 * Math.PI * 11);
-      ctx.save(); ctx.translate(0, -h + 144); ctx.scale(pump, pump);
-      const cg = ctx.createRadialGradient(0, 0, 10, 0, 0, 74); cg.addColorStop(0, lit ? '#3a2c26' : '#141218'); cg.addColorStop(0.75, lit ? '#5a4432' : '#1c1a20'); cg.addColorStop(1, lit ? '#2a2026' : '#0e0e14');
-      ctx.fillStyle = cg; ctx.beginPath(); ctx.ellipse(0, 0, 92, 40, 0, 0, TAU); ctx.fill();
-      if (lit) { ctx.strokeStyle = `rgba(255,200,150,${0.18 + 0.3 * kick})`; ctx.lineWidth = 1.5; for (const k of [0.45, 0.7, 0.92]) { ctx.beginPath(); ctx.ellipse(0, 0, 92 * k, 40 * k, 0, 0, TAU); ctx.stroke(); } }
-      ctx.restore(); }
-    ctx.fillStyle = lit ? '#2c2329' : '#101016'; ctx.beginPath(); ctx.arc(0, -h + 144, 30, 0, TAU); ctx.fill();
-    ctx.strokeStyle = lit ? '#2c2329' : '#101016'; ctx.lineWidth = 5; for (let k = 0; k < 4; k++) { const a = k / 4 * TAU + 0.6; ctx.beginPath(); ctx.moveTo(0, -h + 144); ctx.lineTo(Math.cos(a) * 70, -h + 144 + Math.sin(a) * 34); ctx.stroke(); }
-    if (lit) { ctx.strokeStyle = 'rgba(255,200,170,0.4)'; ctx.lineWidth = 1.5; ctx.strokeRect(-w / 2 + 0.75, -h + 0.75, w - 1.5, h - 1.5); }
-    ctx.restore();
-    const jx = x + s * (w / 2 - 14), jy = y - s * (h + 9.5);
-    return { jewel: [jx, jy], valves: [x, y - s * (h - 56)], w: w * s };
-  }
-
-  // the boy from behind, white Strat on.  o.turn (head toward her 0..1), o.nod (0..1), o.arm 0..1 (0 = the pick hand at
-  // the strings, hidden in front of him; 1 = raised high with the pick). The arm swings on an arc like a windmill:
-  // the elbow goes out to the side and up, the forearm passes through "pointing right" (never a folded chicken wing).
-  // o.lit 0..1 = the stage lights are on (shirt catches coloured spill, a second magenta rim on his right contours)
-  const STRAT = { body: [[-1.02, 0.02], [-0.92, 0.5], [-0.55, 0.74], [-0.15, 0.6], [0.12, 0.55], [0.4, 0.62], [0.6, 0.5, 1], [0.44, 0.3], [0.33, 0.12], [0.33, -0.12], [0.5, -0.28], [0.78, -0.5, 1], [0.55, -0.66], [0.12, -0.56], [-0.2, -0.62], [-0.6, -0.76], [-0.94, -0.5]],
-    head: [[2.32, 0.09], [2.36, -0.1], [2.52, -0.22], [2.8, -0.24], [2.9, -0.15], [2.95, -0.02], [2.9, 0.06], [2.7, 0.07], [2.5, 0.1]] };
-  const RARM = { u0: Math.atan2(1.14, 0.42), u1: Math.atan2(-0.6, 0.74), lu0: Math.hypot(0.42, 1.14), lu1: Math.hypot(0.74, 0.6),
-    f0: Math.atan2(0.66, -0.64), f1: Math.atan2(-1.0, -0.24), lf0: Math.hypot(0.64, 0.66), lf1: Math.hypot(0.24, 1.0) };
-  // points along the +normal edge of limb(p0,p1,r0,r1,bulge,f) (the same quadratic curve limb() fills), s0..s1
-  function limbEdge(p0, p1, r0, r1, bulge, f, s0, s1, n) {
-    const dx = p1[0] - p0[0], dy = p1[1] - p0[1], l = Math.hypot(dx, dy) || 1e-6, ux = dx / l, uy = dy / l, nx = uy, ny = -ux;
-    const b = bulge === undefined ? (r0 + r1) / 2 : bulge, ff = f === undefined ? 0.4 : f;
-    const A = [p0[0] + nx * r0, p0[1] + ny * r0], C = [p0[0] + dx * ff + nx * b * 1.08, p0[1] + dy * ff + ny * b * 1.08], Z = [p1[0] + nx * r1, p1[1] + ny * r1];
-    const out = [];
-    for (let i = 0; i <= n; i++) { const s = lerp(s0, s1, i / n), a = (1 - s) * (1 - s), m = 2 * (1 - s) * s, z = s * s; out.push([a * A[0] + m * C[0] + z * Z[0], a * A[1] + m * C[1] + z * Z[1]]); }
-    return out;
-  }
-  function boyBackGuitar(ctx, t, o) {
-    const tq = o.fps === 0 ? t : q12(t);
-    const br = 0.016 * Math.sin(tq * 2.3), sway = 0.025 * N2(3.3, tq * 0.45);
-    const P = [sway, -4.08];
-    const Fr = (x, h) => [P[0] + x + 0.004 * h, P[1] - h];
-    const SL = Fr(-0.8, 2.13 + br), SR = Fr(0.8, 2.13 + br), N = Fr(0, 2.42);
-    const turn = clamp(o.turn || 0), nod = clamp(o.nod || 0), W0 = o.wind || 0, lit = clamp(o.lit || 0);
-    const HC = [N[0] + 0.02 * turn, N[1] - 0.74 + 0.06 * nod];
-    // the guitar (library proportions, mirrored so the tuner edge faces up), body centre gc, neck rising to the left
-    const gc = Fr(0.04, 0.6), ga = Math.PI + 0.42 + 0.012 * Math.sin(tq * 1.7);
-    const ca = Math.cos(ga), sa = Math.sin(ga);
-    const G = (x, y) => [gc[0] + x * ca + y * sa, gc[1] + x * sa - y * ca];   // local → figure (y mirrored: -y = up)
-    const LH = G(1.92, 0.0), EL = [SL[0] - 0.4, SL[1] + 1.18];
-    // right arm by joint angles
-    const k = clamp(o.arm || 0);
-    const au = lerp(RARM.u0, RARM.u1, k), lu = lerp(RARM.lu0, RARM.lu1, k), af = lerp(RARM.f0, RARM.f1, k), lf = lerp(RARM.lf0, RARM.lf1, k);
-    const ER = [SR[0] + Math.cos(au) * lu, SR[1] + Math.sin(au) * lu], WR = [ER[0] + Math.cos(af) * lf, ER[1] + Math.sin(af) * lf];
-    const shirtT = o.shirt === undefined ? 0.07 : o.shirt, shirtTo = lit > 0 ? '#b8c4dc' : '#9aa6c4';
-    const side = (sg) => {
-      const fl = 0.03 * Math.min(1, W0) * Math.sin(tq * 9);
-      return [Fr(sg * 0.193, 2.84), Fr(sg * 0.21, 2.52), Fr(sg * 0.454, 2.479), Fr(sg * 0.667, 2.416), Fr(sg * 0.82, 2.354 + br), Fr(sg * 0.964, 2.254 + br), Fr(sg * 1.012, 2.134 + br),
-        Fr(sg * 0.972, 1.89), Fr(sg * 0.63, 1.71), Fr(sg * 0.668, 1.42), Fr(sg * 0.61, 0.8), Fr(sg * (0.65 + fl), 0.04), [...Fr(sg * (0.69 + fl * 1.4), -0.14), 1]];
-    };
-    const torsoPts = side(1).concat([Fr(0, -0.18)], side(-1).reverse());
-    // a second (magenta) rim: a soft band and a hot core stroked ALONG a contour, kept inside the silhouette (source-atop)
-    const rimStroke = (c, pts, a, w) => {
-      c.save(); c.globalCompositeOperation = 'source-atop'; c.lineCap = 'round'; c.lineJoin = 'round';
-      c.strokeStyle = PV.rgba('#ff5fa8', 0.38 * a); c.lineWidth = w * 2.4; c.beginPath(); spline(c, pts, false); c.stroke();
-      c.strokeStyle = PV.rgba('#ffc2de', 0.85 * a); c.lineWidth = w * 0.9; c.beginPath(); spline(c, pts, false); c.stroke();
-      c.restore();
-    };
-    L.figureRender(ctx, o, null, (F) => {
-      const shirtCol = F.tone(shirtT, shirtTo), foldCol = F.tone(shirtT * 0.25, shirtTo);
-      // the pick hand + forearm: in front of him at the strings (hidden by his back and the guitar), or swung up beside him
-      F.layer({ tone: 0.03 }, (c) => {
-        limb(c, ER, WR, 0.125, 0.085, 0.13, 0.5);
-        if (k > 0.1) {
-          const ha = af; c.save(); c.translate(WR[0], WR[1]); c.rotate(ha);
-          blob(c, [[-0.02, -0.1], [0.12, -0.12], [0.24, -0.09], [0.28, 0.01], [0.23, 0.11], [0.08, 0.12], [-0.02, 0.09]]);
-          c.beginPath(); c.moveTo(0.25, -0.03); c.lineTo(0.37, -0.07); c.lineTo(0.34, 0.05); c.closePath(); c.fill(); // the pick
-          c.restore();
-        } else ell(c, WR[0], WR[1], 0.14, 0.12);
-      });
-      // the white Strat: lower bout past his right hip, maple neck + headstock past his left side
-      F.layer({ tone: o.gtone === undefined ? 0.3 : o.gtone, toward: '#e9e2cf', inner: 0.9 }, (c) => {
-        blob(c, STRAT.body.map((p) => [...G(p[0], p[1]), p[2] || 0]));
-        const a = G(0.3, -0.1), b = G(2.35, -0.08), cc = G(2.35, 0.08), d = G(0.3, 0.1);
-        c.beginPath(); c.moveTo(a[0], a[1]); c.lineTo(b[0], b[1]); c.lineTo(cc[0], cc[1]); c.lineTo(d[0], d[1]); c.closePath(); c.fill();
-        blob(c, STRAT.head.map((p) => G(p[0], p[1])));
-        for (let i = 0; i < 6; i++) { const p = G(2.45 + i * 0.08, -0.255); ell(c, p[0], p[1], 0.032, 0.026); }
-      });
-      // legs: school trousers, wide planted stance
-      F.layer({}, (c) => {
-        for (const sg of [-1, 1]) {
-          const hip = Fr(sg * 0.36, 0), kn = [P[0] + sg * 0.6, -2.1], an = [P[0] + sg * 0.86, -0.3];
-          limb(c, hip, kn, 0.34, 0.25, 0.33, 0.35); limb(c, kn, an, 0.25, 0.22, 0.25, 0.4);
-        }
-        blob(c, [Fr(-0.58, 0.82), Fr(-0.62, 0.1), Fr(-0.54, -0.4), Fr(0, -0.24), Fr(0.54, -0.4), Fr(0.62, 0.1), Fr(0.58, 0.82)]);
-      });
-      // torso: the white summer shirt from behind (trapezius → round deltoids → lats → slack untucked hem)
-      F.layer({ fill: shirtCol, inner: 0.15 }, (c) => { blob(c, torsoPts); limb(c, Fr(-0.19, 2.44), Fr(0.19, 2.44), 0.07, 0.07); });
-      // the cloth: the strap drags it into diagonal folds, a yoke seam, the spine, a crease where it bunches at the belt,
-      // and (lights on) the tops of the shoulders catch the coloured spill from the ceiling pars
-      F.raw((c) => {
-        c.save(); c.globalCompositeOperation = 'source-atop'; c.lineCap = 'round';
-        c.strokeStyle = withA(foldCol, 0.5);
-        const fold = (pts, w) => { c.lineWidth = w * 1.35; c.beginPath(); spline(c, pts, false); c.stroke(); };
-        fold([Fr(-0.5, 2.05), Fr(-0.18, 1.62), Fr(0.18, 1.18), Fr(0.42, 0.86)], 0.035);
-        fold([Fr(-0.62, 1.66), Fr(-0.3, 1.3), Fr(0.05, 0.92)], 0.03);
-        fold([Fr(0.06, 2.0), Fr(0.36, 1.62), Fr(0.6, 1.28)], 0.026);
-        fold([Fr(-0.55, 0.42), Fr(-0.2, 0.36), Fr(0.12, 0.4), Fr(0.5, 0.33)], 0.03);
-        fold([Fr(-0.36, 0.3), Fr(-0.4, 0.02)], 0.024); fold([Fr(0.3, 0.26), Fr(0.36, -0.04)], 0.024);
-        c.strokeStyle = withA(foldCol, 0.45); fold([Fr(0, 2.36), Fr(0.01, 1.7), Fr(0.0, 1.1)], 0.04);   // spine valley
-        fold([Fr(-0.78, 2.2), Fr(-0.3, 2.25), Fr(0.3, 2.25), Fr(0.78, 2.2)], 0.018);                       // yoke seam
-        if (lit > 0) {
-          for (const [sg, col] of [[-1, '#8fe4ff'], [1, '#ff8cc6']]) {
-            const p = Fr(sg * 0.6, 2.42), g = c.createRadialGradient(p[0], p[1], 0.04, p[0], p[1], 0.55);
-            g.addColorStop(0, PV.rgba(col, 0.42 * lit)); g.addColorStop(1, PV.rgba(col, 0)); c.fillStyle = g; c.beginPath(); c.arc(p[0], p[1], 0.55, 0, TAU); c.fill();
-          }
-        }
-        c.restore();
-      });
-      // strap: from the top of his left shoulder across the back to the strap button at the right hip
-      F.layer({ inner: 0.4 }, (c) => {
-        const a = Fr(-0.46, 2.45), b = G(-1.0, 0.02), m = [(a[0] + b[0]) / 2 + 0.08, (a[1] + b[1]) / 2 - 0.06];
-        const w = 0.07, dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy), nx = -dy / l * w, ny = dx / l * w;
-        c.beginPath(); c.moveTo(a[0] + nx, a[1] + ny); c.quadraticCurveTo(m[0] + nx, m[1] + ny, b[0] + nx, b[1] + ny); c.lineTo(b[0] - nx, b[1] - ny); c.quadraticCurveTo(m[0] - nx, m[1] - ny, a[0] - nx, a[1] - ny); c.closePath(); c.fill();
-      });
-      // left arm up to the neck. The hand from behind: the heel of the hand and the thumb on the back of the neck,
-      // the four knuckles curling over its top (bass) edge toward the fretboard
-      F.layer({ tone: 0.04, inner: 0.45 }, (c) => {
-        limb(c, SL, EL, 0.2, 0.125, 0.18, 0.35);
-        limb(c, EL, G(1.84, 0.1), 0.125, 0.085, 0.13, 0.5);
-        const q = (x, y) => G(1.92 + x, y);
-        blob(c, [q(-0.17, 0.17), q(-0.19, 0.03), q(-0.13, -0.08), q(0.0, -0.1), q(0.12, -0.08), q(0.15, 0.05), q(0.07, 0.16), q(-0.06, 0.2)]);
-        for (const [x, l] of [[-0.12, 0.1], [-0.04, 0.115], [0.04, 0.11], [0.115, 0.09]]) { const a = q(x, -0.06), b = q(x + 0.03, -0.08 - l); limb(c, a, b, 0.045, 0.036); }
-        limb(c, q(-0.06, 0.13), q(0.17, 0.07), 0.05, 0.036);   // thumb along the back of the neck
-      });
-      // right upper arm (the forearm is drawn behind: in front of him / beside him)
-      F.layer({ tone: 0.04, inner: 0.45 }, (c) => { limb(c, SR, ER, 0.2, 0.125, 0.18, 0.35); if (k > 0.3) ell(c, ER[0], ER[1], 0.125, 0.125); });
-      // short sleeves of the white shirt over the upper arms, with a hem
-      F.layer({ fill: shirtCol, inner: 0.25 }, (c) => {
-        for (const [S, Eb] of [[SL, EL], [SR, ER]]) { const m = mix2(S, Eb, 0.5); limb(c, S, m, 0.24, 0.17, 0.22, 0.5); }
-      });
-      // lights on: the magenta spot on his right lays a second rim down the outer edge of his right sleeve and arm
-      if (lit > 0 && k < 0.2) F.raw((c) => {
-        const m = mix2(SR, ER, 0.5);
-        rimStroke(c, limbEdge(SR, m, 0.24, 0.17, 0.22, 0.5, 0.05, 1, 6).concat(limbEdge(SR, ER, 0.2, 0.125, 0.18, 0.35, 0.55, 1, 5)), lit, 0.06);
-      });
-      F.raw((c) => {
-        c.save(); c.globalCompositeOperation = 'source-atop'; c.strokeStyle = withA(foldCol, 0.7); c.lineCap = 'round'; c.lineWidth = 0.026;
-        for (const [S, Eb] of [[SL, EL], [SR, ER]]) {
-          const m = mix2(S, Eb, 0.47), dx = Eb[0] - S[0], dy = Eb[1] - S[1], l = Math.hypot(dx, dy) || 1, nx = -dy / l * 0.17, ny = dx / l * 0.17;
-          c.beginPath(); c.moveTo(m[0] + nx, m[1] + ny); c.quadraticCurveTo(m[0] + dx / l * 0.03, m[1] + dy / l * 0.03, m[0] - nx, m[1] - ny); c.stroke();
-        }
-        c.restore();
-      });
-      // neck + head + messy hair. The turn is drawn as anime key poses: back → lost profile (cheek and jaw come round on
-      // the left) → profile facing her (bangs over the eyes; the face is never acted)
-      const headXf = (c) => { c.translate(HC[0], HC[1]); c.rotate(-0.3 * nod * (turn > 0.7 ? 1 : 0.4)); c.scale(1.04, 1.04); };
-      F.layer({ tone: 0.02, inner: 0.3 }, (c) => {
-        limb(c, N, [HC[0], HC[1] + 0.3], 0.2, 0.18);
-        c.save(); headXf(c);
-        const wx = -0.05 * W0, sd = 3;
-        const tip = (i, x, y, kk = 1, sh = 1) => { const n = N2(sd + i * 1.37, tq * 1.5), m = N2(sd + 40 + i, tq * 1.1); return [x + wx * kk * (1 + 0.4 * n) + 0.01 * m, y - Math.abs(wx) * 0.25 * kk * Math.max(0, n), sh]; };
-        if (turn < 0.72) {
-          const kk = clamp(turn / 0.6), sx = 1 - 0.06 * kk, ox = 0.05 * kk;
-          if (kk > 0.05) { // lost profile: cheek → jaw → chin edge peeks out past the hair on the left
-            blob(c, [[-0.26, -0.12], [-0.4 - 0.05 * kk, 0.04], [-0.45 - 0.07 * kk, 0.18], [-0.42 - 0.06 * kk, 0.31], [-0.33 - 0.04 * kk, 0.42], [-0.2, 0.47], [-0.04, 0.43], [-0.1, 0.1]]);
-          }
-          ell(c, ox, 0.02, 0.44, 0.52);
-          const hx = (x) => x * sx + ox;
-          blob(c, [tip(0, hx(0.04), -0.69, 0.5), [hx(0.16), -0.645], [hx(0.31), -0.585], tip(1, hx(0.43), -0.49, 0.5, 0), [hx(0.49), -0.35], tip(11, hx(0.525), -0.2, 0.5, 0), [hx(0.515), -0.05],
-            [hx(0.5), 0.13], [hx(0.458), 0.3], tip(3, hx(0.39), 0.43, 1.1), [hx(0.3), 0.37], tip(4, hx(0.2), 0.5, 1.25), [hx(0.1), 0.4], tip(5, hx(0.0), 0.535, 1.3), [hx(-0.1), 0.4],
-            tip(6, hx(-0.2), 0.5, 1.25), [hx(-0.3), 0.37], tip(7, hx(-0.39), 0.43 - 0.06 * kk, 1.1), [hx(-0.458), 0.3 - 0.08 * kk], [hx(-0.5), 0.13 - 0.06 * kk], [hx(-0.515), -0.05], tip(12, hx(-0.525), -0.2, 0.5, 0),
-            [hx(-0.49), -0.35], tip(9, hx(-0.43), -0.49, 0.5, 0), [hx(-0.3), -0.59], tip(13, hx(-0.17), -0.66, 0.6), [hx(-0.06), -0.655]]);
-        } else {
-          // profile facing left (the library's boy profile, mirrored) + side hair with the fringe over the brow
-          const M = (p) => [-p[0], p[1], p[2] || 0];
-          blob(c, [[-0.04, -0.54], [0.22, -0.49], [0.37, -0.32], [0.42, -0.1], [0.415, -0.02], [0.5, 0.13, 1], [0.42, 0.19], [0.41, 0.27], [0.38, 0.34], [0.38, 0.42], [0.3, 0.48], [0.1, 0.45], [-0.06, 0.33], [-0.3, 0.2], [-0.45, -0.05], [-0.4, -0.33]].map(M));
-          const tf = (i, x, y, kk) => { const n = N2(sd + i * 1.7, tq * 1.4); return [x + 0.05 * kk * W0 * (1 + 0.4 * n), y - 0.02 * kk * W0 * Math.max(0, n), 1]; };
-          blob(c, [[0.16, -0.62], [0.34, -0.53], [0.45, -0.38], [0.475, -0.22], tf(0, 0.475, -0.01, 0.5), [0.43, -0.1], tf(1, 0.44, 0.05, 0.4), [0.39, -0.04],
-            [0.28, -0.12], [0.17, -0.09], tf(2, 0.1, 0.19, 0.3), [0.03, 0.06], [-0.1, 0.1], [-0.15, 0.25], tf(3, -0.17, 0.47, 0.8), [-0.25, 0.36],
-            tf(4, -0.33, 0.49, 1.0), [-0.4, 0.33], tf(5, -0.5, 0.42, 1.1), [-0.56, 0.17], [-0.62, -0.05], [-0.635, -0.26], [-0.6, -0.45],
-            tf(7, -0.5, -0.66, 0.8), [-0.38, -0.66], [-0.18, -0.695], [0.02, -0.68]].map(M));
-        }
-        c.restore();
-      });
-      // lights on: the magenta spot on his right lays a second rim along the right side of his hair
-      if (lit > 0) F.raw((c) => { c.save(); headXf(c); rimStroke(c, [[0.36, -0.55], [0.49, -0.35], [0.525, -0.2], [0.515, -0.05], [0.5, 0.13], [0.458, 0.3], [0.39, 0.43]], lit, 0.06); c.restore(); });
-    });
-  }
-
-  // 61-key keyboard on an X stand, from behind (nearly edge-on). (x,y) = her feet, s = her scale
-  function keyboardBack(ctx, x, y, s, litK) {
-    const u = 92 * s; ctx.save(); ctx.translate(x, y); ctx.scale(u, u);
-    ctx.strokeStyle = PV.mix('#07070b', '#2e2128', litK); ctx.lineWidth = 0.085; ctx.lineCap = 'round';
-    ctx.beginPath(); ctx.moveTo(-1.25, -4.0); ctx.lineTo(1.2, 0.3); ctx.moveTo(1.25, -4.0); ctx.lineTo(-1.2, 0.3); ctx.stroke();
-    ctx.lineWidth = 0.06; ctx.beginPath(); ctx.moveTo(-1.55, -4.0); ctx.lineTo(1.55, -4.0); ctx.stroke();
-    ctx.fillStyle = PV.mix('#09090e', '#1f161c', litK); ctx.beginPath(); ctx.roundRect(-2.28, -4.4, 4.56, 0.38, 0.06); ctx.fill();
-    ctx.fillStyle = PV.mix('#13131b', '#4a3640', litK); ctx.fillRect(-2.25, -4.415, 4.5, 0.045);
-    ctx.fillStyle = `rgba(255,225,190,${0.08 + 0.45 * litK})`; ctx.fillRect(-2.25, -4.43, 4.5, 0.016);
-    ctx.fillStyle = '#ff6a3a'; ctx.beginPath(); ctx.arc(1.95, -4.22, 0.022, 0, TAU); ctx.fill();
-    ctx.restore();
-    light(ctx, x + 1.95 * u, y - 4.22 * u, 16, '#ff6a3a', 0.45);
-  }
-
   // per-shot bloom through the engine's own post pass (documented S.post control), merged with whatever the timeline sets
   function setBloom(S, bloom, halation) {
     if (!S) return;
@@ -528,169 +122,448 @@
     S.post = Object.assign({}, S._g04post, { bloom, halation });
   }
 
-  // ---- the hall as cached flat plates. Pre-blast the camera is locked off, so the whole dark hall (wall, exit signs,
-  //      audience, rope) is one screen-space plate. Lit, the hall is re-composed flat each frame (cheap blits: the
-  //      recoiling audience, the two sweeping side beams, the phones) and goes through the shaking camera ONCE.
-  const Z13 = 1.03, CAM13 = { cx: 960, cy: 470 }, BGW13 = W + PADX * 2, BGH13 = H + PADY * 2;
-  function underCrowd(c) { const y0 = yAt(1.15, 6.6), y1 = yAt(0, 5.6); const g = c.createLinearGradient(0, y0, 0, y1); g.addColorStop(0, 'rgba(9,9,15,0)'); g.addColorStop(0.25, '#09090f'); g.addColorStop(1, '#08080d'); c.fillStyle = g; c.fillRect(-60, y0, W + 120, y1 - y0); }
-  function c13PhoneList() {
-    if (!crowdModel.ph) { crowdRow(0); crowdRow(1); crowdModel.ph = []; crowdModel().forEach((row, k) => row.people.forEach((p) => { if (p.ph) crowdModel.ph.push([p, k >= 3 ? 1 : 0]); })); }
-    return crowdModel.ph;
-  }
-  function c13Phones(c, t, offs) {
-    c.save(); c.globalCompositeOperation = 'screen';
-    for (const [p, gi] of c13PhoneList()) {
-      const oy = offs[gi], [px, py, pw, ph] = p.ph, f = 0.78 + 0.22 * Math.sin(t * 2.6 + p.seed);
-      c.fillStyle = `rgba(222,236,255,${0.9 * f})`; c.fillRect(px - pw / 2, py - ph / 2 + oy, pw, ph);
-      lightS(c, px, py + oy, pw * 6, '#bcd6ff', 0.24 * f);
-    }
-    c.restore();
-  }
-  function c13DarkPlate() {
-    return PV.cached('g04:c13dark', W, H, (c) => {
-      PV.camera(c, { zoom: Z13, cx: CAM13.cx, cy: CAM13.cy });
-      c.drawImage(gymWall(false), -PADX, -PADY);
-      exitSigns(c); underCrowd(c);
-      c.drawImage(crowdRow(0), 0, CRY0); c.drawImage(crowdRow(1), 0, CRY0);
-      for (const S0 of SPOTS) { c.fillStyle = '#121218'; c.beginPath(); c.ellipse(S0.x, S0.y, 16, 11, 0, 0, TAU); c.fill(); }
-      ropeBarrier(c, false);
-    });
-  }
-  // lit wall + the gallery spots' cones and the ceiling pars baked in (they hold still; only the side beams sweep)
-  function c13LitWall() {
-    return PV.cached('g04:c13litwall', BGW13, BGH13, (c) => {
-      c.drawImage(gymWall(true), 0, 0);
-      const list = [];
-      for (const S0 of SPOTS) list.push({ x: S0.x, y: S0.y, ang: Math.PI / 2 + (960 - S0.x) * -0.00018, ha: 0.62, len: 900, col: S0.col, a: 0.36, w0: 10 });
-      list.push({ x: 640, y: -60, ang: 1.5, ha: 0.13, len: 640, col: AMB, a: 0.3, w0: 60 });
-      list.push({ x: 1280, y: -60, ang: 1.64, ha: 0.13, len: 640, col: CYA, a: 0.28, w0: 60 });
-      list.push({ x: 1600, y: -60, ang: 1.85, ha: 0.1, len: 700, col: MAG, a: 0.22, w0: 50 });
-      list.push({ x: 300, y: -60, ang: 1.25, ha: 0.1, len: 700, col: AMB, a: 0.2, w0: 50 });
-      const beams = beamsLayer('c13bake', list, 6, { x0: -PADX, y0: -PADY, w: BGW13, h: BGH13 });
-      c.globalCompositeOperation = 'screen'; c.drawImage(beams, 0, 0, BGW13, BGH13); c.globalCompositeOperation = 'source-over';
-      // the two side beams raking across the hall at head height (in the haze in front of the audience)
+  /* ======================================================================= C13 — the stage, seen from the audience */
+  // Anime rework (faces): the reverse of the old angle. From the middle of the hall, a little above the heads of the people in
+  // front, the two face us in front of the closed stage curtain: 彼 (left) with the white Strat, 先輩 (right — she stands on his
+  // left) at the 61-key keyboard, his amp between them, a light tree behind each, PA speakers at the edges. Booing in the
+  // dark: only the low work lights at the sides, the phone screens and the amp's red pilot lamp. 41.6 he turns to her and
+  // nods, she nods back; he winds up; 42.0 the D-major blast: every lamp at once (the light trees and the ceiling pars behind
+  // them, the gallery follow-spots behind us), white-hot for a few frames, then amber / magenta / cyan; the camera takes the
+  // shock and pushes in; their hair flies.
+  // Global time: lip-sync / blinks need the timeline's own seconds (the solo renderer shifts a shot to start at 0).
+  const START = { C13: 40.5, C14: 43.5, C15: 46.5 };
+  const absT = (S, id, t) => ((S && S.start > 0.01) ? S.start : START[id]) + t;
+  const C13 = { nod: 1.1, blast: 1.5 };
+  // the hall in perspective (m): the camera in the front row behind the rope (1.6 m, level); the figures are drawn
+  // orthographic at their floor points
+  const EYE = 360, FOC = 2700, CAMH = 1.6, D13 = 5.6;
+  const yAt = (h, d) => EYE + FOC * (CAMH - h) / d, xAt = (X, d) => 960 + FOC * X / d;
+  const AMB = '#ffbf6b', MAG = '#ff5fa8', CYA = '#5fd7ff', RED = '#ff3b30';
+  const FLOOR13 = yAt(0, D13);
+  const BOY13 = { x: xAt(-0.88, D13), y: FLOOR13, s: 0.244 * FOC / D13 };   // his head 24.4 cm, hers 23 cm (design 1-2)
+  const GIRL13 = { x: xAt(0.9, D13), y: FLOOR13, s: 0.23 * FOC / D13 };
+  const PADX = 48, PADY = 30, BGW13 = W + PADX * 2, BGH13 = H + PADY * 2;
+  const STG_H = 1.1, CUR_D = 9.6, LIP_D = 8.8;          // the stage (1.1 m high): its front, the closed curtain on it
+  const TREE_D = 8.0, TREE_H = 2.42;                    // two light trees on the floor (4 PAR cans on a T-bar each), facing us
+  const TREES = [{ X: -2.1, cols: [CYA, AMB, MAG, CYA] }, { X: 2.1, cols: [MAG, AMB, CYA, MAG] }];
+  const LAMPS13 = [];
+  for (const Tr of TREES) for (let i = 0; i < 4; i++) LAMPS13.push({ x: xAt(Tr.X + (i - 1.5) * 0.27, TREE_D), y: yAt(TREE_H, TREE_D), r: 0.095 * FOC / TREE_D, col: Tr.cols[i], side: Math.sign(Tr.X), i });
+  const AMP_D = 6.5, AMP_K = 0.5 * FOC / AMP_D / 176;   // the combo amp between them (c14Amp, 176 px = 0.5 m wide)
+  const AMP13 = { x: xAt(0.03, AMP_D) - 88 * AMP_K, y: yAt(0, AMP_D) - 168 * AMP_K };
+  const JEWEL13 = [AMP13.x + 18 * AMP_K, AMP13.y + 16 * AMP_K];
+  const SPK13 = [{ X: -2.58, d: 7.6 }, { X: 2.58, d: 7.6 }];   // PA speakers on poles at the frame edges
+  const CC13 = { cx: 960, cy: 420 };                          // the push-in centre (between the two faces)
+
+  // ---- the stage plate (screen space + padding for the shake). mode 'dark' | 'lit' | 'burst'
+  function c13Stage(mode) {
+    return PV.cached('g04:c13stage2:' + mode, BGW13, BGH13, (c) => {
       c.translate(PADX, PADY);
-      softBeams(c, [{ x: -60, y: 560, ang: -0.105, ha: 0.075, len: 1500, col: CYA, a: 0.4, w0: 8 }, { x: W + 60, y: 545, ang: Math.PI + 0.125, ha: 0.075, len: 1500, col: MAG, a: 0.38, w0: 8 }]);
+      const lit = mode !== 'dark', hot = mode === 'burst';
+      const yC = yAt(STG_H, CUR_D), yLip = yAt(STG_H, LIP_D), yBase = yAt(0, LIP_D);
+      const X0 = -PADX, X1 = W + PADX;
+      // 1 the closed curtain (緞帳): heavy wine-red folds, the fly tower above falls into black
+      for (let x = X0; x < X1; x += 2) {
+        const f = 0.5 + 0.5 * Math.sin(x * 0.03 + Math.sin(x * 0.0085) * 2.6), f2 = 0.5 + 0.5 * Math.sin(x * 0.093 + 1.3 + Math.sin(x * 0.02));
+        const v = lit ? 30 + 44 * f + 9 * f2 : 10 + 15 * f + 3 * f2;
+        c.fillStyle = `rgb(${Math.round(v * 1.5)},${Math.round(v * 0.34)},${Math.round(v * 0.45)})`;
+        c.fillRect(x, -PADY, 2, yC + PADY + 1);
+      }
+      let g = c.createLinearGradient(0, -PADY, 0, yC);
+      g.addColorStop(0, `rgba(4,2,5,${lit ? 0.5 : 0.8})`); g.addColorStop(0.5, `rgba(4,2,5,${lit ? 0.08 : 0.3})`); g.addColorStop(0.92, 'rgba(4,2,5,0)'); g.addColorStop(1, 'rgba(4,2,5,0.3)');
+      c.fillStyle = g; c.fillRect(X0, -PADY, X1 - X0, yC + PADY);
+      // the hem: a dull gold fringe on the stage floor
+      c.fillStyle = lit ? '#6e4224' : '#22150d'; c.fillRect(X0, yC - 10, X1 - X0, 10);
+      c.fillStyle = lit ? 'rgba(255,214,150,0.4)' : 'rgba(150,110,70,0.14)'; c.fillRect(X0, yC - 10, X1 - X0, 1.2);
+      // 2 the stage floor strip, its lip; 3 the stage front with the chair-storage doors (ステージ下の収納); 4 the gym floor
+      c.fillStyle = lit ? '#341d22' : '#0f0b0e'; c.fillRect(X0, yC, X1 - X0, yLip - yC);
+      c.fillStyle = lit ? 'rgba(255,214,180,0.55)' : 'rgba(150,110,90,0.18)'; c.fillRect(X0, yLip - 2, X1 - X0, 2);
+      g = c.createLinearGradient(0, yLip, 0, yBase); g.addColorStop(0, lit ? '#2a1a1f' : '#0d0a0d'); g.addColorStop(1, lit ? '#1f1418' : '#09080b');
+      c.fillStyle = g; c.fillRect(X0, yLip, X1 - X0, yBase - yLip);
+      const dw = 1.15 * FOC / LIP_D, dTop = yLip + 0.12 * FOC / LIP_D, dBot = yBase - 0.1 * FOC / LIP_D;
+      for (let x = 960 - dw * 6; x < X1; x += dw) {
+        c.fillStyle = lit ? 'rgba(0,0,0,0.22)' : 'rgba(0,0,0,0.3)'; c.fillRect(x + 6, dTop, dw - 12, 3); c.fillRect(x + 6, dTop, 3, dBot - dTop);
+        c.fillStyle = lit ? 'rgba(255,214,190,0.08)' : 'rgba(120,100,110,0.05)'; c.fillRect(x + 6, dBot - 2, dw - 12, 2); c.fillRect(x + dw - 9, dTop, 2, dBot - dTop);
+        c.fillStyle = lit ? 'rgba(220,200,190,0.35)' : 'rgba(90,85,95,0.25)'; c.fillRect(x + dw / 2 - 18, dTop + (dBot - dTop) * 0.22, 36, 5);   // handle
+      }
+      g = c.createLinearGradient(0, yBase, 0, H + PADY); g.addColorStop(0, lit ? '#2c1b20' : '#100c10'); g.addColorStop(1, lit ? '#1e1317' : '#09080b');
+      c.fillStyle = g; c.fillRect(X0, yBase, X1 - X0, H + PADY - yBase);
+      // floor boards converging on the vanishing point; a painted court line across
+      c.strokeStyle = lit ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.28)'; c.lineWidth = 1.2;
+      for (let X = -7; X <= 7; X += 0.36) { c.beginPath(); c.moveTo(xAt(X, LIP_D), yBase); c.lineTo(xAt(X, 3.0), yAt(0, 3.0)); c.stroke(); }
+      c.strokeStyle = lit ? 'rgba(255,236,200,0.3)' : 'rgba(170,160,150,0.09)'; c.lineWidth = 3;
+      c.beginPath(); c.moveTo(X0, yAt(0, 7.1)); c.lineTo(X1, yAt(0, 7.1)); c.stroke();
+      // cables snake from the amp to the speakers and the keyboard
+      c.strokeStyle = lit ? '#120c10' : '#050407'; c.lineWidth = 4; c.lineCap = 'round';
+      const ax = xAt(0.03, AMP_D), ay = yAt(0, AMP_D);
+      c.beginPath(); c.moveTo(ax - 40, ay - 4); c.bezierCurveTo(ax - 260, ay - 30, xAt(-2.0, 7.4), yAt(0, 7.0), xAt(-2.6, 7.6), yAt(0, 7.6)); c.stroke();
+      c.beginPath(); c.moveTo(ax + 40, ay - 4); c.bezierCurveTo(ax + 300, ay + 10, xAt(1.4, 6.0), yAt(0, 6.6), xAt(2.6, 7.6), yAt(0, 7.6)); c.stroke();
+      // the low work lights at both sides (dark) / the colour washes and the follow-spot halos (lit)
+      if (!lit) {
+        for (const [x, y] of [[-80, yBase + 90], [W + 80, yBase + 90]]) { light(c, x, y, 820, '#ffad5e', 0.2); light(c, x, y, 280, '#ffcf96', 0.25); }
+        for (const [x, y] of [[-40, yC - 90], [W + 40, yC - 90]]) light(c, x, y, 560, '#c86a3a', 0.13);
+      } else {
+        c.save(); c.beginPath(); c.rect(X0, -PADY, X1 - X0, yC); c.clip();
+        c.globalCompositeOperation = 'screen';
+        light(c, 960, -140, 950, AMB, 0.4);
+        light(c, 250, 160, 680, CYA, 0.42); light(c, 1690, 150, 680, MAG, 0.46);
+        // the follow-spots' spill behind each of them (a disc on the curtain behind the head and shoulders)
+        for (const P of [BOY13, GIRL13]) { const hx = P.x + (P.x - 960) * 0.05, hy = yAt(1.62, CUR_D) - 30; light(c, hx, hy, 360, '#ffe2b8', 0.6); light(c, hx, hy, 160, '#fff2dc', 0.38); }
+        c.restore();
+        c.save(); c.globalCompositeOperation = 'screen';
+        light(c, 960, yLip + 60, 760, '#ffb070', 0.2);
+        // the varnish smears every lamp into long streaks toward us
+        for (const L0 of LAMPS13) {
+          c.save(); c.translate(L0.x + (L0.x - 960) * 0.22, yAt(0, TREE_D) + 40); c.scale(1, 4.2);
+          const g2 = c.createRadialGradient(0, 0, 0, 0, 0, 62); g2.addColorStop(0, PV.rgba(L0.col, 0.3)); g2.addColorStop(0.5, PV.rgba(L0.col, 0.1)); g2.addColorStop(1, PV.rgba(L0.col, 0));
+          c.fillStyle = g2; c.fillRect(-62, -12, 124, 74); c.restore();
+        }
+        c.restore();
+      }
+      // 5 the two light trees (tripod, pole, T-bar, four cans) — black against the curtain, the lamps lit or dark
+      for (const Tr of TREES) {
+        const x = xAt(Tr.X, TREE_D), yT = yAt(TREE_H, TREE_D), yF = yAt(0, TREE_D), u = FOC / TREE_D;
+        c.strokeStyle = lit ? '#191317' : '#050407'; c.lineCap = 'round';
+        c.lineWidth = 0.034 * u; c.beginPath(); c.moveTo(x, yT); c.lineTo(x, yF - 0.5 * u); c.stroke();
+        c.lineWidth = 0.026 * u; c.beginPath(); c.moveTo(x, yF - 0.52 * u); c.lineTo(x - 0.42 * u, yF); c.moveTo(x, yF - 0.52 * u); c.lineTo(x + 0.42 * u, yF); c.moveTo(x, yF - 0.52 * u); c.lineTo(x + 0.06 * u, yF + 0.05 * u); c.stroke();
+        c.lineWidth = 0.04 * u; c.beginPath(); c.moveTo(x - 0.58 * u, yT); c.lineTo(x + 0.58 * u, yT); c.stroke();
+        if (lit) { c.strokeStyle = 'rgba(255,214,190,0.3)'; c.lineWidth = 1.2; c.beginPath(); c.moveTo(x + 0.017 * u, yT + 4); c.lineTo(x + 0.017 * u, yF - 0.5 * u); c.stroke(); }
+      }
+      for (const L0 of LAMPS13) {
+        const { x, y, r } = L0;
+        c.fillStyle = lit ? '#1b1519' : '#070609'; c.beginPath(); c.roundRect(x - r * 1.08, y - r * 0.35, r * 2.16, r * 1.5, r * 0.3); c.fill();
+        c.beginPath(); c.arc(x, y + r * 0.15, r * 1.02, 0, TAU); c.fill();
+        if (!lit) { c.fillStyle = '#121016'; c.beginPath(); c.arc(x, y + r * 0.15, r * 0.82, 0, TAU); c.fill(); c.strokeStyle = 'rgba(160,150,170,0.16)'; c.lineWidth = 1.5; c.beginPath(); c.arc(x, y + r * 0.15, r * 0.7, -2.6, -1.4); c.stroke(); }
+        else {
+          const g3 = c.createRadialGradient(x, y + r * 0.15, 0, x, y + r * 0.15, r * 0.86);
+          g3.addColorStop(0, '#ffffff'); g3.addColorStop(0.45, hot ? '#ffffff' : PV.mix(L0.col, '#ffffff', 0.65)); g3.addColorStop(1, L0.col);
+          c.fillStyle = g3; c.beginPath(); c.arc(x, y + r * 0.15, r * 0.84, 0, TAU); c.fill();
+        }
+      }
+      // 6 lit: the beams baked in — the cans fan toward the players and us, the ceiling pars rake down from above the frame
+      if (lit) {
+        const list = [];
+        for (const L0 of LAMPS13) { const tx = L0.side < 0 ? 700 + L0.i * 80 : 1220 - L0.i * 80; list.push({ x: L0.x, y: L0.y + L0.r * 0.15, ang: Math.atan2(700 - L0.y, tx - L0.x), ha: 0.21, len: 1000, col: L0.col, a: hot ? 0.5 : 0.22, w0: L0.r * 0.8 }); }
+        for (const [x, ang, col, a] of [[330, 1.42, CYA, 0.28], [700, 1.62, AMB, 0.32], [1220, 1.52, AMB, 0.28], [1600, 1.74, MAG, 0.3]]) list.push({ x, y: -70, ang, ha: 0.12, len: 1150, col, a: hot ? 0.55 : a, w0: 40 });
+        const beams = beamsLayer('c13bake' + mode, list, 6, { x0: -PADX, y0: -PADY, w: BGW13, h: BGH13 });
+        c.save(); c.globalCompositeOperation = 'screen'; c.drawImage(beams, -PADX, -PADY, BGW13, BGH13);
+        g = c.createLinearGradient(0, 0, 0, H); g.addColorStop(0, 'rgba(255,190,200,0.0)'); g.addColorStop(0.3, 'rgba(255,190,200,0.08)'); g.addColorStop(0.6, 'rgba(255,200,180,0.12)'); g.addColorStop(1, 'rgba(255,190,200,0.03)');
+        c.fillStyle = g; c.fillRect(X0, -PADY, X1 - X0, H + PADY * 2);
+        for (const L0 of LAMPS13) { light(c, L0.x, L0.y, L0.r * 9, L0.col, hot ? 0.9 : 0.55); light(c, L0.x, L0.y, L0.r * 2.6, '#ffffff', hot ? 1 : 0.7); }
+        c.restore();
+      }
+      // 7 the first instant: everything white-hot behind them
+      if (hot) {
+        c.save(); c.globalCompositeOperation = 'screen';
+        g = c.createLinearGradient(0, 0, 0, H); g.addColorStop(0, 'rgba(255,226,200,0.7)'); g.addColorStop(0.45, 'rgba(255,240,224,0.9)'); g.addColorStop(0.75, 'rgba(255,224,200,0.62)'); g.addColorStop(1, 'rgba(255,200,170,0.35)');
+        c.fillStyle = g; c.fillRect(X0, -PADY, X1 - X0, H + PADY * 2);
+        light(c, 960, 360, 1200, '#ffffff', 0.85);
+        c.restore();
+      }
     });
   }
-  // the lit hall as ONE static plate: the audience holds its recoiled position (原作「観客が引いた」: it jumps back on the
-  // blast frame, under the white-out and the shake) — only the two side beams sweep and the phones twinkle on top
-  const REC13 = [-2.5, -5.5], BOY13 = { x: 1345, y: 1268, s: 1.44 };
-  function c13LitPlate() {
-    return PV.cached('g04:c13litplateS', BGW13, BGH13, (c) => {
-      c.translate(PADX, PADY); PV.camera(c, { zoom: Z13, cx: CAM13.cx, cy: CAM13.cy });
-      c.drawImage(c13LitWall(), -PADX, -PADY);
-      exitSigns(c); underCrowd(c);
-      for (let gi = 0; gi < GROUPS.length; gi++) c.drawImage(crowdLit(gi), 0, CRY0 + REC13[gi]);
-      c.save(); c.globalCompositeOperation = 'screen'; for (const S0 of SPOTS) lightS(c, S0.x, S0.y, 46, '#ffffff', 0.7); c.restore();
-      ropeBarrier(c, true);
+  // PA speaker on a pole (seen from the front): a black box, horn on top, woofer below; the cone pumps with the music
+  function c13Speaker(c, Sp, lit, kick, t) {
+    const u = FOC / Sp.d, x = xAt(Sp.X, Sp.d), yT = yAt(2.16, Sp.d), yB = yAt(1.46, Sp.d), yF = yAt(0, Sp.d), w = 0.44 * u;
+    const jx = kick * 2.4 * Math.sin(t * 97 + Sp.X), jy = kick * 1.6 * Math.cos(t * 83);
+    c.save(); c.translate(jx, jy);
+    c.strokeStyle = lit ? '#1c1519' : '#060508'; c.lineCap = 'round'; c.lineWidth = 0.035 * u;
+    c.beginPath(); c.moveTo(x, yB); c.lineTo(x, yF - 0.6 * u); c.moveTo(x, yF - 0.6 * u); c.lineTo(x - 0.45 * u, yF); c.moveTo(x, yF - 0.6 * u); c.lineTo(x + 0.45 * u, yF); c.stroke();
+    c.fillStyle = lit ? '#19141a' : '#08070a'; c.beginPath(); c.roundRect(x - w / 2, yT, w, yB - yT, 0.03 * u); c.fill();
+    c.fillStyle = lit ? '#100c10' : '#040305'; c.fillRect(x - w * 0.42, yT + 0.05 * u, w * 0.84, 0.14 * u);   // horn
+    const cy = yB - 0.2 * u, pump = 1 + 0.06 * kick * Math.sin(t * TAU * 11);
+    c.fillStyle = lit ? '#2a2026' : '#0c0a0e'; c.beginPath(); c.arc(x, cy, 0.17 * u * pump, 0, TAU); c.fill();
+    c.fillStyle = lit ? '#120d11' : '#050406'; c.beginPath(); c.arc(x, cy, 0.06 * u * pump, 0, TAU); c.fill();
+    if (lit) { c.strokeStyle = `rgba(255,190,200,${0.25 + 0.35 * kick})`; c.lineWidth = 1.4; c.beginPath(); c.arc(x, cy, 0.17 * u * pump, -2.4, -0.7); c.stroke(); c.strokeStyle = 'rgba(255,214,190,0.4)'; c.beginPath(); c.moveTo(x - w / 2 + 2, yT + 2); c.lineTo(x + w / 2 - 2, yT + 2); c.stroke(); }
+    c.fillStyle = '#4aa8ff'; c.beginPath(); c.arc(x - Math.sign(Sp.X) * w * 0.36, yB - 0.05 * u, 2.4, 0, TAU); c.fill();   // power LED (on the inner side)
+    c.restore();
+    lightS(c, x - Math.sign(Sp.X) * w * 0.36 + jx, yB - 0.05 * u + jy, 16, '#4aa8ff', 0.5);
+  }
+
+  // ---- the audience: we stand in the front row behind the rope; our neighbours' heads and shoulders frame the edges and
+  //      a few phones are held up — all far out of focus (screen-space sprites, painted at 1/4 res and blurred)
+  const CROWD13 = [
+    { x: -40, y: 470, r: 190, k: 1, tilt: 0.1 }, { x: 150, y: 860, r: 150, k: 0, tilt: -0.08 }, { x: 1950, y: 500, r: 185, k: 3, tilt: -0.08 },
+    { x: 1790, y: 900, r: 140, k: 2, tilt: 0.06, side: -1 }, { x: 420, y: 1130, r: 150, k: 4, tilt: 0.04, side: 1 }, { x: 1500, y: 1150, r: 150, k: 0, tilt: -0.05 },
+  ];
+  // phones held up (screen toward us): none in front of a face or an instrument
+  const PHONES13 = [{ x: 262, y: 548, w: 66, h: 124, rot: -0.14, sd: 1, by: 0 }, { x: 1690, y: 610, w: 62, h: 116, rot: 0.12, sd: 2, by: 3 }, { x: 1830, y: 270, w: 40, h: 74, rot: -0.06, sd: 3, by: 2 }];
+  function crowdShape(c, p) {
+    const { x, y, r } = p, sw = r * 2.05, nk = y + r * 1.05;
+    c.beginPath();
+    c.moveTo(x - r * 0.42, nk); c.bezierCurveTo(x - r * 0.5, nk + r * 0.5, x - sw * 0.72, nk + r * 0.55, x - sw * 0.96, nk + r * 0.95);
+    c.quadraticCurveTo(x - sw * 1.08, nk + r * 1.4, x - sw * 1.06, H + 400); c.lineTo(x + sw * 1.06, H + 400);
+    c.quadraticCurveTo(x + sw * 1.08, nk + r * 1.4, x + sw * 0.96, nk + r * 0.95); c.bezierCurveTo(x + sw * 0.72, nk + r * 0.55, x + r * 0.5, nk + r * 0.5, x + r * 0.42, nk);
+    c.closePath(); c.fill();
+    c.beginPath(); c.ellipse(x, y, r * 0.86, r, p.tilt, 0, TAU); c.fill();
+    if (p.k === 1) { c.beginPath(); c.moveTo(x - r * 0.9, y - r * 0.15); c.quadraticCurveTo(x - r * 1.12, y + r * 1.4, x - r * 0.86, y + r * 2.1); c.lineTo(x + r * 0.86, y + r * 2.1); c.quadraticCurveTo(x + r * 1.12, y + r * 1.4, x + r * 0.9, y - r * 0.15); c.closePath(); c.fill(); }
+    else if (p.k === 2) { c.beginPath(); c.ellipse(x + (p.side || 1) * r * 0.2, y - r * 0.55, r * 0.36, r * 0.42, 0.3, 0, TAU); c.fill(); c.beginPath(); c.ellipse(x + (p.side || 1) * r * 0.25, y + r * 0.9, r * 0.22, r * 0.75, 0.1, 0, TAU); c.fill(); }
+    else if (p.k === 3) { c.beginPath(); c.ellipse(x, y + r * 0.2, r * 1.06, r * 0.98, p.tilt, 0, TAU); c.fill(); }
+    else if (p.k === 4) { c.beginPath(); c.ellipse(x + (p.side || 1) * r * 0.3, y - r * 0.62, r * 1.25, r * 0.28, 0, 0, TAU); c.fill(); }
+  }
+  function crowdArms(c) {
+    c.lineCap = 'round';
+    for (const P of PHONES13) {
+      const base = CROWD13[P.by];
+      const sx = base.x + Math.sign(P.x - base.x) * base.r * 1.1, sy = base.y + base.r * 1.6;
+      c.lineWidth = P.w * 0.6; c.beginPath(); c.moveTo(sx, sy); c.quadraticCurveTo(P.x + (P.x - base.x) * 0.1, P.y + P.h * 1.6, P.x, P.y + P.h * 0.45); c.stroke();
+      c.lineWidth = P.w * 0.75; c.beginPath(); c.moveTo(P.x - P.w * 0.1, P.y + P.h * 0.62); c.lineTo(P.x, P.y + P.h * 0.25); c.stroke();   // the hand
+    }
+  }
+  // the rope barrier between us and them: chrome posts, the red rope sagging, out of focus
+  function ropeShape(c, lit) {
+    const d = 3.3, top = yAt(0.95, d);
+    const posts = [-1.9, 0.0, 1.9].map((X) => xAt(X, d));
+    for (const x of posts) { c.fillStyle = lit ? '#6a5560' : '#17151c'; c.fillRect(x - 9, top, 18, H - top + 40); c.fillStyle = lit ? '#efe0da' : '#3a3846'; c.beginPath(); c.arc(x, top, 17, 0, TAU); c.fill(); }
+    c.strokeStyle = lit ? '#c4283a' : '#3c1218'; c.lineWidth = 15; c.lineCap = 'round';
+    for (let i = 0; i < posts.length - 1; i++) { const a = posts[i], b = posts[i + 1]; c.beginPath(); c.moveTo(a + 10, top + 8); c.quadraticCurveTo((a + b) / 2, top + 120, b - 10, top + 8); c.stroke(); }
+    c.beginPath(); c.moveTo(-200, top + 50); c.quadraticCurveTo(posts[0] / 2 - 100, top + 110, posts[0] - 10, top + 8); c.stroke();
+    c.beginPath(); c.moveTo(posts[2] + 10, top + 8); c.quadraticCurveTo((posts[2] + W) / 2 + 100, top + 110, W + 200, top + 50); c.stroke();
+    if (lit) { c.strokeStyle = 'rgba(255,190,190,0.45)'; c.lineWidth = 4; for (let i = 0; i < posts.length - 1; i++) { const a = posts[i], b = posts[i + 1]; c.beginPath(); c.moveTo(a + 10, top + 3); c.quadraticCurveTo((a + b) / 2, top + 113, b - 10, top + 3); c.stroke(); } }
+  }
+  function c13Crowd(lit) {
+    return PV.cached('g04:c13crowd2:' + (lit ? 'lit' : 'dark'), W, H, (c) => {
+      const q = 0.25, sw = W * q, sh = H * q;
+      // the rope (nearer the focus: a softer blur), then the neighbours (very near: a strong blur)
+      const rp = PV.makeCanvas(sw, sh), rc = rp.ctx; rc.scale(q, q); ropeShape(rc, lit);
+      c.filter = 'blur(4px)'; c.drawImage(rp.canvas, 0, 0, W, H); c.filter = 'none';
+      const b = PV.makeCanvas(sw, sh), d = b.ctx; d.scale(q, q);
+      const col = lit ? '#0b080c' : '#07060a';
+      d.fillStyle = col; d.strokeStyle = col;
+      for (const p of CROWD13) crowdShape(d, p); crowdArms(d);
+      // the stage light ahead of them lays a rim along their heads and shoulders (lit: coloured; dark: a faint warm line)
+      const rim = PV.makeCanvas(sw, sh), e = rim.ctx;
+      e.drawImage(b.canvas, 0, 0); e.globalCompositeOperation = 'destination-out'; e.drawImage(b.canvas, 0, 2.6); e.drawImage(b.canvas, lit ? 1.4 : 0.7, 1.6); e.drawImage(b.canvas, lit ? -1.4 : -0.7, 1.6);
+      e.globalCompositeOperation = 'source-in';
+      const g = e.createLinearGradient(0, 0, sw, 0);
+      if (lit) { g.addColorStop(0, '#9ce6ff'); g.addColorStop(0.3, '#ffd7a0'); g.addColorStop(0.5, '#fff0dc'); g.addColorStop(0.7, '#ffcf90'); g.addColorStop(1, '#ff8cc6'); }
+      else { g.addColorStop(0, '#ffb070'); g.addColorStop(0.5, '#6a6278'); g.addColorStop(1, '#ffb070'); }
+      e.fillStyle = g; e.fillRect(0, 0, sw, sh);
+      c.filter = 'blur(12px)'; c.drawImage(b.canvas, 0, 0, W, H);
+      c.filter = 'blur(6px)'; c.globalAlpha = lit ? 0.95 : 0.45; c.drawImage(rim.canvas, 0, 0, W, H); c.globalAlpha = 1; c.filter = 'none';
     });
   }
-  // the same hall in the first instant of the blast: every lamp at once, white-hot BEHIND the audience, so the crowd
-  // (and the two players drawn over it) stand black against it
-  function c13BurstPlate() {
-    return PV.cached('g04:c13burstplateS', BGW13, BGH13, (c) => {
-      c.translate(PADX, PADY); PV.camera(c, { zoom: Z13, cx: CAM13.cx, cy: CAM13.cy });
-      c.drawImage(c13LitWall(), -PADX, -PADY);
-      const g = c.createLinearGradient(0, 0, 0, H); g.addColorStop(0, 'rgba(255,214,186,0.55)'); g.addColorStop(0.42, 'rgba(255,238,218,0.96)'); g.addColorStop(0.62, 'rgba(255,228,204,0.88)'); g.addColorStop(1, 'rgba(255,200,170,0.5)');
-      c.save(); c.globalCompositeOperation = 'screen'; c.fillStyle = g; c.fillRect(-PADX * 2, -PADY * 2, BGW13 * 1.1, BGH13 * 1.1);
-      for (const S0 of SPOTS) light(c, S0.x, S0.y, 760, S0.col === AMB ? '#fff4e2' : S0.col === MAG ? '#ffe2f0' : '#e6fbff', 1.0);
-      light(c, SPOTS[1].x, SPOTS[1].y, 1100, '#ffffff', 0.8); c.restore();
-      exitSigns(c); underCrowd(c);
-      for (let gi = 0; gi < GROUPS.length; gi++) { c.drawImage(crowdRow(gi), 0, CRY0 + REC13[gi]); c.save(); c.globalCompositeOperation = 'screen'; c.globalAlpha = 0.9; c.drawImage(crowdRim(gi), 0, CRY0 + REC13[gi]); c.restore(); }
-      ropeBarrier(c, true);
+  // the phone screens: the stage on them, out of focus (a soft bright rectangle with a glow). Each phone is a cached blurred
+  // sprite (a canvas filter on the full frame costs ~70 ms per draw); per frame only its brightness flickers
+  function phoneSprite(P, lit) {
+    const pad = 16, w = Math.ceil(P.w + pad * 2 + 8), h = Math.ceil(P.h + pad * 2 + 8);
+    return PV.cached('g04:c13phone:' + P.sd + (lit ? 'L' : 'D'), w, h, (c) => {
+      c.filter = 'blur(3px)'; c.translate(w / 2, h / 2);
+      c.fillStyle = '#060508'; c.beginPath(); c.roundRect(-P.w / 2 - 4, -P.h / 2 - 4, P.w + 8, P.h + 8, 9); c.fill();
+      const g = c.createLinearGradient(0, -P.h / 2, 0, P.h / 2);
+      if (lit) { g.addColorStop(0, 'rgba(255,190,220,0.88)'); g.addColorStop(0.5, 'rgba(255,236,206,0.98)'); g.addColorStop(1, 'rgba(150,210,255,0.88)'); }
+      else { g.addColorStop(0, 'rgba(170,190,230,0.75)'); g.addColorStop(0.6, 'rgba(214,228,255,0.86)'); g.addColorStop(1, 'rgba(120,140,190,0.75)'); }
+      c.fillStyle = g; c.beginPath(); c.roundRect(-P.w / 2, -P.h / 2, P.w, P.h, 6); c.fill();
     });
+  }
+  function c13PhoneScreens(c, t, lit, burst) {
+    for (const P of PHONES13) {
+      const f = 0.82 + 0.18 * Math.sin(t * 2.4 + P.sd * 1.7), spr = phoneSprite(P, lit);
+      c.save(); c.translate(P.x, P.y); c.rotate(P.rot); c.globalAlpha = 0.86 + 0.14 * f; c.drawImage(spr, -spr.width / 2, -spr.height / 2); c.restore();
+      c.save(); c.globalCompositeOperation = 'screen'; lightS(c, P.x, P.y, P.w * 3.4, lit ? '#ffe6d0' : '#bcd6ff', (lit ? 0.3 : 0.24) * f + 0.4 * burst); c.restore();
+    }
+  }
+
+  // ---- the two players (anime library). Local poses: the library's stand + Strat / keyboard with the acting this cut
+  //      needs (the pick hand's wind-up and down-stroke; still hands before the blast, playing after it)
+  function g04Poses() {
+    const A = PV.anime, P = A && A.FIG_POSES;
+    if (!P || P.g04_strat || !P.stand || !A.__body) return;
+    const v3 = A.__body.v3;
+    P.g04_strat = Object.assign({}, P.stand, {
+      limbs(J, sp, prm, tq, o, OF) {
+        const r = P.stand.limbs(J, sp, Object.assign({}, prm, { arms: 'strat' }), tq, o, OF);
+        const k = prm.windup || 0, f = prm.follow || 0;
+        if (k > 0.001 || f > 0.001) {
+          // windmill: from the strings out to his right side and up beside his head (the elbow out, never a chicken wing)
+          const W0 = r.arms.R.W, Wc = v3.add(J.SR, [-1.25, -0.5, 0.42]), W1 = v3.add(J.SR, [-0.62, -2.0, 0.28]);
+          const a = (1 - k) * (1 - k), b = 2 * k * (1 - k), cc = k * k;
+          let Wp = [a * W0[0] + b * Wc[0] + cc * W1[0], a * W0[1] + b * Wc[1] + cc * W1[1], a * W0[2] + b * Wc[2] + cc * W1[2]];
+          if (f > 0) Wp = v3.add(Wp, [0.16 * f, 0.4 * f, 0.1 * f]);
+          r.arms.R = { W: Wp, pole: [-1, 0.25 - 0.55 * k, -0.55], hand: k > 0.28 ? { kind: 'fist', f: [0, -1, 0.1], palm: [0.3, 0, -1], curl: 0.8 } : r.arms.R.hand };
+        }
+        return r;
+      },
+    });
+    // C15: 先輩 leans back against the sea fence — the rail behind her waist, her left hand on it, the right hand holding the
+    // brim of her hat in the wind (params.railH: the rail height in her head units; params.hatHand 0..1)
+    P.g04_railback = Object.assign({}, P.stand, {
+      body(sp, prm, tq, o, OF) {
+        const b = P.stand.body(sp, prm, tq, o, OF);
+        b.spine.bend -= 0.12; b.pelvis.pos = [b.pelvis.pos[0], b.pelvis.pos[1], b.pelvis.pos[2] + 0.06]; b.pelvis.pitch -= 0.05;
+        return b;
+      },
+      limbs(J, sp, prm, tq, o, OF) {
+        const r = P.stand.limbs(J, sp, Object.assign({}, prm, { arms: 'relax' }), tq, o, OF);
+        const h = prm.railH ?? 4.8, hk = prm.hatHand ?? 1;
+        r.arms.L = { W: [0.5, -h + 0.08, -0.34], pole: [1, 0.3, -0.5], hand: { f: [0.15, 0.25, -1], palm: [0, 1, 0.1], curl: 0.4 } };
+        const top = v3.add(J.neckTop, [-0.44, -0.6, 0.28]);
+        const rest = [-0.5, -h + 0.08, -0.34];
+        r.arms.R = hk > 0.5 ? { W: top, pole: [-1, 0.3, -0.5], hand: { f: [0.3, -0.6, 0.5], palm: [0.3, 0.6, -0.7], curl: 0.4 } }
+          : { W: rest, pole: [-1, 0.3, -0.5], hand: { f: [-0.15, 0.25, -1], palm: [0, 1, 0.1], curl: 0.4 } };
+        return r;
+      },
+    });
+    P.g04_keys = Object.assign({}, P.stand, {
+      limbs(J, sp, prm, tq, o, OF) {
+        const r = P.stand.limbs(J, sp, Object.assign({}, prm, { arms: 'keys' }), tq, o, OF);
+        const pl = prm.play || 0;
+        for (const s of ['L', 'R']) {
+          const sg = s === 'L' ? 1 : -1, ph = tq * (7.3 + 1.9 * sg) + sg * 1.7;
+          r.arms[s].W = [sg * (0.33 + pl * 0.15 * (0.5 + 0.5 * Math.sin(ph))), sp.hipY - 0.55 - pl * 0.09 * Math.max(0, Math.sin(ph * 1.7)), 0.95];
+        }
+        return r;
+      },
+    });
+  }
+  // the amp between them (c14Amp's combo, front 3/4), as a cached image: dark (work lights only) / lit
+  function c13AmpImg(lit) {
+    return PV.cached('g04:c13amp:' + (lit ? 'lit' : 'dark'), 260, 230, (c) => {
+      c14Amp(c, 30, 52);
+      if (!lit) { c.globalCompositeOperation = 'source-atop'; c.fillStyle = 'rgba(6,5,9,0.62)'; c.fillRect(0, 0, 260, 230); }
+    });
+  }
+  // acting, local seconds on twos: his look and nod, her answer, the wind-up, the down-stroke on the blast
+  function c13Acting(tq) {
+    const n = C13.nod, B = C13.blast;
+    const hisTurn = sm(n - 0.06, n + 0.08, tq) * (1 - sm(B - 0.2, B - 0.06, tq));
+    const hisNod = sm(n + 0.06, n + 0.16, tq) * (1 - sm(n + 0.18, n + 0.28, tq));
+    const herTurn = sm(n - 0.02, n + 0.14, tq) * (1 - sm(B - 0.14, B, tq));
+    const herNod = sm(n + 0.18, n + 0.26, tq) * (1 - sm(n + 0.28, n + 0.38, tq));
+    let windup = E.inOutCubic(sm(n + 0.2, B - 0.05, tq)), follow = 0;
+    const since = tq - B;
+    if (since > -1e-6) { windup = since < 0.04 ? 0.32 : 0; follow = since < 0.04 ? 0.25 : 1 - sm(0.17, 0.45, since); }
+    return { hisTurn, hisNod, herTurn, herNod, windup, follow };
+  }
+  function c13Players(ctx, t, T, tq, on, since, burst) {
+    g04Poses();
+    const A = PV.anime, act = c13Acting(tq), lightN = on ? 'golden' : 'lamp';   // the work lights → the follow-spots and the pars (warm, a strong warm rim)
+    const buf = PV.buffer('g04:c13fig'), b = buf.ctx;
+    b.clearRect(0, 0, W, H); b.setTransform(ctx.getTransform());
+    const gust = on ? Math.exp(-since * 2.3) : 0;
+    // 彼: cool and sharp at the booing hall; at 41.6 he looks at her (the whole iris, one clear light) and nods; the blast
+    const hisLook = act.hisTurn > 0.5;
+    const hisHead = on
+      ? { expr: 'determined', eyes: { look: [0.05, 0.1] }, mouth: { open: 0.16, shape: 'e' }, brows: { furrow: 0.62 } }
+      : hisLook ? { expr: 'determined', eyes: { look: [0.8, 0.05] } } : { expr: 'determined', eyes: { look: [0.12, 0.14], open: 1.0 }, brows: { furrow: 0.3 } };
+    const him = A.figure(b, { who: 'boy', outfit: 'summer_uniform', pose: 'g04_strat', facing: 0.3, camPitch: 0.06, x: BOY13.x, y: BOY13.y, scale: BOY13.s, T,
+      light: lightN, rimDir: on ? -1.62 : -2.85, wind: on ? 0.95 * gust + 0.18 : 0, windDir: -2.75,
+      params: { arms: 'strat', weight: 0.35, windup: act.windup, follow: act.follow, neckYaw: 0.62 * act.hisTurn, nod: 0.26 * act.hisNod },
+      head: Object.assign({ rim: 1 }, hisHead) });
+    // 先輩: tense, eyes on her keys under the booing; she meets his eyes, the 力強い眼差し, and nods back; then she plays
+    const herLook = act.herTurn > 0.5;
+    const herHead = on
+      ? { expr: 'focus', brows: { furrow: 0.42 }, eyes: { look: [-0.05, 0.25] } }
+      : herLook ? { expr: 'determined', eyes: { look: [-0.8, -0.05] } } : { expr: 'neutral', brows: { furrow: 0.35, inner: 0.15 }, eyes: { look: [-0.1, 0.38], open: 0.9 } };
+    A.figure(b, { who: 'senpai', outfit: 'summer_uniform', pose: 'g04_keys', facing: -0.42, camPitch: 0.06, x: GIRL13.x, y: GIRL13.y, scale: GIRL13.s, T,
+      light: lightN, rimDir: on ? -1.62 : -0.3, wind: on ? 1.25 * gust + 0.32 : 0.05, windDir: -0.5,
+      params: { arms: 'keys', weight: 0.2, play: on ? 1 : 0, neckYaw: -0.55 * act.herTurn, nod: 0.24 * act.herNod },
+      head: Object.assign({ rim: 1 }, herHead) });
+    // lights on: the side pars lay a coloured spill over them (cyan from his side, magenta from hers) — clipped to the figures
+    // (painted over their box only: the screen-wide fill cost 7 ms)
+    if (on) {
+      const bx0 = 180, by0 = 60, bw = 1560, bh = H - 60;
+      b.save(); b.setTransform(1, 0, 0, 1, 0, 0); b.globalCompositeOperation = 'source-atop';
+      const g = b.createLinearGradient(0, 0, W, 0);
+      g.addColorStop(0, PV.rgba(CYA, 0.3)); g.addColorStop(0.36, PV.rgba(CYA, 0.0)); g.addColorStop(0.64, PV.rgba(MAG, 0.0)); g.addColorStop(1, PV.rgba(MAG, 0.32));
+      b.fillStyle = g; b.fillRect(bx0, by0, bw, bh);
+      // the first frames of the blast: the stage behind them goes white-hot before the follow-spots catch up — the two
+      // stand dark against it (their rims burning), then their faces come up
+      const dk = clamp((burst - 0.08) / 0.92);
+      if (dk > 0.01) { b.fillStyle = `rgba(26,18,34,${0.82 * dk})`; b.fillRect(bx0, by0, bw, bh); }
+      b.restore();
+      if (dk > 0.01) { // the white-hot light behind them burns along their outlines (a band cut from the figures' own alpha, half res)
+        const q = 0.5, rb = PV.buffer('g04:c13rimQ', W * q, H * q), rc = rb.ctx; rc.clearRect(0, 0, W * q, H * q);
+        rc.drawImage(buf.canvas, 0, 0, W * q, H * q); rc.globalCompositeOperation = 'destination-out';
+        rc.drawImage(buf.canvas, 0, 3.5, W * q, H * q); rc.drawImage(buf.canvas, 2.5, 2, W * q, H * q); rc.drawImage(buf.canvas, -2.5, 2, W * q, H * q);
+        rc.globalCompositeOperation = 'source-in'; rc.fillStyle = '#fff3e4'; rc.fillRect(0, 0, W * q, H * q); rc.globalCompositeOperation = 'source-over';
+        b.save(); b.setTransform(1, 0, 0, 1, 0, 0); b.globalAlpha = dk; b.drawImage(rb.canvas, 0, 0, W, H); b.restore();
+      }
+    }
+    b.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(buf.canvas, 0, 0); ctx.restore();
+    return { him, act };
   }
 
   PV.shot('C13', { draw(ctx, tIn, d, S) {
-    const t = clamp(tIn, -0.2, d + 0.2);
+    const t = clamp(tIn, -0.2, d + 0.2), T = absT(S, 'C13', t), tq = PV.anime.onTwos(t);
     const B = C13.blast, on = t >= B, since = Math.max(0, t - B);
-    const burst = on ? Math.exp(-since * 9) : 0;                          // the first frames are white-hot
-    const K = on ? 1 : 0;
+    const burst = on ? Math.exp(-since * 9) : 0, kick = on ? Math.exp(-since * 5) : 0;
     const PM = profiler(ctx);
-    // ---------------- camera: locked off → the blast shakes it → slow push in
+    // ---------------- camera: locked off → the blast shakes it → a slow push in. Parallax: the stage moves less than the
+    //                  two, the heads in front of us more
     const amp = on ? 17 * Math.exp(-since * 6) + 1.4 * Math.exp(-since * 1.4) : 0;
     const sh = on ? shake(t, amp, 16, 4) : { x: 0, y: 0, r: 0 };
-    const push = on ? 1 + 0.07 * E.outCubic(clamp(since / 1.5)) + 0.025 * burst : 1;
-    const cam = { zoom: Z13 * push, x: sh.x, y: sh.y, rot: sh.r, cx: CAM13.cx, cy: CAM13.cy };
-    // the far hall: a dolly toward the stage hardly magnifies it (the players, 1-2 m away, loom; the audience 20 m away
-    // does not), so the hall is a pre-zoomed plate that only takes the shake — a plain blit at an integer offset
-    const camFar = { zoom: Z13, x: Math.round(sh.x), y: Math.round(sh.y), cx: CAM13.cx, cy: CAM13.cy };
-    if (!on) {
-      ctx.drawImage(c13DarkPlate(), 0, 0);
-      ctx.save(); PV.camera(ctx, camFar);
-      c13Phones(ctx, t, [0, 0]);
-      const wk = 0.06 * N2(t * 3, 9); ctx.save(); ctx.globalCompositeOperation = 'screen'; for (const x of [40, 1890]) lightS(ctx, x, 640, 140, '#ffd59a', 0.25 + wk); ctx.restore();
+    const pk = on ? E.outCubic(clamp(since / 1.5)) : 0;
+    const camAt = (k, z) => ({ zoom: 1 + z, x: sh.x * k, y: sh.y * k, rot: sh.r * k, cx: CC13.cx, cy: CC13.cy });
+    // ---------------- the stage: 9 m away a short dolly hardly magnifies it, so the plate only takes the shake (a plain blit
+    //                  at an integer offset); the first instant of the blast is a white-hot overexposure painted over it
+    const fx = Math.round(sh.x * 0.85), fy = Math.round(sh.y * 0.85);
+    ctx.save(); ctx.translate(fx, fy);
+    ctx.drawImage(c13Stage(on ? 'lit' : 'dark'), -PADX, -PADY);
+    if (on) {
+      if (burst > 0.02) {
+        ctx.save(); ctx.globalCompositeOperation = 'screen';
+        const g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, `rgba(255,226,200,${0.7 * burst})`); g.addColorStop(0.45, `rgba(255,240,224,${0.92 * burst})`); g.addColorStop(0.75, `rgba(255,224,200,${0.62 * burst})`); g.addColorStop(1, `rgba(255,200,170,${0.35 * burst})`);
+        ctx.fillStyle = g; ctx.fillRect(-PADX, -PADY, BGW13, BGH13);
+        lightS(ctx, 960, 360, 1200, '#ffffff', 0.85 * burst);
+        for (const L0 of LAMPS13) lightS(ctx, L0.x, L0.y, L0.r * 7, '#ffffff', 0.8 * burst);
+        ctx.restore();
+      }
+      // two ceiling pars sweep slowly over them; the cans breathe
+      softBeams(ctx, [{ x: 600 + 130 * Math.sin(since * 0.9), y: -70, ang: 1.5 + 0.1 * Math.sin(since * 0.9 + 0.5), ha: 0.085, len: 1150, col: MAG, a: 0.2, w0: 30 },
+        { x: 1330 - 130 * Math.sin(since * 0.8 + 1), y: -70, ang: 1.64 - 0.1 * Math.sin(since * 0.8 + 1.2), ha: 0.085, len: 1150, col: CYA, a: 0.18, w0: 30 }]);
+      ctx.save(); ctx.globalCompositeOperation = 'screen';
+      for (const L0 of LAMPS13) lightS(ctx, L0.x, L0.y, L0.r * 5, L0.col, 0.22 + 0.1 * Math.sin(t * 7 + L0.i * 1.3 + L0.side));
       ctx.restore();
-    } else {
-      if (burst > 0.02) { // the white-out decays: the burst plate cross-fades into the lit plate
-        const BG = PV.buffer('g04:c13bg', BGW13, BGH13), b = BG.ctx;
-        b.drawImage(c13LitPlate(), 0, 0); b.globalAlpha = Math.min(1, burst * 1.15); b.drawImage(c13BurstPlate(), 0, 0); b.globalAlpha = 1;
-        ctx.drawImage(BG.canvas, camFar.x - PADX, camFar.y - PADY);
-      } else ctx.drawImage(c13LitPlate(), camFar.x - PADX, camFar.y - PADY);
-      ctx.save(); PV.camera(ctx, camFar); c13Phones(ctx, t, REC13); ctx.restore();
+    } else { const wk = 0.05 * N2(t * 3, 9); ctx.save(); ctx.globalCompositeOperation = 'screen'; for (const x of [-40, W + 40]) lightS(ctx, x, yAt(0, LIP_D) + 20, 320, '#ffd59a', 0.16 + wk); ctx.restore(); }
+    ctx.restore();
+    PM('stage');
+    // ---------------- the near layer: the PA speakers, the amp and its red pilot lamp, the two
+    ctx.save(); PV.camera(ctx, camAt(1, 0.075 * pk + 0.02 * burst));
+    for (const Sp of SPK13) c13Speaker(ctx, Sp, on, kick, t);
+    const ax = on ? 3 * kick * Math.sin(since * 95) : 0, ay = on ? 2 * kick * Math.cos(since * 80) : 0;
+    ctx.drawImage(c13AmpImg(on), AMP13.x - 30 * AMP_K + ax, AMP13.y - 52 * AMP_K + ay, 260 * AMP_K, 230 * AMP_K);
+    const jx = JEWEL13[0] + ax, jy = JEWEL13[1] + ay;
+    light(ctx, jx, jy, on ? 40 : 30, RED, 1.0); light(ctx, jx, jy, 120 + 110 * kick, RED, (on ? 0.4 : 0.3) + 0.3 * kick);
+    ctx.fillStyle = '#ff2a20'; ctx.beginPath(); ctx.arc(jx, jy, 4.6, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#ffd2c4'; ctx.beginPath(); ctx.arc(jx - 0.8, jy - 0.8, 1.8, 0, TAU); ctx.fill();
+    PM('rig');
+    const P = c13Players(ctx, t, T, tq, on, since, burst);
+    PM('players');
+    // the down-stroke smear (the twos frame of the blast): a warm crescent along the pick's arc
+    if (on && tq - B < 0.04 && P.him) {
+      const s0 = P.him.shoulders.R, hd = P.him.hands.R, rr = Math.hypot(hd[0] - s0[0], hd[1] - s0[1]) * 1.05, a1 = Math.atan2(hd[1] - s0[1], hd[0] - s0[0]);
+      ctx.save(); ctx.globalCompositeOperation = 'screen';
+      const g = ctx.createRadialGradient(s0[0], s0[1], rr * 0.55, s0[0], s0[1], rr * 1.12); g.addColorStop(0, 'rgba(255,225,190,0)'); g.addColorStop(0.72, 'rgba(255,232,200,0.6)'); g.addColorStop(1, 'rgba(255,225,190,0)');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(s0[0], s0[1]); ctx.arc(s0[0], s0[1], rr * 1.12, -1.9, a1); ctx.closePath(); ctx.fill(); ctx.restore();
     }
-    ctx.save(); PV.camera(ctx, cam);   // the near layer: players, keyboard, amp, dust
-    PM('hall');
-    // ---------------- the players: her keyboard, the amp, then the two backs
-    const gs = 1.3, gx = 600, gy = 1205;
-    keyboardBack(ctx, gx, gy, gs, on ? K : 0);
-    const kick = on ? Math.exp(-since * 5) : 0;
-    const AJ = ampBack(ctx, t, 1712 + (on ? 3 * kick * Math.sin(since * 95) : 0), 1076 + (on ? 2 * kick * Math.cos(since * 80) : 0), 1.0, on, kick);
-    // the red pilot lamp: a hard red jewel with a hot core, glowing (it stays lit through the whole cut)
-    light(ctx, AJ.jewel[0], AJ.jewel[1], on ? 42 : 30, RED, 1.0); light(ctx, AJ.jewel[0], AJ.jewel[1], 130 + 120 * kick, RED, (on ? 0.42 : 0.3) + 0.3 * kick);
-    ctx.fillStyle = '#ff2a20'; ctx.beginPath(); ctx.arc(AJ.jewel[0], AJ.jewel[1], 4.2, 0, TAU); ctx.fill();
-    ctx.fillStyle = '#ffd2c4'; ctx.beginPath(); ctx.arc(AJ.jewel[0] - 0.8, AJ.jewel[1] - 0.8, 1.7, 0, TAU); ctx.fill();
-    light(ctx, AJ.valves[0], AJ.valves[1], 150, '#ff9a4a', 0.16 + 0.25 * kick);
-    PM('kbd+amp');
-    // her: at the keyboard; the blast throws her hair. A small tilt of the head answers his nod.
-    const gust = on ? 0.95 + 0.9 * Math.exp(-since * 2.6) : 0.1 + 0.05 * Math.sin(t * 1.3);
-    L.girlAtRailing(ctx, t, {
-      x: gx, y: gy, scale: gs, railing: false, hands: 'rail', railY: -4.42, handSpread: 0.64, outfit: 'blouse',
-      wind: gust, windDir: Math.PI - 0.15, windLift: -0.3, weight: 0.35, hairLen: 2.85, headTilt: 0.09 * sm(C13.nod + 0.16, C13.nod + 0.3, t) * (1 - sm(C13.blast - 0.05, C13.blast + 0.2, t)),
-      light: on ? -1.75 : -2.7, rimColor: on ? '#ffc7e2' : '#ffb06a', rim: on ? 1.6 : 0.8, backlight: on ? 0.72 - 0.35 * burst : 0.16, glow: on ? 1.0 : 0.42,
-    });
-    PM('girl');
-    // him: looks at her, nods (41.6), raises the pick hand, and slams the chord (42.0)
-    const a0 = C13.nod;
-    const turn = sm(a0 - 0.03, a0 + 0.1, t) * (1 - sm(a0 + 0.29, B - 0.02, t));
-    const nod = sm(a0 + 0.1, a0 + 0.17, t) * (1 - sm(a0 + 0.2, a0 + 0.29, t));
-    let arm = E.inOutCubic(sm(a0 + 0.14, B - 0.04, t));
-    if (on) arm = 1 - E.inQuad(clamp((since + 0.042) / 0.085));    // the down-stroke: 2 frames, smeared
-    boyBackGuitar(ctx, t, {
-      x: BOY13.x, y: BOY13.y, scale: BOY13.s, turn, nod, arm, lit: on ? K : 0, wind: on ? 1.1 * Math.exp(-since * 2.2) + 0.2 : 0,
-      fps: t > B - 0.25 && t < B + 0.25 ? 0 : 12, shirt: on ? 0.14 - 0.09 * burst : 0.07, gtone: on ? 0.36 - 0.12 * burst : 0.22,
-      light: on ? -2.45 : -2.3, rimColor: on ? '#ffd9a8' : '#ffb06a', rim: on ? 1.5 : 0.85, backlight: on ? 0.55 - 0.3 * burst : 0.15, glow: on ? 0.75 : 0.42,
-    });
-    PM('boy');
-    // the down-stroke smear (two frames)
-    if (on && since < 0.09) {
-      const u = 92 * BOY13.s, cx = BOY13.x + 0.8 * u, cy = BOY13.y - 6.2 * u;
-      ctx.save(); ctx.globalCompositeOperation = 'screen'; ctx.globalAlpha = 0.5 * (1 - since / 0.09);
-      const g = ctx.createRadialGradient(cx, cy, 0.5 * u, cx, cy, 1.9 * u); g.addColorStop(0, 'rgba(255,225,190,0)'); g.addColorStop(0.75, 'rgba(255,225,190,0.55)'); g.addColorStop(1, 'rgba(255,225,190,0)');
-      ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, 1.9 * u, -1.25, 1.1); ctx.closePath(); ctx.fill(); ctx.restore();
-    }
-    // dust: drifting slowly; it jumps off the amp and the floor at the blast
-    L.dust(ctx, t, { seed: 13, count: on ? 80 : 30, x0: 0, x1: W, y0: 120, y1: 960, size: 2.4, alpha: on ? 0.6 : 0.25, drift: 40, vy: on ? -12 : -3, color: on ? '#ffe2c4' : '#d8c8b0' });
+    // dust: drifting slowly in the work lights; it jumps off the amp and the floor at the blast
+    L.dust(ctx, t, { seed: 13, count: on ? 80 : 30, x0: 0, x1: W, y0: 60, y1: 900, size: 2.4, alpha: on ? 0.55 : 0.22, drift: 40, vy: on ? -12 : -3, color: on ? '#ffe2c4' : '#d8c8b0' });
     if (on && since < 1.4) {
       ctx.save(); ctx.globalCompositeOperation = 'screen';
       for (let i = 0; i < 26; i++) {
         const a = -Math.PI / 2 + (R1(i, 5) - 0.5) * 2.2, v = 180 + 260 * R1(i, 6), tt = since;
-        const px = AJ.jewel[0] - 120 + 240 * R1(i, 7) + Math.cos(a) * v * tt, py = AJ.jewel[1] + 20 + Math.sin(a) * v * tt + 300 * tt * tt;
+        const px = jx - 60 + 240 * R1(i, 7) + Math.cos(a) * v * tt, py = jy + 20 + Math.sin(a) * v * tt + 300 * tt * tt;
         ctx.fillStyle = `rgba(255,220,190,${0.7 * (1 - tt / 1.4)})`; ctx.beginPath(); ctx.arc(px, py, 1.6 + 1.6 * R1(i, 8), 0, TAU); ctx.fill();
       }
       ctx.restore();
     }
     ctx.restore();
-    PM('dust');
-    // ---------------- lens: star flares from the spots, the blast's overexposure (over everything, lighter than the
-    //                  burst behind them so the two stay dark shapes), bloom at its maximum
+    PM('near');
+    // ---------------- the audience in front of us (the blast throws them back a little), their phones
+    ctx.save(); PV.camera(ctx, camAt(1.25, 0.13 * pk + 0.035 * burst));
+    const recoil = on ? 16 * Math.exp(-since * 3) : 0;
+    ctx.translate(0, recoil);
+    ctx.drawImage(c13Crowd(on), 0, 0);
+    c13PhoneScreens(ctx, t, on, burst);
+    ctx.restore();
+    PM('crowd');
+    // ---------------- lens: star streaks on the hottest cans, the blast's overexposure, bloom at its maximum
     if (on) {
-      for (const S0 of SPOTS) L.flare(ctx, S0.x + sh.x, S0.y + sh.y, 0.42 * K, S0.col === AMB ? '#ffd29a' : S0.col === MAG ? '#ffa8d6' : '#aee8ff');
-      starFlare(ctx, SPOTS[1].x + sh.x, SPOTS[1].y + sh.y, 220 * K + 120 * burst, '#fff1d8', 0.6 * K, since);
+      for (const L0 of LAMPS13) if (L0.i === 1 || L0.i === 2) starFlare(ctx, L0.x + sh.x * 0.85, L0.y + sh.y * 0.85, (L0.i === 1 ? 150 : 95) + 120 * burst, '#fff1d8', 0.5, since + L0.side);
     }
-    if (burst > 0.01) { ctx.save(); ctx.globalCompositeOperation = 'screen'; ctx.fillStyle = `rgba(255,232,208,${0.2 * burst})`; ctx.fillRect(0, 0, W, H); ctx.restore(); }
-    setBloom(S, on ? 0.5 + 0.45 * Math.exp(-since * 3) : 0.3, on ? 0.5 : 0.35);
+    if (burst > 0.01) { ctx.save(); ctx.globalCompositeOperation = 'screen'; ctx.fillStyle = `rgba(255,232,208,${0.12 * burst})`; ctx.fillRect(0, 0, W, H); ctx.restore(); }
+    setBloom(S, on ? 0.34 + 0.3 * Math.exp(-since * 3) : 0.26, on ? 0.42 : 0.3);
     PM('lens');
   } });
   // thin star streaks around a hot light
@@ -713,8 +586,8 @@
   // in the foreground: ● REC, the focus pulls onto it (1.66–1.98) and holds there to the end.
   const C14 = { snap: 0.25, out0: 0.86, out1: 1.36, phone: 1.4, rack0: 1.66, rack1: 1.98 };
   const KNEEL = { x: 830, y: 876, s: 1.14 };
-  // the 14th fret of the kneeling figure's Strat (measured from the library pose) and its neck angle on screen
-  const NECK_W = { x: 880, y: 570, ang: -0.97 };
+  // where the whip pull-back lands: the 14th fret of the kneeling figure's Strat, and its neck angle on screen
+  const NECK_W = { x: 850, y: 290, ang: 0.08 };   // anime rework: the raised Strat's neck (14th fret), measured from the kneel_guitar pose
   const FB = { view: 'snap', focus: 14, wood: 'maple', wear: 1.0, light: { az: 2.25, el: 0.62, color: '#ffd9b4', k: 1.15 }, ambient: '#3a2a46' };
   const SPAN = (x) => 35 + 17.5 * clamp(x / 648);                 // string span (mm) at x, as the instruments library
   const XF = (f) => lerp(L.fretX(f - 1), L.fretX(f), 0.72);       // where a fingertip stops a string behind fret f
@@ -881,6 +754,14 @@
     c.strokeStyle = 'rgba(255,214,170,0.5)'; c.lineWidth = 2; c.strokeRect(1, 1, w - 2, h - 2);
     c.restore();
   }
+  // 彼 kneeling in the spotlight, the white Strat held up over his head, face to the light (eyes closed, mouth open: 恍惚)
+  const KNEEL_S = 106;   // head px (anime library); the anchor is the floor under his knees
+  function c14Kneel(c, t) {
+    const T = START.C14 + t, tq = PV.anime.onTwos(t), o = PV._g04kneel || {};   // acting on twos: the cry at the landing relaxes into an open-mouthed breath
+    return PV.anime.figure(c, { who: 'boy', outfit: 'summer_uniform', pose: 'kneel_guitar', facing: o.facing ?? 0.42, camPitch: o.pitch ?? -0.04, x: KNEEL.x, y: KNEEL.y, scale: KNEEL_S, T,
+      light: 'spot', rimDir: -1.62, wind: 0.3, windDir: -2.2, params: { variant: 'raise' },
+      head: { expr: 'closed', mouth: { open: lerp(0.66, 0.4, sm(1.2, 1.9, tq)), shape: 'a' }, brows: { inner: 0.32, furrow: 0.2 }, rim: 1 } });
+  }
   const JEWEL14 = [1118 + 18, 664 + 16];   // the red pilot lamp on the amp's front panel (left end of the chrome strip)
   function c14Wide(t) {
     const b = PV.buffer('g04:c14wide'); const c = b.ctx;
@@ -893,7 +774,7 @@
     const sx = KNEEL.x + 10, poolY = KNEEL.y + 6;
     L.dust(c, t, { seed: 21, count: 60, x0: sx - 260, x1: sx + 260, y0: 0, y1: poolY, size: 2.6, alpha: 0.6, drift: 30, vy: -8, color: '#ffe6c8', mask: (x, y) => clamp(1 - Math.abs(x - sx) / (90 + y * 0.28)) });
     // kneeling, face to the sky, the right hand raised
-    L.guitaristKneel(c, t, { x: KNEEL.x, y: KNEEL.y, scale: KNEEL.s, hold: 'raise', rimColor: '#ffc27a', light: -Math.PI / 2 + 0.12, backlight: 0.55, glow: 0.9, rim: 1.5, wind: 0.25 });
+    c14Kneel(c, t);
     // the audience in front (heads and shoulders along the bottom, out of focus), rimmed by the spill
     c.drawImage(c14Crowd(), 0, 0);
     return b.canvas;
@@ -1055,8 +936,6 @@
   // the frame freezes into a white-bordered photograph (the photo C19 receives), then C16's dip to white takes it.
   const C15 = { horn: 0.5, dis0: 1.55, dis1: 1.86, focus: 1.96, shutter: 2.5 };
   const HZ15 = 566, SUN15 = { x: 1180, y: -170 };
-  const GIRL15 = { x: 1268, y: 1262, s: 1.32, wind: 1.15, windDir: Math.PI - 0.05, seed: 11, weight: 0.55 };
-  const BOY15 = { x: 1915, y: 1300, s: 1.36 };
   const RAIL15 = 1262 - 4.92 * 92 * 1.32; // top rail at her elbows: she leans on it
   const Z15 = 1.045, CX15 = 1100, CY15 = 520; // the lens (fixed); the camera only pans (parallax: far 26 px, near 78 px)
 
@@ -1140,63 +1019,126 @@
       c.fillStyle = 'rgba(255,255,255,0.9)'; c.fillRect(x0, y - 11, x1 - x0, 2.5);
     });
   }
-  // her wide-brimmed white hat with a ribbon (seen from behind), placed on the library girl's head
-  function girlHeadPos(t, o) {
-    // mirrors girlAtRailing's rig (sway, lean, head tilt) so the hat sits on her head
-    const tq = q12(t), Wd = o.wind, sgw = Math.sign(Math.cos(o.windDir)) || 1, seed = o.seed || 11, w = o.weight;
-    const sway = 0.025 * N2(seed, tq * 0.35) + Wd * 0.012 * N2(seed + 3, tq * 1.2);
-    const lean = sway + 0.02 * Wd * sgw, lam = lean - 0.035 * w, ht = (o.headTilt || 0) + 0.04 * sgw * Wd + lam * 0.6;
-    const P = [0.1 * w, -3.78 + 0.03 * Math.abs(w)], N = [P[0] + Math.sin(lam) * 2.18, P[1] - Math.cos(lam) * 2.18];
-    return { x: N[0] + Math.sin(ht) * 0.7, y: N[1] - Math.cos(ht) * 0.7, ht };
+  // ---- 先輩's straw hat (wide brim, navy band and ribbon), drawn here instead of the head library's own (integration review H1:
+  //      its brim shadow is a band across the eyes and nose with a lit forehead above it). The hat sits on the head through the
+  //      head library's own projection (anime_head.js: pivot [0,-0.12,-0.08] H, pitch → yaw → roll, scale = head px), so it fits
+  //      every view; the figure is given the same explicit head angles. h = {x, y: the neck point, s: head px, yaw, pitch, roll}.
+  const HAT = { yb: -0.8, zc: -0.04, R: 0.92, Rc: 0.47, hc: 0.3, tilt: -0.22, droop: 0.1 };
+  function hatView(h) {
+    const ang = clamp(h.yaw || 0, -1, 1) * Math.PI / 2, p = h.pitch || 0, r = h.roll || 0;
+    return { ca: Math.cos(ang), sa: Math.sin(ang), cp: Math.cos(p), sp: Math.sin(p), cr: Math.cos(r), sr: Math.sin(r), s: h.s, ox: h.x, oy: h.y };
   }
-  function hatBack(c, hx, hy, u, ht, t, wind) {
-    c.save(); c.translate(hx, hy); c.rotate(ht * 0.8); c.scale(u, u);
-    // ribbon tails first (behind the crown), fluttering downwind (to the left)
-    const fl = (k) => 0.05 * Math.sin(t * 9 + k) * wind;
-    c.fillStyle = '#5d7fb2';
-    for (const [dy, len, k] of [[-0.42, 0.95, 0], [-0.36, 0.78, 1.7]]) {
-      c.beginPath(); c.moveTo(-0.22, dy - 0.04); c.quadraticCurveTo(-0.55, dy - 0.06 + fl(k), -0.22 - len, dy + 0.03 + fl(k + 1) * 2);
-      c.lineTo(-0.2 - len, dy + 0.11 + fl(k + 1) * 2); c.quadraticCurveTo(-0.55, dy + 0.06 + fl(k), -0.2, dy + 0.06); c.closePath(); c.fill();
+  function hatRot(V, p) { const x = p[0], y = p[1] + 0.12, z = p[2] + 0.08, y1 = y * V.cp - z * V.sp, z1 = y * V.sp + z * V.cp; return [x * V.ca + z1 * V.sa, y1, -x * V.sa + z1 * V.ca]; }
+  function hatScr(V, q) { const X = q[0] * V.s, Y = q[1] * V.s; return [V.ox + X * V.cr - Y * V.sr, V.oy + X * V.sr + Y * V.cr]; }
+  function hatRing(V, r, y, droop, n) {
+    const P = [], Z = [];
+    for (let k = 0; k < n; k++) {
+      const a = k / n * TAU, x = r * Math.sin(a), z = r * Math.cos(a), q = hatRot(V, [x, y + droop * (r / HAT.R) + z * Math.sin(HAT.tilt) * 0.6, HAT.zc + z]);
+      P.push(hatScr(V, q)); Z.push(q[2]);
     }
-    // brim (wide ellipse, the top face lit by the high sun, the far edge glowing)
-    const bg = c.createLinearGradient(0, -0.62, 0, -0.32); bg.addColorStop(0, '#fffaf0'); bg.addColorStop(0.55, '#ece6da'); bg.addColorStop(1, '#a9b4c4');
-    c.fillStyle = bg; c.beginPath(); c.ellipse(0.02, -0.44, 0.98, 0.17, 0.0, 0, TAU); c.fill();
-    c.fillStyle = 'rgba(120,135,160,0.55)'; c.beginPath(); c.ellipse(0.02, -0.41, 0.98, 0.13, 0, 0, Math.PI); c.fill(); // underside sliver
-    // crown (back is in shadow: cool), lit rim on top
-    const cg = c.createLinearGradient(0, -0.86, 0, -0.42); cg.addColorStop(0, '#f6f1e6'); cg.addColorStop(0.4, '#cfd3d8'); cg.addColorStop(1, '#a3afc0');
-    c.fillStyle = cg; c.beginPath(); c.moveTo(-0.4, -0.45); c.bezierCurveTo(-0.43, -0.9, 0.45, -0.92, 0.42, -0.45); c.closePath(); c.fill();
-    c.fillStyle = '#4f72a8'; c.beginPath(); c.moveTo(-0.41, -0.47); c.quadraticCurveTo(0.01, -0.42, 0.43, -0.47); c.lineTo(0.42, -0.56); c.quadraticCurveTo(0.01, -0.51, -0.42, -0.56); c.closePath(); c.fill(); // band
-    c.strokeStyle = 'rgba(255,253,245,0.95)'; c.lineWidth = 0.025; c.beginPath(); c.moveTo(-0.38, -0.66); c.bezierCurveTo(-0.3, -0.9, 0.3, -0.92, 0.4, -0.64); c.stroke();
-    c.strokeStyle = 'rgba(255,253,245,0.8)'; c.lineWidth = 0.02; c.beginPath(); c.ellipse(0.02, -0.44, 0.98, 0.17, 0, Math.PI * 1.05, Math.PI * 1.95); c.stroke();
+    return { P, Z };
+  }
+  // the run of indices of a closed ring whose depth is in front of zc (the near arc), in order
+  function nearRun(Z, zc) {
+    const n = Z.length, inF = Z.map((z) => z > zc); let st = -1;
+    for (let i = 0; i < n; i++) if (inF[i] && !inF[(i - 1 + n) % n]) { st = i; break; }
+    if (st < 0) return inF[0] ? Z.map((_, i) => i) : [];
+    const out = []; for (let k = 0; k < n && inF[(st + k) % n]; k++) out.push((st + k) % n);
+    return out;
+  }
+  function hullPts(pts) {
+    const P = pts.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]), cr = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+    const lo = [], up = [];
+    for (const p of P) { while (lo.length >= 2 && cr(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); }
+    for (let i = P.length - 1; i >= 0; i--) { const p = P[i]; while (up.length >= 2 && cr(up[up.length - 2], up[up.length - 1], p) <= 0) up.pop(); up.push(p); }
+    return lo.slice(0, -1).concat(up.slice(0, -1));
+  }
+  function polyPath(c, pts) { c.beginPath(); c.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) c.lineTo(pts[i][0], pts[i][1]); c.closePath(); }
+  // o: {light, rimDir (screen, toward the sun), wind, windDir, T}. shadowCtx: draw the brim's shadow (source-atop on a figure layer)
+  function strawHat(c, h, o, shadowOnly) {
+    const V = hatView(h), s = h.s, lw = PV.anime.inkW(s);
+    const m = PV.anime.mat('hat', o.light || 'summer'), mb = PV.anime.mat('hatband', o.light || 'summer');
+    const outer = hatRing(V, HAT.R, HAT.yb, HAT.droop, 56), inner = hatRing(V, HAT.Rc, HAT.yb, 0, 56);
+    const cz = hatRot(V, [0, HAT.yb, HAT.zc])[2];
+    const down = [-V.sr, V.cr];   // the head's own "down" on screen
+    if (shadowOnly) {
+      // the brim's shadow on the face and hair: from the brim's near edge down to just under the eyes (the sun is high)
+      const run = nearRun(outer.Z, cz - 0.15); if (run.length < 3) return;
+      const arc = run.map((i) => outer.P[i]), d = 0.36 * s;
+      const pts = arc.concat(arc.slice().reverse().map((p) => [p[0] + down[0] * d, p[1] + down[1] * d]));
+      c.save(); c.globalCompositeOperation = 'source-atop'; c.fillStyle = 'rgba(104,84,150,0.36)'; polyPath(c, pts); c.fill();
+      c.fillStyle = 'rgba(112,92,156,0.12)'; c.translate(down[0] * d * 0.22, down[1] * d * 0.22); polyPath(c, pts); c.fill(); c.restore();
+      return;
+    }
+    // is the top of the brim toward us, or its underside (the front edge is tilted up)?
+    const nz = hatRot(V, [0, -1, -0.13])[2] - hatRot(V, [0, 0, 0])[2];
+    const brimCol = nz > 0 ? m.base : PV.anime.mixHex(m.shade, m.base, 0.35), brimIn = nz > 0 ? m.hi : m.shade;
+    c.save(); c.lineJoin = 'round'; c.lineCap = 'round';
+    // ribbon tails (behind the crown), fluttering downwind on twos
+    const tq = PV.anime.onTwos(o.T || 0), wd = o.windDir ?? Math.PI, wk = o.wind ?? 0.8;
+    const back = hatRot(V, [0, HAT.yb - 0.05, HAT.zc - HAT.Rc]), bp = hatScr(V, back);
+    for (const [len, ph, w0] of [[0.95, 0, 0.11], [0.78, 1.7, 0.09]]) {
+      const pts = [];
+      for (let i = 0; i <= 6; i++) { const u = i / 6, f = Math.sin(tq * 9 + ph + u * 3.2) * 0.12 * u * wk; pts.push([bp[0] + (Math.cos(wd) * u * len - Math.sin(wd) * f) * s, bp[1] + (Math.sin(wd) * u * len + 0.25 * u * u + Math.cos(wd) * f) * s * 0.9 + 0.04 * s]); }
+      PV.anime.taper(c, pts, (u) => w0 * s * (1 - 0.65 * u), mb.base, true);
+    }
+    // the brim (all of it), then the crown, then the near half of the brim over the crown's foot
+    polyPath(c, outer.P); c.fillStyle = brimCol; c.fill(); c.strokeStyle = m.line; c.lineWidth = lw; c.stroke();
+    // straw weave rings on the visible face of the brim
+    c.save(); polyPath(c, outer.P); c.clip(); c.strokeStyle = PV.anime.rgbaHex(m.line, 0.22); c.lineWidth = Math.max(0.6, lw * 0.35);
+    for (const k of [0.66, 0.8, 0.92]) { const r = hatRing(V, HAT.R * k, HAT.yb, HAT.droop * k, 40); polyPath(c, r.P); c.stroke(); }
+    c.restore();
+    const rings = [[HAT.Rc, HAT.yb], [HAT.Rc * 0.96, HAT.yb - HAT.hc * 0.62], [HAT.Rc * 0.82, HAT.yb - HAT.hc * 0.9], [HAT.Rc * 0.5, HAT.yb - HAT.hc]];
+    const crownPts = []; for (const [r, y] of rings) crownPts.push(...hatRing(V, r, y, 0, 28).P);
+    const crown = hullPts(crownPts);
+    polyPath(c, crown); c.fillStyle = m.base; c.fill();
+    // cel shade on the crown, away from the sun
+    const ld = o.rimDir ?? -1.6, lx = Math.cos(ld), ly = Math.sin(ld);
+    c.save(); polyPath(c, crown); c.clip(); c.translate(lx * 0.16 * s, ly * 0.16 * s); polyPath(c, crown); c.rect(-1e4, -1e4, 2e4, 2e4); c.fillStyle = m.shade; c.fill('evenodd'); c.restore();
+    // the navy band round the foot of the crown (its near half)
+    const b0 = hatRing(V, HAT.Rc * 1.005, HAT.yb, 0, 40), b1 = hatRing(V, HAT.Rc * 0.995, HAT.yb - 0.1, 0, 40);
+    const rb = nearRun(b0.Z, hatRot(V, [0, HAT.yb, HAT.zc])[2]);
+    if (rb.length > 2) { const pts = rb.map((i) => b0.P[i]).concat(rb.slice().reverse().map((i) => b1.P[i])); polyPath(c, pts); c.fillStyle = mb.base; c.fill(); }
+    polyPath(c, crown); c.strokeStyle = m.line; c.lineWidth = lw; c.stroke();
+    const rn = nearRun(outer.Z, cz);
+    if (rn.length > 2) {
+      const ri = nearRun(inner.Z, cz), pts = rn.map((i) => outer.P[i]).concat(ri.slice().reverse().map((i) => inner.P[i]));
+      polyPath(c, pts); c.fillStyle = brimCol; c.fill();
+      c.save(); polyPath(c, pts); c.clip(); c.strokeStyle = PV.anime.rgbaHex(m.line, 0.22); c.lineWidth = Math.max(0.6, lw * 0.35);
+      for (const k of [0.66, 0.8, 0.92]) { const r = hatRing(V, HAT.R * k, HAT.yb, HAT.droop * k, 40); polyPath(c, r.P); c.stroke(); }
+      c.restore();
+      c.beginPath(); c.moveTo(outer.P[rn[0]][0], outer.P[rn[0]][1]); for (const i of rn) c.lineTo(outer.P[i][0], outer.P[i][1]); c.strokeStyle = m.line; c.lineWidth = lw * 1.1; c.stroke();
+    }
+    // the sun behind: a hot rim along the far edge of the brim and the top of the crown
+    const rim = PV.anime.rgbaHex('#fffbea', 0.9);
+    c.save(); polyPath(c, crown); c.clip(); c.translate(-lx * 0.05 * s, -ly * 0.05 * s); polyPath(c, crown); c.rect(-1e4, -1e4, 2e4, 2e4); c.fillStyle = rim; c.fill('evenodd'); c.restore();
+    c.save(); polyPath(c, outer.P); c.clip(); c.translate(-lx * 0.035 * s, -ly * 0.035 * s); polyPath(c, outer.P); c.rect(-1e4, -1e4, 2e4, 2e4); c.fillStyle = rim; c.fill('evenodd'); c.restore();
     c.restore();
   }
-  // him at the right edge, from behind: T-shirt, elbows on the rail, his left forearm along it (toward her)
-  function boyBackRail(ctx, t, o) {
-    const tq = q12(t), br = 0.014 * Math.sin(tq * 2.0), W0 = o.wind || 0;
-    const P = [0, -4.08], Fr = (x, h) => [P[0] + x, P[1] - h];
-    const SL = Fr(-0.8, 2.08 + br), SR = Fr(0.8, 2.08 + br), N = Fr(0, 2.38);
-    const HC = [N[0] - 0.04, N[1] - 0.72], EL = [SL[0] - 0.3, o.railY + 0.15], WL = [EL[0] - 0.95, o.railY - 0.02];
-    L.figureRender(ctx, o, null, (F) => {
-      F.layer({ tone: 0.05, inner: 0.4 }, (c) => { limb(c, SL, EL, 0.19, 0.13, 0.17, 0.35); limb(c, EL, WL, 0.13, 0.085, 0.12, 0.5); ell(c, WL[0] - 0.08, WL[1] + 0.02, 0.16, 0.1); });
-      F.layer({ tone: o.shirt || 0.12, toward: '#9aa6c4', inner: 0.2 }, (c) => {
-        const fl = 0.04 * Math.min(1, W0) * Math.sin(tq * 7);
-        const side = (sg) => [Fr(sg * 0.193, 2.8), Fr(sg * 0.21, 2.48), Fr(sg * 0.454, 2.44), Fr(sg * 0.667, 2.37), Fr(sg * 0.84, 2.3 + br), Fr(sg * 1.0, 2.18 + br), Fr(sg * (1.05 + fl), 1.98 + br),
-          Fr(sg * (1.02 + fl), 1.7), Fr(sg * 0.66, 1.62), Fr(sg * 0.68, 1.3), Fr(sg * 0.62, 0.7), [...Fr(sg * (0.66 + fl), -0.1), 1]];
-        blob(c, side(1).concat([Fr(0, -0.14)], side(-1).reverse()));
-      });
-      F.layer({ tone: 0.02, inner: 0.3 }, (c) => {
-        limb(c, N, [HC[0], HC[1] + 0.3], 0.2, 0.18);
-        c.save(); c.translate(HC[0], HC[1]); c.rotate(-0.06); c.scale(1.1, 1.12);
-        ell(c, 0, 0.02, 0.44, 0.52);
-        const wx = -0.06 * W0, sd = 5;
-        const tip = (i, x, y, kk = 1, sh = 1) => { const n = N2(sd + i * 1.37, tq * 1.5); return [x + wx * kk * (1 + 0.5 * n), y - Math.abs(wx) * 0.2 * kk * Math.max(0, n), sh]; };
-        blob(c, [tip(0, 0.04, -0.69, 0.6), [0.16, -0.645], [0.31, -0.585], tip(1, 0.43, -0.49, 0.6, 0), [0.49, -0.35], tip(11, 0.525, -0.2, 0.6, 0), [0.515, -0.05],
-          [0.5, 0.13], [0.458, 0.3], tip(3, 0.39, 0.43, 1.1), [0.3, 0.37], tip(4, 0.2, 0.5, 1.25), [0.1, 0.4], tip(5, 0.0, 0.535, 1.3), [-0.1, 0.4],
-          tip(6, -0.2, 0.5, 1.25), [-0.3, 0.37], tip(7, -0.39, 0.43, 1.1), [-0.458, 0.3], [-0.5, 0.13], [-0.515, -0.05], tip(12, -0.525, -0.2, 0.6, 0),
-          [-0.49, -0.35], tip(9, -0.43, -0.49, 0.6, 0), [-0.3, -0.59], tip(13, -0.17, -0.66, 0.7), [-0.06, -0.655]]);
-        c.restore();
-      });
-    });
+
+  // ---- the two at the fence (near layer, drawn in the camera's transform). Anime rework (faces): she leans back against the
+  //      rail facing us, her hands on it behind her, and turns her face to him, laughing, eyes narrowed in the glare; he leans
+  //      on it on his forearms looking out to sea and turns his head round to her (his profile). The high sun over the sea
+  //      behind them rims the hat, the hair and the shoulders; the sea and the promenade fill the faces.
+  const GIRL15 = { x: 1060, y: 1250, s: 122 }, BOY15 = { x: 1440, y: 1262, s: 122 * 1.06 };
+  function c15Figures(ctx, t) {
+    g04Poses();
+    const A = PV.anime, T = START.C15 + t, tq = A.onTwos(t);
+    const buf = PV.buffer('g04:c15fig'), b = buf.ctx; b.clearRect(0, 0, W, H); b.setTransform(ctx.getTransform());
+    const laugh = 1 - sm(0.35, 1.2, tq);   // she has just laughed at something he said; the laugh settles into a smile
+    A.figure(b, { who: 'boy', outfit: 'tee', pose: 'railing', facing: -2.72, camPitch: 0.04, x: BOY15.x, y: BOY15.y, scale: BOY15.s, T, light: 'summer', rimDir: -2.1, rimA: 0.85,
+      wind: 0.75, windDir: 3.0, params: { variant: 'lean', railH: (BOY15.y - RAIL15) / BOY15.s, railZ: 0.78 },
+      head: { expr: 'gentle', turn: 0.82, rim: 1.4, eyes: { look: [-0.6, 0.05] }, mouth: { open: 0.08 + 0.1 * laugh, shape: 'smile' } } });
+    const hd = { yaw: 0.52 + 0.04 * Math.sin(tq * 1.9), pitch: 0.06 + 0.04 * laugh, roll: 0.07 + 0.05 * laugh };
+    const her = A.figure(b, { who: 'senpai', outfit: 'summer', pose: 'g04_railback', facing: 0.3, camPitch: 0.04, x: GIRL15.x, y: GIRL15.y, scale: GIRL15.s, T, light: 'summer', rimDir: -1.36, rimA: 0.85,
+      wind: 1.05, windDir: 3.0, noHat: true, params: { railH: (GIRL15.y - RAIL15) / GIRL15.s, weight: 0.3, hatHand: 0 },
+      head: Object.assign({ expr: 'smile', rim: 1.4, eyes: { open: 0.84 + 0.1 * (1 - laugh) }, mouth: { open: 0.25 + 0.4 * laugh, shape: 'smile' }, blush: 0.3 }, hd) });
+    // her straw hat on the head the library just drew: the brim's shadow over her face (on her pixels only), then the hat
+    const hh = { x: her.head.neck[0], y: her.head.neck[1], s: her.head.size, yaw: hd.yaw, pitch: hd.pitch, roll: hd.roll };
+    strawHat(b, hh, {}, true);
+    strawHat(b, hh, { light: 'summer', rimDir: -1.36, wind: 1.0, windDir: Math.PI, T });
+    b.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(buf.canvas, 0, 0); ctx.restore();
   }
 
   /* ---------------- the photograph (selfie): 4:3, design space 1440x1080. layer 'bg' | 'him' | 'all'
@@ -1366,13 +1308,7 @@
     ctx.restore();
     ctx.save(); ctx.translate(nearX, 0); PV.camera(ctx, { zoom: Z15, cx: CX15, cy: CY15 });
     ctx.drawImage(fence15(), -120, 0);
-    const go = { x: GIRL15.x, y: GIRL15.y, scale: GIRL15.s, railing: false, hands: 'rail', railY: -4.92, handSpread: 0.2, outfit: 'blouse',
-      wind: GIRL15.wind, windDir: GIRL15.windDir, windLift: -0.08, weight: GIRL15.weight, hairLen: 2.9, seed: GIRL15.seed,
-      light: -1.32, rimColor: '#fff4dc', rim: 1.5, backlight: 0.6, glow: 0.95, fill: '#2b3448' };
-    L.girlAtRailing(ctx, t, go);
-    const hp = girlHeadPos(t, { wind: GIRL15.wind, windDir: GIRL15.windDir, seed: GIRL15.seed, weight: GIRL15.weight });
-    const u = 92 * GIRL15.s; hatBack(ctx, GIRL15.x + hp.x * u, GIRL15.y + (hp.y + 0.07) * u, u, hp.ht, t, GIRL15.wind);
-    boyBackRail(ctx, t, { x: BOY15.x, y: BOY15.y, scale: BOY15.s, railY: (RAIL15 - BOY15.y) / (92 * BOY15.s), light: -1.4, rimColor: '#fff4dc', rim: 1.5, backlight: 0.6, glow: 0.95, fill: '#262e40', wind: 0.9 });
+    c15Figures(ctx, t);
     ctx.restore();
     L.flare(ctx, CX15 + (SUN15.x - CX15) * Z15 + farX, 20, 0.55, '#fff0c8');
   }
@@ -1503,7 +1439,13 @@
       }
     }
     if (shot && t < C15.shutter + 0.08) { ctx.save(); ctx.globalCompositeOperation = 'screen'; ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.fillRect(0, 0, W, H); ctx.restore(); }
-    setBloom(S, 0.42, 0.3);
+    // the brightest day, but faces in the frame: a lower bloom keeps their thin eye lines (the photo / print phase blooms more)
+    setBloom(S, dis < 0.5 ? 0.2 : 0.34, dis < 0.5 ? 0.18 : 0.26);
     PM('end');
+  } });
+
+  /* ---- DEV (temporary exploration; removed before delivery) */
+  PV.shot('g04dev_a', { draw(ctx, t, d, S, env) {
+    PV._g04dbgHat = true; PV.shots.C15.draw(ctx, 0.9, 3, {}, env); PV._g04dbgHat = false;
   } });
 })();

@@ -1,7 +1,13 @@
 // g11_finale_title — C41〜C44（音が戻る春の街 → 夕暮れの臨海公園 → 二つの手 → タイトル）
-//   C41 163.5–167.0 春の街：彼の右腕（袖）にしがみつく先輩の左手。背景はパララックスで右→左へ流れる。
-//       葉擦れ 0.1／電車 0.75／子供の声 1.5／店先のBGM 2.25 に、その音源から「音の粒子」が舞い込み、
-//       そこから色が戻る（彩度 0.7→1.0）。握りしめた手は、音を受け入れるにつれて少しずつほどける。
+//   C41 163.5–167.0 春の街：彼の右腕（灰色の長袖Ｔの袖）にしがみつく先輩の左手のアップ（被写界深度で手だけにピント）から、
+//       カメラが上がって二人の顔へ（PV.anime：先輩＝spring2（生成りのカーディガン＋紺のアームスリング）、彼＝year2）。
+//       先輩は彼の右（原作6363）。葉擦れ 0.1／電車 0.75／子供の声 1.5 で手が握り込まれ、店先のBGM 2.25 で怯えた顔が目を上げ、
+//       ほんの小さな笑みへ。彼は彼女を見下ろす。音源から「音の粒子」が彼女へ舞い込み、色が戻る（彩度 0.7→1.0、人物にも）。
+//       並木の木漏れ日が二人の上を流れ、BGM の頃に日なたへ出る。右の縦書きモノローグ（163.8–166.9）に顔をかけない。
+//   C42 167.0–170.0 金色の逆光：芝生に並んで座る二人を斜め前から（C22・C33 と同じカメラ：pair sit_side, facing −0.42,
+//       camPitch 0.2）。先輩は再び彼の左（画面右）。167.7「ねえ」で目を開けて彼に顔を向け、唇が「ね…え」、二音目で微笑む。
+//       169.25 ギターの答え（『何？』）で彼が彼女に向く。白い大橋は左に、太陽は彼女の肩の後ろ。
+//   C43 / C44 は手とタイトル（変更なし）。
 (function () {
   'use strict';
   const PV = window.PV, L = PV.lib, W = PV.W, H = PV.H, PI = Math.PI, TAU = PI * 2;
@@ -190,98 +196,6 @@
     }
   }
 
-  // his right arm (sleeve): a tapered tube along a polyline axis, cel shaded.  Returns its edges + an outline path.
-  // k = saturation (the colour comes back with the sound)
-  function sleeveTube(ctx, axis, r0, r1, k) {
-    const n = axis.length, lft = [], rgt = [];
-    for (let i = 0; i < n; i++) {
-      const a = axis[Math.max(0, i - 1)], b = axis[Math.min(n - 1, i + 1)];
-      let nx = -(b.y - a.y), ny = b.x - a.x; const l = Math.hypot(nx, ny) || 1; nx /= l; ny /= l;
-      const u = i / (n - 1), r = lerp(r0, r1, u) * (1 + 0.035 * Math.sin(u * 9 + 1.3));
-      lft.push({ x: axis[i].x + nx * r, y: axis[i].y + ny * r }); rgt.push({ x: axis[i].x - nx * r, y: axis[i].y - ny * r });
-    }
-    const path = (c) => {
-      c.beginPath(); c.moveTo(lft[0].x, lft[0].y);
-      for (let i = 1; i < n; i++) { const p = lft[i - 1], q = lft[i]; c.quadraticCurveTo(p.x, p.y, (p.x + q.x) / 2, (p.y + q.y) / 2); }
-      c.lineTo(lft[n - 1].x, lft[n - 1].y); c.lineTo(rgt[n - 1].x, rgt[n - 1].y);
-      for (let i = n - 2; i >= 0; i--) { const p = rgt[i + 1], q = rgt[i]; c.quadraticCurveTo(p.x, p.y, (p.x + q.x) / 2, (p.y + q.y) / 2); }
-      c.lineTo(rgt[0].x, rgt[0].y); c.closePath();
-    };
-    const C = (hex) => dsat(hex, k);
-    ctx.save(); ctx.lineJoin = 'round';
-    ctx.strokeStyle = C('#1b2440'); ctx.lineWidth = 5; path(ctx); ctx.stroke();
-    path(ctx); ctx.fillStyle = C('#3b5183'); ctx.fill();
-    ctx.save(); path(ctx); ctx.clip();
-    ctx.translate(-34, -10); path(ctx); ctx.fillStyle = C('#5672a8'); ctx.fill(); ctx.translate(34, 10);          // lit side (sun upper left)
-    ctx.globalAlpha = 0.5; ctx.fillStyle = C('#9ab7e2');
-    taper(ctx, lft.map((p, i) => ({ x: p.x + (rgt[i].x - p.x) * 0.12, y: p.y + (rgt[i].y - p.y) * 0.12 })), r0 * 0.2, r1 * 0.1);
-    ctx.globalAlpha = 0.5; ctx.fillStyle = C('#25345c');
-    taper(ctx, rgt.map((p, i) => ({ x: p.x + (lft[i].x - p.x) * 0.22, y: p.y + (lft[i].y - p.y) * 0.22 })), r0 * 0.34, r1 * 0.34);
-    // the sleeve's seam, running along the far third
-    ctx.globalAlpha = 0.35; ctx.fillStyle = C('#202c50');
-    taper(ctx, rgt.map((p, i) => ({ x: p.x + (lft[i].x - p.x) * 0.38, y: p.y + (lft[i].y - p.y) * 0.38 })), 2.2, 2.2);
-    ctx.globalAlpha = 1; ctx.restore(); ctx.restore();
-    return { lft, rgt, path };
-  }
-  // the cloth pulled into her fist: soft tension folds fanning out from the grip along the sleeve (toward the shoulder
-  // and toward the elbow) — a dark crease with a lit lip, strongest while she grips hardest.  Drawn inside the sleeve.
-  const C41_FOLDS = [   // [side −1 above / +1 below the fist, spread at the far end (−1..1 across the sleeve), length, bow, strength]
-    [-1, -0.78, 300, 0.22, 0.75], [-1, -0.35, 410, 0.12, 1], [-1, 0.12, 380, -0.06, 0.85], [-1, 0.55, 300, -0.18, 0.7], [-1, 0.86, 200, -0.25, 0.45],
-    [1, -0.7, 250, -0.2, 0.6], [1, -0.2, 330, 0.08, 0.75], [1, 0.32, 300, 0.16, 0.65], [1, 0.75, 210, 0.24, 0.45]];
-  function gripFolds(ctx, sl, top, bot, ax, R, k, sat) {
-    const nx = -ax.y, ny = ax.x;                       // across the arm (toward its near / left edge = negative)
-    ctx.save(); sl.path(ctx); ctx.clip(); ctx.lineCap = 'round';
-    for (const [side, spread, len, bow, str] of C41_FOLDS) {
-      const s = side < 0 ? top : bot, a = str * k; if (a < 0.03) continue;
-      const p0 = { x: s.x + nx * spread * 26, y: s.y + ny * spread * 26 };
-      const p2 = { x: s.x + ax.x * side * len + nx * spread * R * 0.95, y: s.y + ax.y * side * len + ny * spread * R * 0.95 };
-      const mx = (p0.x + p2.x) / 2, my = (p0.y + p2.y) / 2, ex = p2.x - p0.x, ey = p2.y - p0.y;
-      const p1 = { x: mx - ey * bow, y: my + ex * bow };
-      const pts = []; for (let i = 0; i <= 14; i++) { const u = i / 14; pts.push({ x: (1 - u) * (1 - u) * p0.x + 2 * u * (1 - u) * p1.x + u * u * p2.x, y: (1 - u) * (1 - u) * p0.y + 2 * u * (1 - u) * p1.y + u * u * p2.y }); }
-      ctx.fillStyle = PV.rgba(dsatHex('#162040', sat), 0.16 * a); taper(ctx, pts, 30 * a + 6, 2);                      // the soft trough
-      ctx.fillStyle = PV.rgba(dsatHex('#141c3a', sat), 0.42 * a); taper(ctx, pts, 7 * a + 2, 0.6);                    // the crease
-      ctx.fillStyle = PV.rgba(dsatHex('#a9c3ee', sat), 0.38 * a); taper(ctx, pts.map(q => ({ x: q.x - 7, y: q.y - 6 })), 6 * a + 1.5, 0.5);   // lit lip
-    }
-    ctx.restore();
-  }
-  // her long black hair streaming in from the left edge on the spring breeze (she walks just off frame; it is
-  // close to the lens, so it is soft).  Three locks, each a fan of strands sharing one travelling wave, a cool sheen
-  // on the upper strands and a few flyaway wisps at the tips.
-  const C41_LOCKS = [
-    { y0: 612, len: 640, drop: 60, w: 96, ph: 0.0, amp: 30, n: 8, seed: 1 },
-    { y0: 676, len: 790, drop: 120, w: 110, ph: 0.9, amp: 40, n: 9, seed: 2 },
-    { y0: 748, len: 570, drop: 160, w: 84, ph: 1.8, amp: 28, n: 7, seed: 3 }];
-  function c41Hair(c, tc, bob) {
-    // the breeze drops for a moment as the flower shop's music comes in (2.25): the hair settles and uncovers it
-    const gust = 0.93 + 0.07 * Math.sin(tc * 1.7) - 0.3 * gauss(tc, 2.35, 0.38);
-    for (const L0 of C41_LOCKS) {
-      const strands = [];
-      for (let j = 0; j < L0.n; j++) {
-        const s = j / (L0.n - 1) - 0.5, len = L0.len * gust * (0.78 + 0.3 * hash(j, 300 + L0.seed)), ph = tc * 3.1 + L0.ph + 0.5 * hash(j, 310 + L0.seed);
-        const pts = [];
-        for (let i = 0; i <= 20; i++) {
-          const u = i / 20, spreadOut = 1 + 1.6 * u * u;
-          pts.push({ x: -90 + u * len, y: L0.y0 + bob * 0.6 + s * L0.w * 0.5 * spreadOut + u * u * L0.drop + Math.sin(ph - u * 5.2) * L0.amp * Math.pow(u, 1.2) });
-        }
-        strands.push({ pts, s, w: (L0.w / L0.n) * 2.6 });
-      }
-      for (const st of strands) { c.fillStyle = '#15131c'; taper(c, st.pts, st.w, 1.2); }
-      // sheen: a cool band of sky reflected on the upper strands, a third of the way out
-      for (const st of strands) {
-        if (st.s > 0.1) continue;
-        c.fillStyle = 'rgba(132,140,178,0.55)'; taper(c, st.pts.slice(4, 10).map(q => ({ x: q.x, y: q.y - st.w * 0.18 })), st.w * 0.32, 0.6);
-      }
-      // flyaway wisps
-      for (let j = 0; j < 3; j++) {
-        const st = strands[Math.floor(hash(j, 330 + L0.seed) * strands.length)], ph = tc * 4.2 + j * 2.1;
-        const tail = st.pts.slice(12).map((q, i) => ({ x: q.x + i * 9, y: q.y + Math.sin(ph + i * 0.9) * (4 + i * 2.5) - i * 2 }));
-        c.fillStyle = '#1b1824'; taper(c, tail, 3, 0.6);
-      }
-    }
-  }
-  // greyed colour (the world comes back to colour): k = saturation 0..1
-  function dsatHex(hex, k) { if (k >= 0.999) return hex; const [r, g, b] = PV.hex2rgb(hex), y = 0.299 * r + 0.587 * g + 0.114 * b; const m = (v) => Math.round(y + (v - y) * k); return '#' + [m(r), m(g), m(b)].map(v => v.toString(16).padStart(2, '0')).join(''); }
-  const dsat = (hex, k) => dsatHex(hex, k);
   // low-res copies of the static background art: drawn 1:1 inside the quarter-res background layer (cheap)
   const QBG = 0.25;
   function lowArt(key, src) { return PV.cached('g11:q:' + key, Math.ceil(src.width * QBG), Math.ceil(src.height * QBG), (c, w, h) => { c.imageSmoothingQuality = 'high'; c.drawImage(src, 0, 0, w, h); }); }
@@ -294,47 +208,266 @@
     return M.canvas;
   }
 
-  PV.shot('C41', { draw(ctx, t, d) {
+  /* ---------------------------------------------------------------- C41: the two of them (PV.anime) */
+  // They walk side by side toward the screen-right; the camera tracks them from her right-front (her best side: the
+  // parting, the right cheek; the navy pouch sling of her useless right arm on the near side). She is on HIS RIGHT here
+  // (原作6363: her left hand clings to his right arm), a little nearer the lens; he is half a step behind her left
+  // shoulder. Both figures share one orthographic camera (facing, camPitch): his anchor sits at D (her head units) from
+  // hers and he is drawn ×1.06 (design sheet 1-2), so his forearm and her hand meet in the same 3D space.
+  // World coordinates = the final framing (camera zoom 1). Her hand on his sleeve is a hands.js hand (the film's hand
+  // close-ups) at the library wrist, drawn UNDER her own cuff; its fingertips wrap behind his forearm (clipped).
+  const AN = () => PV.anime;
+  const SB_START = { C41: 163.5, C42: 167.0 };
+  const absT = (S, id, t) => ((S && S.start > 0.01) ? S.start : SB_START[id]) + t;   // the film's time (solo previews start at 0)
+  const C41F = { facing: 0.34, camPitch: 0.08, s: 330, nx: 690, ny: 470, D: [1.78, 0, -0.12], grip0: { x: 1030, y: 1012 }, end: { x: 962, y: 468, zoom: 1.12 } };
+  let c41Arm = null, c41HerArm = null, c41Sling = null;    // his right arm / her left arm as posed this frame (body space): {S, E, W}
+  // two-bone IK (the body library's ik3): shoulder S, target T, bone lengths, pole direction -> [elbow, wrist]
+  function ik2(v3, S, T, l1, l2, pole) {
+    const d = v3.sub(T, S); let Dd = v3.len(d); const dn = v3.mul(d, 1 / (Dd || 1e-9));
+    Dd = clamp(Dd, Math.abs(l1 - l2) + 1e-4, l1 + l2 - 1e-4);
+    const a = (l1 * l1 - l2 * l2 + Dd * Dd) / (2 * Dd), h = Math.sqrt(Math.max(0, l1 * l1 - a * a));
+    const pp = v3.norm(v3.sub(pole, v3.mul(dn, v3.dot(pole, dn))));
+    return [v3.add(S, v3.add(v3.mul(dn, a), v3.mul(pp, h))), v3.add(S, v3.mul(dn, Dd))];
+  }
+  // local poses on the library's 'stand' (registered once under g11_ names; the library files are not edited)
+  function ensureC41Poses() {
+    const A = AN(), P = A && A.FIG_POSES, B = A && A.__body; if (!P || P.g11_lend || !P.stand) return;
+    const base = P.stand, v3 = B.v3;
+    P.g11_lend = {   // 彼: walking upright, the right arm a little forward and bent (she holds on to it)
+      facing: 'front', anchor: base.anchor,
+      body(sp, prm, tq, o, OF) { return base.body(sp, prm, tq, o, OF); },
+      limbs(J, sp, prm, tq, o, OF) {
+        const K = base.limbs(J, sp, prm, tq, o, OF);
+        const a = prm.armFwd ?? 0.1, b = prm.foreFwd ?? 0.7, out = prm.armOut ?? 0.02;
+        const E = v3.add(J.SR, [-out, sp.upArm * Math.cos(a), sp.upArm * Math.sin(a)]);
+        const Wr = v3.add(E, [0.05, sp.foreArm * Math.cos(b), sp.foreArm * Math.sin(b)]);
+        K.arms.R = { E, W: Wr, hand: { curl: 0.35, spread: 0.06, f: [0.1, 0.8, 0.5], palm: [1, 0, -0.2] } };
+        c41Arm = { S: J.SR, E, W: Wr };
+        return K;
+      },
+    };
+    P.g11_cling = {  // 先輩: walking close at his right, leaning on his arm; the left hand on his forearm (params.WL), the right arm in the sling
+      facing: 'front', anchor: base.anchor,
+      body(sp, prm, tq, o, OF) {
+        const Bd = base.body(sp, prm, tq, o, OF);
+        Bd.spine = Object.assign({}, Bd.spine, { side: (Bd.spine.side || 0) + (prm.leanSide || 0), bend: (Bd.spine.bend || 0) + (prm.hunch || 0) });
+        Bd.shrugL = (Bd.shrugL || 0) + (prm.shrug || 0); Bd.shrugR = (Bd.shrugR || 0) + (prm.shrug || 0) * 0.8;
+        return Bd;
+      },
+      limbs(J, sp, prm, tq, o, OF) {
+        const K = base.limbs(J, sp, prm, tq, o, OF);
+        if (prm.WL) {
+          const [E, Wr] = ik2(v3, J.SL, prm.WL, sp.upArm, sp.foreArm, prm.poleL || [0.3, 1, -0.6]);
+          K.arms.L = { E, W: Wr, hand: prm.handL || { kind: 'grip', f: [0.2, 0.3, 1], palm: [-1, 0, 0], curl: 0.75 } };
+          c41HerArm = { S: J.SL, E, W: Wr };
+        }
+        if (K.arms.R && K.arms.R.E) c41Sling = { E: K.arms.R.E, W: K.arms.R.W };   // the sling arm (the library's slingArm)
+        return K;
+      },
+    };
+  }
+  // the acting, from the local time on twos: flinches at the leaves (0.1), the train (0.75), the children (1.5); at the shop's
+  // music (2.25) she lifts her eyes, then a very small smile (the full smile is kept for C42); he glances down at her
+  function c41Act(tq) {
+    const flinch = 0.55 * gauss(tq, 0.18, 0.08) + 1.0 * gauss(tq, 0.84, 0.1) + 0.5 * gauss(tq, 1.58, 0.09);
+    const relax = sm(1.75, 3.0, tq), lift = sm(2.2, 2.6, tq), smile = sm(2.6, 3.1, tq);
+    const glance = sm(2.5, 2.9, tq);
+    const tight = clamp(0.8 + 0.2 * flinch - 0.35 * relax, 0, 1);
+    return { flinch, relax, lift, smile, glance, tight };
+  }
+  // the camera: on her hand (zoom Z0) → tilts up and widens to the two faces (zoom 1)
+  function c41Cam(tc) {
+    const e = PV.smoother(1.05, 2.75, tc), g = C41F.grip0, f = C41F.end;
+    const zoom = lerp(2.1 + 0.08 * PV.ease.inOut(clamp(tc / 1.2, 0, 1)), f.zoom, e), fx = lerp(g.x, f.x, e), fy = lerp(g.y, f.y, e), px = lerp(1000, 960, e), py = lerp(560, 540, e);
+    return { zoom, cx: fx, cy: fy, x: px - fx, y: py - fy, e };
+  }
+  const camApply = (o, p) => ({ x: (p.x - o.cx) * o.zoom + o.cx + o.x, y: (p.y - o.cy) * o.zoom + o.cy + o.y });
+  // draws him, her hand, her (world coordinates; the caller has applied the camera). Returns screen anchors (world px).
+  function c41Cast(ctx, T, tq, act) {
+    ensureC41Poses();
+    const A = AN(), B = A.__body, F = C41F, s = F.s;
+    const VM = B.mm(B.rot(0, F.camPitch, 0), B.rot(F.facing, 0, 0));
+    const toS = (p, ax, ay, k) => { const v = B.mv(VM, p); return { x: ax + v[0] * s * k, y: ay + v[1] * s * k, z: v[2] }; };
+    // walking: ~1.85 steps per second, a small rise and fall on twos (his a little out of phase)
+    const wph = TAU * 1.85 * tq, herBob = 5 * Math.cos(wph), hisBob = 6 * Math.cos(wph + 0.8);
+    const ax = F.nx, ay = F.ny + 6.12 * s + herBob - 6 * act.flinch;
+    const dv = B.mv(VM, F.D), hx = ax + dv[0] * s, hy = F.ny + 6.12 * s + dv[1] * s + hisBob;
+    const gust = 0.62 + 0.12 * Math.sin(tq * 1.7) - 0.25 * gauss(tq, 2.35, 0.38);
+    const common = { T, camPitch: F.camPitch, facing: F.facing, light: 'day', keyDir: -2.3, windDir: Math.PI + 0.12 };
+    // ---- 彼 (behind her left shoulder): calm, looking ahead; once she lifts her eyes he glances down at her
+    const g = act.glance;
+    const him = A.figure(ctx, Object.assign({}, common, { who: 'boy', outfit: 'year2', costume: { top: 'tee_black' }, pose: 'g11_lend', x: hx, y: hy, scale: s * 1.06, wind: 0.25 * gust,
+      params: { weight: 0.2, armFwd: 0.06, foreFwd: 0.42 + 0.05 * act.tight, armOut: 0.0, nod: lerp(0.0, 0.16, g), neckYaw: lerp(0.0, -0.2, g), tilt: lerp(-0.03, -0.07, g) },
+      head: { expr: 'neutral', blush: 0.08 + 0.12 * g, eyes: { open: lerp(0.95, 0.9, g), look: [lerp(0.45, -0.85, g), lerp(0.05, 0.55, g)] },
+        mouth: { shape: 'smile', open: 0, asym: -0.45 * g } } }));
+    prof('him');
+    // ---- her hand target: her wrist just left of his forearm (screen), at the depth of his arm a little toward the lens;
+    //      back into her body space through the shared camera (VM is a rotation: its inverse is the transpose)
+    const arm = c41Arm, u = 0.36;
+    const aE = toS(arm.E, hx, hy, 1.06), aW = toS(arm.W, hx, hy, 1.06);
+    const al = Math.hypot(aW.x - aE.x, aW.y - aE.y) || 1, ux = (aW.x - aE.x) / al, uy = (aW.y - aE.y) / al, rx = uy, ry = -ux;   // r: right of the axis
+    const Rw = 0.1 * s * 1.06, pG = { x: lerp(aE.x, aW.x, u), y: lerp(aE.y, aW.y, u), z: lerp(aE.z, aW.z, u) };
+    const pull = 10 * act.flinch, wS = { x: pG.x - rx * (Rw + 26 + pull) + ux * (18 + 0.5 * pull), y: pG.y - ry * (Rw + 26 + pull) + uy * (18 + 0.5 * pull) };
+    const VMi = B.mm(B.rot(-F.facing, 0, 0), B.rot(0, -F.camPitch, 0));
+    const WL = B.mv(VMi, [(wS.x - ax) / s, (wS.y - ay) / s, pG.z + 0.12]);
+    const herP = { weight: -0.3, leanSide: 0.1 - 0.04 * act.relax, WL, poleL: [0.2, 1, -0.9], handL: { hidden: true },
+      shrug: 0.035 * act.flinch + 0.012 * (1 - act.relax), hunch: 0.04 * (1 - act.lift), nod: lerp(0.2, 0.02, act.lift) + 0.06 * act.flinch,
+      neckYaw: lerp(0.1, 0.02, act.lift), tilt: lerp(0.05, 0.03, act.lift) };
+    // her hand is drawn first, on his sleeve at her wrist target (the IK always reaches it: |shoulder→target| ≈ 0.62 of the arm),
+    // then her figure over it, so her own cuff covers the hand's wrist
+    const hW = { x: wS.x, y: wS.y };   // (the flinch pulls it in: see wS)
+    c41Grip(ctx, act, hW, aE, aW, Rw, s, tq);
+    prof('grip');
+    c41HerArm = null; c41Sling = null;
+    const her = A.figure(ctx, Object.assign({}, common, { who: 'senpai', outfit: 'spring2', pose: 'g11_cling', x: ax, y: ay, scale: s, wind: gust,
+      params: herP, head: c41HerHead(act) }));
+    prof('her');
+    if (c41Sling) c41Pouch(ctx, toS(c41Sling.E, ax, ay, 1), toS(c41Sling.W, ax, ay, 1), s, tq);
+    return { him, her, hand: hW, aE, aW };
+  }
+  // her face: frightened (brows up and knit, eyes down, lips pressed; shut tight at each flinch) → at the shop's music she
+  // lifts her eyes, the light comes back into them → a very small closed smile
+  function c41HerHead(act) {
+    const sq = clamp(act.flinch * 1.1, 0, 1), L = act.lift, Sm = act.smile;
+    return {
+      expr: 'neutral', blush: 0.12 + 0.16 * Sm,
+      eyes: { open: lerp(lerp(0.74, 1.0, L), 0.2, sq) * (1 - 0.12 * Sm), look: [lerp(0.3, 0.72, L), lerp(0.5, -0.28, L)], shine: lerp(0.62, 1.0, L), hlK: lerp(0.85, 1.08, L), smile: 0.35 * Sm,
+        sad: 0.55 * (1 - L), squeeze: 0.25 * (1 - L) },
+      brows: { inner: lerp(0.55, 0.12, L) + 0.15 * sq, outer: lerp(-0.15, 0.02, L), furrow: lerp(0.45, 0.0, L) + 0.25 * sq },
+      mouth: { shape: Sm > 0.35 ? 'smile' : L > 0.5 ? 'flat' : 'frown', open: 0 },
+      hair: { wind: 0.62, windDir: Math.PI + 0.12 },
+    };
+  }
+  // walking under the street trees: soft leaf shadows slide over the two (world px, on the figures' own pixels only), with a
+  // few warm flecks of sun; at the shop's music they come out into the open sun (k → 0)
+  function c41Dapple(fc, tc, k) {
+    if (k <= 0.01) return;
+    fc.save(); fc.globalCompositeOperation = 'source-atop';
+    const v = 430;                                   // world px / s (the walk, seen at this distance)
+    for (let i = 0; i < 16; i++) {
+      const x = ((2100 + i * 190 - v * tc) % 3040 + 3040) % 3040 - 400, y = 380 + 900 * hash(i, 91), r = 110 + 150 * hash(i, 92);
+      const g = fc.createRadialGradient(x, y, r * 0.25, x, y, r); g.addColorStop(0, `rgba(44,56,92,${(0.24 * k).toFixed(3)})`); g.addColorStop(1, 'rgba(44,56,92,0)');
+      fc.fillStyle = g; fc.fillRect(x - r, y - r, 2 * r, 2 * r);
+    }
+    for (let i = 0; i < 10; i++) {
+      const x = ((2300 + i * 287 - v * tc) % 3040 + 3040) % 3040 - 400, y = 420 + 860 * hash(i, 93), r = 26 + 40 * hash(i, 94);
+      const g = fc.createRadialGradient(x, y, 0, x, y, r); g.addColorStop(0, `rgba(255,244,214,${(0.3 * k).toFixed(3)})`); g.addColorStop(1, 'rgba(255,244,214,0)');
+      fc.fillStyle = g; fc.fillRect(x - r, y - r, 2 * r, 2 * r);
+    }
+    fc.restore();
+  }
+  // her arm sling (装具, 原作6107 "首から掛ける装具"): the library's pouch is a plain dark tube; a fabric pouch is painted over it
+  // (navy cloth sagging under the forearm, a seam along the top, gravity folds, the open end with her limp fingers). The
+  // straps stay the library's. E/W = her right elbow / wrist (screen px), as posed by the library's slingArm.
+  function c41Pouch(c, E, Wr, s, tq) {
+    const m0 = PV.anime.mat(PV.anime.COLORS.brace ? 'brace' : 'brace_navy', 'day'), mx = PV.anime.mixHex;
+    const m = { base: mx(m0.base, m0.hi, 0.22), shade: m0.base, hi: mx(m0.hi, '#ffffff', 0.15), line: m0.line, deep: m0.deep };   // a lighter navy cloth (it reads as cloth, not as a black tube)
+    let dx = Wr.x - E.x, dy = Wr.y - E.y; const dl = Math.hypot(dx, dy) || 1; dx /= dl; dy /= dl;
+    const p0 = { x: E.x - dx * 0.1 * s, y: E.y - dy * 0.1 * s }, p1 = { x: Wr.x + dx * 0.36 * s, y: Wr.y + dy * 0.36 * s };
+    const len = Math.hypot(p1.x - p0.x, p1.y - p0.y), r = 0.142 * s, lw = PV.anime.inkW(s) * 0.85;
+    c.save(); c.translate(p0.x, p0.y); let ang = Math.atan2(p1.y - p0.y, p1.x - p0.x); c.rotate(ang);
+    const flip = Math.cos(ang) < 0 ? -1 : 1; c.scale(1, flip);    // local +y = down on screen
+    const sag = 0.16 * r;
+    const body = new Path2D();
+    body.moveTo(-0.45 * r, -0.92 * r);
+    body.bezierCurveTo(0.3 * len, -0.86 * r, 0.7 * len, -0.86 * r, len - 0.05 * r, -0.95 * r);          // top edge (the forearm inside)
+    body.bezierCurveTo(len + 0.22 * r, -0.4 * r, len + 0.12 * r, 0.5 * r, len - 0.12 * r, 0.98 * r);  // the open hand end, slanted
+    body.bezierCurveTo(0.7 * len, 1.08 * r + sag, 0.3 * len, 1.1 * r + sag, -0.25 * r, 0.92 * r);    // bottom: cloth sagging
+    body.bezierCurveTo(-0.95 * r, 0.6 * r, -0.98 * r, -0.62 * r, -0.45 * r, -0.92 * r); c.closePath && 0;  // the elbow end, rounded
+    body.closePath();
+    // the cloth
+    c.fillStyle = m.base; c.fill(body);
+    c.save(); c.clip(body);
+    const g = c.createLinearGradient(0, -r, 0, r * 1.2); g.addColorStop(0, PV.rgba(m.hi, 0.55)); g.addColorStop(0.35, PV.rgba(m.hi, 0.0)); g.addColorStop(0.75, PV.rgba(m.shade, 0.0)); g.addColorStop(1, PV.rgba(m.shade, 0.9));
+    c.fillStyle = g; c.fillRect(-r, -1.2 * r, len + 2 * r, 2.6 * r);
+    c.fillStyle = m.shade; c.beginPath(); c.moveTo(-r, 0.55 * r); c.bezierCurveTo(0.3 * len, 0.75 * r + sag, 0.7 * len, 0.72 * r + sag, len + r, 0.5 * r); c.lineTo(len + r, 2 * r); c.lineTo(-r, 2 * r); c.closePath(); c.fill();
+    // gravity folds from the low middle toward the two ends
+    c.lineCap = 'round';
+    for (const [x0, x1, yy, a] of [[0.42, 0.08, 0.15, 0.5], [0.55, 0.92, 0.2, 0.45], [0.48, 0.25, 0.55, 0.35], [0.6, 0.78, 0.6, 0.35]]) {
+      c.strokeStyle = PV.rgba(m.line, a); c.lineWidth = lw * 0.6; c.beginPath(); c.moveTo(x0 * len, (yy + 0.5) * r); c.quadraticCurveTo((x0 + x1) / 2 * len, (yy - 0.05) * r, x1 * len, (yy - 0.35) * r); c.stroke();
+    }
+    // the seam along the top + the hem of the open end
+    c.setLineDash([lw * 2.2, lw * 1.6]); c.strokeStyle = PV.rgba(m.hi, 0.6); c.lineWidth = lw * 0.5;
+    c.beginPath(); c.moveTo(0.02 * len, -0.68 * r); c.bezierCurveTo(0.3 * len, -0.62 * r, 0.7 * len, -0.62 * r, len - 0.2 * r, -0.7 * r); c.stroke(); c.setLineDash([]);
+    c.strokeStyle = PV.rgba(m.hi, 0.5); c.lineWidth = lw * 0.9; c.beginPath(); c.moveTo(len - 0.1 * r, -0.85 * r); c.bezierCurveTo(len + 0.12 * r, -0.35 * r, len + 0.05 * r, 0.4 * r, len - 0.16 * r, 0.88 * r); c.stroke();
+    c.restore();
+    c.lineJoin = 'round'; c.strokeStyle = m.line; c.lineWidth = lw; c.stroke(body);
+    c.restore();
+  }
+  // her left hand clutching his sleeve (hands.js, under her cuff) + the cloth pulled into her fist
+  function c41Grip(ctx, act, hW, aE, aW, R, s, tq) {
+    const ax = aW.x - aE.x, ay = aW.y - aE.y, al = Math.hypot(ax, ay) || 1, ux = ax / al, uy = ay / al, rx = uy, ry = -ux;   // his forearm axis, r = its right
+    const tight = act.tight;
+    // where her palm presses: on the axis, level with the hand
+    const k = clamp(((hW.x - aE.x) * ux + (hW.y - aE.y) * uy) / al, 0, 1), gp = { x: lerp(aE.x, aW.x, k) + ux * 40, y: lerp(aE.y, aW.y, k) + uy * 40 };
+    ctx.save();
+    ctx.beginPath(); ctx.moveTo(aE.x + rx * R, aE.y + ry * R); ctx.lineTo(aW.x + rx * R, aW.y + ry * R); ctx.lineTo(aW.x - rx * R, aW.y - ry * R); ctx.lineTo(aE.x - rx * R, aE.y - ry * R); ctx.closePath(); ctx.clip();
+    // the cloth pulled into her fist: soft creases fanning out from the grip along his sleeve, strongest while she grips hardest
+    for (const [side, spread, len, str] of [[-1, -0.7, 150, 0.8], [-1, 0.05, 190, 1], [-1, 0.65, 130, 0.7], [1, -0.5, 120, 0.6], [1, 0.35, 140, 0.75]]) {
+      const a = str * (0.35 + 0.65 * tight);
+      const p0 = { x: gp.x + rx * spread * 10, y: gp.y + ry * spread * 10 };
+      const p2 = { x: gp.x + ux * side * len + rx * spread * R * 0.95, y: gp.y + uy * side * len + ry * spread * R * 0.95 };
+      const pts = []; for (let i = 0; i <= 10; i++) { const q = i / 10, bw = Math.sin(q * PI) * 5 * spread; pts.push({ x: lerp(p0.x, p2.x, q) + rx * bw, y: lerp(p0.y, p2.y, q) + ry * bw }); }
+      ctx.fillStyle = `rgba(8,9,14,${(0.3 * a).toFixed(3)})`; taper(ctx, pts, 14 * a + 4, 1.5);                       // the trough
+      ctx.fillStyle = `rgba(4,5,8,${(0.5 * a).toFixed(3)})`; taper(ctx, pts, 2.6 * a + 1.1, 0.4);                        // the crease
+      ctx.fillStyle = `rgba(128,132,150,${(0.3 * a).toFixed(3)})`; taper(ctx, pts.map(q => ({ x: q.x - 3, y: q.y - 3 })), 3.4 * a + 1, 0.4);   // the lit lip (sky light on black cotton)
+    }
+    // the contact shadow of her hand on the sleeve (light from the upper left)
+    const g = ctx.createRadialGradient(gp.x + 8, gp.y + 10, 0, gp.x + 8, gp.y + 10, 60); g.addColorStop(0, `rgba(28,30,42,${(0.24 + 0.1 * tight).toFixed(3)})`); g.addColorStop(1, 'rgba(28,30,42,0)');
+    ctx.fillStyle = g; ctx.fillRect(gp.x - 60, gp.y - 50, 140, 140);
+    ctx.restore();
+    // the hand: the back of her left hand across his forearm, the fingers curled round its far edge (cut there: behind it)
+    const tilt = Math.atan2(ux, uy);                 // his forearm's lean from the vertical
+    const fl = act.flinch, curl = [0.34 + 0.12 * tight + 0.1 * fl, 0.42 + 0.2 * tight + 0.16 * fl, 0.46 + 0.22 * tight + 0.16 * fl, 0.48 + 0.2 * tight + 0.15 * fl, 0.5 + 0.18 * tight + 0.14 * fl];
+    ctx.save();
+    const e = R - 3, far = 3000;
+    ctx.beginPath();
+    ctx.moveTo(aE.x + rx * e - ux * far, aE.y + ry * e - uy * far); ctx.lineTo(aE.x + rx * e + ux * far, aE.y + ry * e + uy * far);
+    ctx.lineTo(aE.x - rx * far + ux * far, aE.y - ry * far + uy * far); ctx.lineTo(aE.x - rx * far - ux * far, aE.y - ry * far - uy * far); ctx.closePath(); ctx.clip();
+    L.hand(ctx, { x: hW.x, y: hW.y, scale: s * 0.72 / 195 * 0.98, side: 'L', kind: 'her', view: 'back', rot: 1.1 - tilt, yaw: 0.25, pitch: 0.12,
+      curl, spread: 0.09 - 0.04 * tight, t: tq, tremble: clamp(0.15 + 0.7 * act.flinch - 0.15 * act.relax, 0, 1), seed: 41, arm: 40,
+      light: -2.3, keyColor: '#fff8ef', fillColor: '#c9a0a8', tint: 0.35 });
+    ctx.restore();
+  }
+
+  const c41Cache = { key: null, cast: null };
+  PV.shot('C41', { draw(ctx, t, d, S) {
     const tc = clamp(t, -0.3, d + 0.7);
     profCtx = ctx; prof('start');
-    const walk = tc * 1.85 * TAU;                         // ~1.85 steps per second
-    const bob = Math.sin(walk) * 8, bob2 = Math.sin(walk + 0.7) * 5;
-    // flinches (leaves 0.1, train 0.75, kids 1.5) then she slowly lets the sound in
-    const flinch = 0.55 * gauss(tc, 0.18, 0.08) + 1.0 * gauss(tc, 0.84, 0.1) + 0.3 * gauss(tc, 1.58, 0.1);
-    const relax = sm(1.7, 3.1, tc);
+    const T = absT(S, 'C41', tc), act = c41Act(PV.anime.onTwos(tc));
     const satG = lerp(0.7, 1.0, sm(0.1, 2.4, tc));
     const stripX = (b) => b.x - C41.vMid * tc - C41.shift;
-    const grip = { x: 1275, y: 560 + bob };
+    const cam = c41Cam(tc), e = cam.e;
+    // the background rides the camera move with less parallax (it is far): up when the camera is low, a little enlarged
+    const bgDy = -230 * (1 - e), bgZ = 1 + 0.08 * (1 - e);
+    const bgPt = (p) => ({ x: (p.x - 960) * bgZ + 960, y: (p.y - 540) * bgZ + 540 + bgDy });
+    const bob2 = Math.sin(tc * 1.85 * TAU + 0.7) * 5;
 
-    // ---------------- background (soft, quarter res): sky, wires, viaduct + train, far town, shops, trees, kids,
-    // sunlight — and the colour coming back into it from each sound
-    let train = null, kids = [], sources = null;
+    // ---------------- background (soft, quarter res): sky, wires, viaduct + train, far town, shops, trees, kids, sunlight
+    let train = null, kids = [];
     const poles = [];
     softLayer(ctx, 'c41bg', QBG, 1.4, (c) => {
-      c.save(); c.translate(0, bob2 * 0.5);
-      c.drawImage(lowArt('sky', c41Sky()), -150 - C41.vSky * tc, -40, 2300, 760);
+      c.save(); c.translate(960, 540 + bgDy + bob2 * 0.5); c.scale(bgZ, bgZ); c.translate(-960, -540);
+      c.drawImage(lowArt('sky', c41Sky()), -150 - C41.vSky * tc, -40 - 260, 2300, 1020);
       const far = lowArt('far', c41Far());
       c.drawImage(far, -250 - C41.vFar * tc, C41.deck - 270, 2500, 300);
-      // under the viaduct: hazy far buildings down to the street (nothing may stay transparent)
       const ub = c.createLinearGradient(0, C41.deck, 0, C41.street); ub.addColorStop(0, '#9fb3c9'); ub.addColorStop(0.5, '#c2cfdc'); ub.addColorStop(1, '#d8d6cf');
-      c.fillStyle = ub; c.fillRect(-60, C41.deck - 10, W + 120, C41.street - C41.deck + 20);
+      c.fillStyle = ub; c.fillRect(-160, C41.deck - 10, W + 320, C41.street - C41.deck + 20);
       c.drawImage(far, -900 - C41.vFar * 1.6 * tc, C41.street - 300, 2500, 300);
       train = c41Train(c, tc);
-      const g = c.createLinearGradient(0, C41.street, 0, H); g.addColorStop(0, '#cdc4b8'); g.addColorStop(1, '#e2d9cc'); c.fillStyle = g; c.fillRect(-60, C41.street - 6, W + 120, H - C41.street + 60);
-      // shops first, then the trees/poles standing on the far kerb in front of them
-      for (const b of C41_STRIP) { if (b.k === 'tree' || b.k === 'pole') continue; const x = stripX(b); if (x > W + 80 || x + b.w < -80) continue; c.drawImage(lowArt('shop' + b.k + b.i, c41Shop(b.k, 4130 + b.i)), x, C41.street - 400, 600, 400); }
+      const g = c.createLinearGradient(0, C41.street, 0, H + 360); g.addColorStop(0, '#cdc4b8'); g.addColorStop(1, '#e2d9cc'); c.fillStyle = g; c.fillRect(-160, C41.street - 6, W + 320, H - C41.street + 420);
+      for (const b of C41_STRIP) { if (b.k === 'tree' || b.k === 'pole') continue; const x = stripX(b); if (x > W + 180 || x + b.w < -180) continue; c.drawImage(lowArt('shop' + b.k + b.i, c41Shop(b.k, 4130 + b.i)), x, C41.street - 400, 600, 400); }
       kids = c41Kids(c, tc);
       for (const b of C41_STRIP) {
         const x = stripX(b);
-        if (b.k === 'pole') { if (x < -900 || x > W + 900) continue; poles.push(x + 30); if (x > W + 80 || x < -80) continue; c.fillStyle = '#6a656c'; c.fillRect(x + 18, 80, 26, C41.street - 80); c.fillStyle = '#58545a'; c.fillRect(x - 40, 120, 142, 12); c.fillRect(x - 24, 166, 110, 10); continue; }
-        if (b.k === 'tree') { if (x > W + 300 || x + b.w < -300) continue; c.drawImage(lowArt('tree' + (b.i % 3), c41Tree(4120 + (b.i % 3))), x - 210, C41.street - 1000, 720, 1000); }
+        if (b.k === 'pole') { if (x < -900 || x > W + 900) continue; poles.push(x + 30); if (x > W + 180 || x < -180) continue; c.fillStyle = '#6a656c'; c.fillRect(x + 18, 80 - 300, 26, C41.street - 80 + 300); c.fillStyle = '#58545a'; c.fillRect(x - 40, 120, 142, 12); c.fillRect(x - 24, 166, 110, 10); continue; }
+        if (b.k === 'tree') { if (x > W + 400 || x + b.w < -400) continue; c.drawImage(lowArt('tree' + (b.i % 3), c41Tree(4120 + (b.i % 3))), x - 210, C41.street - 1000, 720, 1000); }
       }
       c41Wires(c, poles);
-      // kerb + sunlit road in front
-      c.fillStyle = '#efe8dc'; c.fillRect(-60, C41.street - 2, W + 120, 10);
+      c.fillStyle = '#efe8dc'; c.fillRect(-160, C41.street - 2, W + 320, 10);
       // sunlight from the upper left (painted soft at low res)
       const sg = c.createRadialGradient(160, -80, 0, 160, -80, 1200); sg.addColorStop(0, 'rgba(255,248,226,0.85)'); sg.addColorStop(0.3, 'rgba(255,244,214,0.35)'); sg.addColorStop(1, 'rgba(255,244,214,0)');
-      c.fillStyle = sg; c.fillRect(-60, -60, 1500, 1200);
+      c.fillStyle = sg; c.fillRect(-160, -360, 1600, 1500);
       c.globalCompositeOperation = 'lighter';
       for (let k = 0; k < 6; k++) {
         const a = 0.55 + 0.12 * k + 0.03 * Math.sin(tc * 0.7 + k), al = 0.06 + 0.04 * hash(k, 8);
@@ -343,99 +476,93 @@
       }
       c.globalCompositeOperation = 'source-over';
       c.restore();
-      // where the sounds come from (this frame)
-      sources = [
-        { t0: 0.1, x: 340, y: 110, cols: ['#d8f59a', '#a8e070', '#fff6dd'], n: 26 },
-        { t0: 0.75, x: train ? clamp(train.x0 + 260, 120, 980) : 560, y: train ? train.y : C41.deck - 70, cols: ['#e8f2ff', '#a9d4ff', '#ffffff'], n: 30 },
-        { t0: 1.5, x: kids.length ? kids[1].x : 640, y: kids.length ? kids[1].y : C41.street - 50, cols: ['#ffd35a', '#ff9fb2', '#ffffff'], n: 26 },
-        { t0: 2.25, x: 560, y: C41.street - 150, cols: ['#ffcf8a', '#f7b6c8', '#fff3dc'], n: 30 },
-      ];
-      // colour returns: global ramp + local blooms where the sounds came from and around her hand
-      if (1 - satG > 0.003) {
-        const M = satMask(1 - satG, (m) => {
-          for (const S of sources) { const k = sm(S.t0, S.t0 + 0.9, tc); if (k > 0) hole(m, S.x, S.y, 300 + 760 * k, 0.95 * k); }
-          hole(m, grip.x, grip.y, 300 + 420 * sm(0, 2, tc), 0.6);
-        });
-        c.globalCompositeOperation = 'saturation'; c.drawImage(M, 0, 0, W, H); c.globalCompositeOperation = 'source-over';
-      }
     });
     prof('bg');
+    // where the sounds come from (this frame, screen px)
+    const sources = [
+      { t0: 0.1, p: bgPt({ x: 340, y: 110 }), cols: ['#d8f59a', '#a8e070', '#fff6dd'], n: 26 },
+      { t0: 0.75, p: bgPt(train ? { x: clamp(train.x0 + 260, 120, 980), y: train.y } : { x: 560, y: C41.deck - 70 }), cols: ['#e8f2ff', '#a9d4ff', '#ffffff'], n: 30 },
+      { t0: 1.5, p: bgPt(kids.length ? kids[1] : { x: 640, y: C41.street - 50 }), cols: ['#ffd35a', '#ff9fb2', '#ffffff'], n: 26 },
+      { t0: 2.25, p: bgPt({ x: 560, y: C41.street - 150 }), cols: ['#ffcf8a', '#f7b6c8', '#fff3dc'], n: 30 },
+    ];
 
-    // ---------------- his side at the right edge (dark jacket; the monologue sits on it). The arm hangs along it.
-    ctx.save(); ctx.translate(0, bob * 0.8);
-    const edge = (c) => { c.moveTo(1540, -60); c.bezierCurveTo(1480, 300, 1470, 700, 1520, 1140); };
-    const tg = ctx.createLinearGradient(1460, 0, W, 0); tg.addColorStop(0, dsat('#33466e', satG)); tg.addColorStop(0.22, dsat('#25355a', satG)); tg.addColorStop(1, dsat('#19223e', satG));
-    ctx.fillStyle = tg; ctx.beginPath(); edge(ctx); ctx.lineTo(W + 60, 1140); ctx.lineTo(W + 60, -60); ctx.closePath(); ctx.fill();
-    ctx.save(); ctx.beginPath(); edge(ctx); ctx.lineTo(W + 60, 1140); ctx.lineTo(W + 60, -60); ctx.closePath(); ctx.clip();
-    ctx.fillStyle = 'rgba(10,14,30,0.28)'; for (let k = 0; k < 4; k++) { ctx.beginPath(); ctx.ellipse(1700 + k * 55, 260 + k * 190, 20, 280, 0.06, 0, TAU); ctx.fill(); }
-    ctx.fillStyle = 'rgba(120,145,195,0.18)'; for (let k = 0; k < 3; k++) { ctx.beginPath(); ctx.ellipse(1655 + k * 70, 420 + k * 160, 10, 240, 0.06, 0, TAU); ctx.fill(); }
-    ctx.restore();
-    ctx.restore();
-    prof('torso');
-
-    // ---------------- his right arm (sharp) + her left hand clutching the sleeve
-    const ay = bob;
-    const axis = [{ x: 1430, y: -220 + ay }, { x: 1360, y: 150 + ay }, { x: 1290, y: 470 + ay }, { x: 1225, y: 770 + ay }, { x: 1160, y: 1200 + ay }];
-    const ax = (() => { const dx = axis[3].x - axis[1].x, dy = axis[3].y - axis[1].y, l = Math.hypot(dx, dy); return { x: dx / l, y: dy / l }; })();
-    const sl = sleeveTube(ctx, axis, 150, 134, satG);
-    // her left hand laid across his forearm, long fingers clutching the cloth (tips wrap round the far edge)
-    const tight = clamp(0.8 + 0.2 * flinch - 0.3 * relax, 0, 1);
-    const curl = [0.22 + 0.1 * tight, 0.26 + 0.26 * tight, 0.3 + 0.28 * tight, 0.36 + 0.26 * tight, 0.44 + 0.24 * tight];
-    const ho = { x: 1005, y: 800 + ay * 0.9 + 6 * flinch, scale: 2.45, side: 'L', kind: 'her', view: 'back', rot: 0.86, yaw: 0.25, pitch: 0.05,
-      curl, spread: 0.13 - 0.04 * tight, t: tc, tremble: clamp(0.2 + 0.7 * flinch - 0.2 * relax, 0, 1), seed: 41, arm: 300, sleeve: '#f6c3cf', sleeveAt: 60,
-      light: -2.35, keyColor: '#fff6dd', fillColor: '#d79aa6', tint: 0.45 };
-    const rig = L.handRig(Object.assign({}, ho, { _m: ctx.getTransform() }));
-    const pull = clamp(0.55 + 0.45 * tight, 0, 1);
-    // (the fist's knuckle line runs from the little finger, up the arm, to the index finger and the thumb, down it)
-    gripFolds(ctx, sl, rig.joints[4][0], rig.joints[0][2], ax, 140, pull, satG);
-    // the fist pressed into the cloth: a soft contact shadow along the fingers (light from the upper left), inside the sleeve
-    ctx.save(); sl.path(ctx); ctx.clip();
-    for (let i = 0; i <= 4; i++) for (let j = 0; j < 3; j++) {
-      const p = rig.joints[i][j], cx = p.x + 12, cy = p.y + 14, rr = 50;
-      const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, rr); g.addColorStop(0, PV.rgba(dsatHex('#0e1430', satG), 0.18 + 0.12 * tight)); g.addColorStop(1, 'rgba(14,20,48,0)');
-      ctx.fillStyle = g; ctx.fillRect(cx - rr, cy - rr, rr * 2, rr * 2);
+    // ---------------- each sound lights up where it comes from: a flash + two soft rings (in the world, behind the two)
+    {
+      ctx.save(); ctx.globalCompositeOperation = 'screen';
+      for (const S2 of sources) {
+        const ra = tc - S2.t0, sx = S2.p.x, sy = S2.p.y, flash = attack(tc, S2.t0, 0.45);
+        if (flash > 0.01) { spark(ctx, sx, sy, 300, S2.cols[0], 0.45 * flash); spark(ctx, sx, sy, 90, '#ffffff', 0.4 * flash); }
+        if (ra > 0 && ra < 1.3) for (let k = 0; k < 2; k++) {
+          const u = clamp((ra - k * 0.18) / 1.1, 0, 1); if (u <= 0) continue;
+          const rr = 30 + 520 * PV.ease.outCubic(u);
+          for (const [lw, aa] of [[22, 0.12], [7, 0.32], [2.5, 0.6]]) { ctx.globalAlpha = aa * (1 - u) * (1 - u); ctx.strokeStyle = S2.cols[k]; ctx.lineWidth = lw * (1.2 - 0.6 * u); ctx.beginPath(); ctx.ellipse(sx, sy, rr, rr * 0.7, 0, 0, TAU); ctx.stroke(); }
+        }
+      }
+      ctx.restore();
     }
-    ctx.restore();
+    // ---------------- the two of them (world → screen through the camera), in their own layer for the focus
+    // (once the camera has landed and the focus is all sharp, the layer is only re-drawn on twos)
+    const FB = PV.buffer('g11:c41figs'), fc = FB.ctx, k12 = Math.floor(tc * 12 + 1e-6), still = cam.e >= 1 && sm(1.5, 2.5, tc) >= 1;
+    let cast;
+    if (still && c41Cache.key === k12) cast = c41Cache.cast;
+    else {
+      fc.setTransform(1, 0, 0, 1, 0, 0); fc.clearRect(0, 0, W, H); PV.camera(fc, cam);
+      // (a cached tick is drawn at the tick's own time, so both of its frames are identical whichever is rendered first)
+      cast = c41Cast(fc, still ? absT(S, 'C41', k12 / 12) : T, PV.anime.onTwos(tc), act);
+      c41Dapple(fc, tc, 1 - sm(1.9, 2.6, tc));
+      fc.setTransform(1, 0, 0, 1, 0, 0);
+      c41Cache.key = still ? k12 : null; c41Cache.cast = cast;
+    }
+    prof('figs');
+    const handS = camApply(cam, cast.hand), hd = cast.her.head;
+    const faceW = hd && hd.eyeL && hd.eyeR ? { x: (hd.eyeL[0] + hd.eyeR[0]) / 2, y: (hd.eyeL[1] + hd.eyeR[1]) / 2 } : { x: 800, y: 420 };
+    const faceS = camApply(cam, faceW);
+    // focus: on her hand (everything else soft), pulled up to her face as the camera rises, then all sharp
+    const fk = sm(1.2, 2.3, tc), dof = 1 - sm(1.5, 2.5, tc);
+    if (dof > 0.02) {
+      // the soft copy at quarter resolution (cheap blur), then the sharp layer cut to the focus region (in place) over it
+      const fcx = lerp(handS.x + 110, faceS.x, fk), fcy = lerp(handS.y - 40, faceS.y, fk), r0 = lerp(150, 260, fk), r1 = lerp(430, 640, fk) + 600 * (1 - dof);
+      const qb = 0.25, BB = PV.buffer('g11:c41dof', W * qb, H * qb), bc = BB.ctx;
+      bc.clearRect(0, 0, W * qb, H * qb); bc.imageSmoothingQuality = 'low'; bc.filter = `blur(${(3.2 * dof).toFixed(2)}px)`; bc.drawImage(FB.canvas, 0, 0, W * qb, H * qb); bc.filter = 'none';
+      const rg = fc.createRadialGradient(fcx, fcy, r0, fcx, fcy, r1); rg.addColorStop(0, '#000'); rg.addColorStop(1, 'rgba(0,0,0,0)');
+      fc.globalCompositeOperation = 'destination-in'; fc.fillStyle = rg; fc.fillRect(0, 0, W, H); fc.globalCompositeOperation = 'source-over';
+      ctx.save(); ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'low'; ctx.drawImage(BB.canvas, 0, 0, W, H); ctx.drawImage(FB.canvas, 0, 0); ctx.restore();
+    } else ctx.drawImage(FB.canvas, 0, 0);
+    prof('dof');
+    // the sound comes to her: first to the hand, then around her head (beside the face, never over the eyes)
+    const tk = sm(1.4, 2.6, tc);
+    const tgt = { x: lerp(handS.x, faceS.x - 170, tk), y: lerp(handS.y, faceS.y - 120, tk) };
 
-    // fingertips that pass the far edge of his arm are behind it: clip the hand to the near side of that edge
-    ctx.save(); ctx.beginPath(); ctx.moveTo(-200, -200);
-    for (const q of sl.rgt) ctx.lineTo(q.x - 6, q.y);
-    ctx.lineTo(-200, H + 300); ctx.closePath(); ctx.clip();
-    L.hand(ctx, ho);
-    ctx.restore();
-    prof('hands');
+    // ---------------- colour returns: global ramp + local blooms where the sounds came from and around her (figures too)
+    if (1 - satG > 0.003) {
+      const M = satMask(1 - satG, (m) => {
+        for (const S2 of sources) { const k = sm(S2.t0, S2.t0 + 0.9, tc); if (k > 0) hole(m, S2.p.x, S2.p.y, 300 + 760 * k, 0.95 * k); }
+        hole(m, tgt.x, tgt.y, 300 + 420 * sm(0, 2, tc), 0.6);
+      });
+      ctx.save(); ctx.globalCompositeOperation = 'saturation'; ctx.drawImage(M, 0, 0, W, H); ctx.restore();
+    }
+    prof('sat');
 
-    // ---------------- sound: a ring + a stream of light motes from each source (their colour comes back with them)
-    // (accumulated at half resolution, added once)
+    // ---------------- sound: a ring + a stream of light motes from each source, flying to her (half res, added once)
     const q = 0.5, PB = PV.buffer('g11:c41parts', W * q, H * q), pc = PB.ctx;
     pc.setTransform(1, 0, 0, 1, 0, 0); pc.clearRect(0, 0, W * q, H * q); pc.setTransform(q, 0, 0, q, 0, 0); pc.globalCompositeOperation = 'lighter';
     let anyP = false;
     for (let si = 0; si < sources.length; si++) {
-      const S = sources[si], ra = tc - S.t0;
-      const flash = attack(tc, S.t0, 0.45);                       // the sound lights up where it comes from
-      if (flash > 0.01) { spark(pc, S.x, S.y, 300, S.cols[0], 0.4 * flash); spark(pc, S.x, S.y, 90, '#ffffff', 0.35 * flash); anyP = true; }
-      if (ra > 0 && ra < 1.3) {   // the sound itself: two soft rings opening out
-        for (let k = 0; k < 2; k++) {
-          const u = clamp((ra - k * 0.18) / 1.1, 0, 1); if (u <= 0) continue;
-          const rr = 30 + 520 * PV.ease.outCubic(u);
-          for (const [lw, aa] of [[22, 0.12], [7, 0.32], [2.5, 0.6]]) { pc.globalAlpha = aa * (1 - u) * (1 - u); pc.strokeStyle = S.cols[k]; pc.lineWidth = lw * (1.2 - 0.6 * u); pc.beginPath(); pc.ellipse(S.x, S.y, rr, rr * 0.7, 0, 0, TAU); pc.stroke(); anyP = true; }
-        }
-      }
-      for (let i = 0; i < S.n; i++) {
-        const age = tc - S.t0 - 0.16 * hash(i, si + 70); if (age < 0) continue;
+      const S2 = sources[si], sx = S2.p.x, sy = S2.p.y;
+      for (let i = 0; i < S2.n; i++) {
+        const age = tc - S2.t0 - 0.16 * hash(i, si + 70); if (age < 0) continue;
         const life = 1.3 + 1.0 * hash(i, si + 71); if (age > life + 0.8) continue;
-        const u = clamp(age / life, 0, 1), e = PV.ease.outCubic(u);
-        const tx = grip.x - 380 + 560 * (hash(i, si + 72) - 0.5), ty = grip.y - 120 + 480 * (hash(i, si + 73) - 0.5);
-        const sx0 = S.x + 140 * (hash(i, si + 74) - 0.5), sy0 = S.y + 140 * (hash(i, si + 75) - 0.5);
+        const u = clamp(age / life, 0, 1), ee = PV.ease.outCubic(u);
+        const tx = tgt.x - 260 + 620 * (hash(i, si + 72) - 0.5), ty = tgt.y - 60 + 480 * (hash(i, si + 73) - 0.5);
+        const sx0 = sx + 140 * (hash(i, si + 74) - 0.5), sy0 = sy + 140 * (hash(i, si + 75) - 0.5);
         const bend = 260 * (hash(i, si + 77) - 0.5);
-        const x = lerp(sx0, tx, e) + Math.sin(e * PI) * bend + 26 * Math.sin(age * 2.6 + i), y = lerp(sy0, ty, e) - 180 * u * u - Math.sin(e * PI) * bend * 0.4;
-        const a = sm(0, 0.12, age) * (1 - sm(life * 0.75, life + 0.8, age)) * (0.7 + 0.3 * Math.sin(age * 9 + i));
+        const x = lerp(sx0, tx, ee) + Math.sin(ee * PI) * bend + 26 * Math.sin(age * 2.6 + i), y = lerp(sy0, ty, ee) - 180 * u * u - Math.sin(ee * PI) * bend * 0.4;
+        const a = sm(0, 0.12, age) * (1 - sm(life * 0.6, life + 0.5, age)) * (0.7 + 0.3 * Math.sin(age * 9 + i)) * (1 - 0.45 * sm(1.6, 2.4, tc));
         const r = (7 + 12 * hash(i, si + 76)) * (1.3 - 0.45 * u);
-        const col = S.cols[i % 3];
+        const col = S2.cols[i % 3];
         spark(pc, x, y, r * 5.2, col, a * 0.7);
         spark(pc, x, y, r * 1.3, '#ffffff', a * 0.95);
-        // every fifth mote passes close to the lens: a big soft disc of the same colour
-        if (i % 5 === 0) { const nx = W / 2 + (x - W / 2) * 1.6, ny = H / 2 + (y - H / 2) * 1.6; spark(pc, nx, ny, r * 11, col, a * 0.22); }
+        if (i % 5 === 0) { const nx2 = W / 2 + (x - W / 2) * 1.6, ny2 = H / 2 + (y - H / 2) * 1.6; spark(pc, nx2, ny2, r * 11, col, a * 0.22); }
         anyP = true;
       }
     }
@@ -444,8 +571,6 @@
     L.dust(ctx, tc, { seed: 4111, count: 70, alpha: 0.28 + 0.4 * sm(0.5, 2.5, tc), color: '#fff3d0', size: 3.2, vx: 40, vy: -14 });
     prof('particles');
 
-    // ---------------- her long black hair streaming into the frame from the left edge (soft: close to the lens)
-    softLayer(ctx, 'c41hair', 0.5, 2.4, (c) => c41Hair(c, tc, bob), 1, [0, 440, 880, 640]);
     // spring petals on the breeze from behind them (to the right): crisp small ones + a few big soft ones near the lens
     L.petals(ctx, tc, { seed: 4141, count: 22, size: 11, fall: 70, wind: 210, color: '#ffd9e4', alpha: 0.85 });
     ctx.save(); ctx.globalCompositeOperation = 'screen';
@@ -459,17 +584,18 @@
     // ---------------- near leaves (just in front of the lens) at the very start: 葉擦れ
     if (tc < 0.95) softLayer(ctx, 'c41near', 0.125, 0.9, (c) => c41Leaves(c, tc, 760 - C41.vNear * tc, 70), 0.97, [0, 0, 1600, 640]);
     prof('near');
-    const wash = 0.45 * (1 - sm(0, 0.9, tc));
+    const wash = 0.3 * (1 - sm(0, 0.9, tc));
     if (wash > 0) { ctx.save(); ctx.globalCompositeOperation = 'screen'; ctx.fillStyle = PV.rgba('#fff6dd', wash); ctx.fillRect(0, 0, W, H); ctx.restore(); }
     prof('end');
   } });
 
   /* ======================================================================= C42 */
   // 167.0–170.0 (t 0–3.0).  Golden backlight at the seaside park: the white bridge of C15 / C24 / C27 glowing gold,
-  // the two sitting on the grass from behind — she is on his LEFT again (as on the promise night, C22).
-  // M21: 167.6 (0.6) every instrument drops out for one breath → 167.75 (0.75) piano A4『ね』 (left, her side)
+  // the two sitting on the grass seen from the front-oblique (the camera of C22 / C33) — she is on his LEFT again.
+  // M21: 167.6 (0.6) every instrument drops out for one breath → 167.75 (0.75) piano A4『ね』 (left channel)
   // → 168.5 (1.5) F#5『え』, the second note stolen by the accident, finally sounds → 169.25 (2.25) the guitar answers
-  // (right, his side,『何？』).  Visual: the light breathes with each note on its own side; she leans in a little.
+  // (right channel,『何？』).  Visual: a glint on the water for each note on its instrument's side; her eyes open and she
+  // turns to him on『ね』, smiles on『え』; he turns to her on the guitar's answer.
   function c42Land(ctx, x0, x1, hz, h, col, seed) {
     ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(x0, hz + 1);
     for (let x = x0; x <= x1; x += 6) { const u = (x - x0) / (x1 - x0), env = Math.pow(Math.sin(PI * Math.min(1, u * 1.15)), 0.6); ctx.lineTo(x, hz - h * env * (0.8 + 0.2 * PV.noise2(x * 0.02, seed)) - 2.5 * PV.noise2(x * 0.15, seed + 3) * env); }
@@ -507,13 +633,6 @@
     spark(ctx, 0, 0, 9 * s, '#ffffff', a);
     ctx.restore();
   }
-  // cached layers redrawn at 12 fps (2-koma): key -> buffer.  Drawn back every frame under the camera.
-  const layerKeys = {};
-  function layer12(name, key, paint) {
-    const B = PV.buffer('g11:L12:' + name);
-    if (layerKeys[name] !== key) { B.ctx.setTransform(1, 0, 0, 1, 0, 0); B.ctx.clearRect(0, 0, W, H); paint(B.ctx); B.ctx.setTransform(1, 0, 0, 1, 0, 0); layerKeys[name] = key; }
-    return B.canvas;
-  }
   const C42 = { hz: 606, sx: 1300, sy: 552 };
   function c42Plate(c, tq) {
     const { hz, sx, sy } = C42;
@@ -534,23 +653,94 @@
       light: 'right', rim: '#ffd59a', rimAmt: 0.9, haze: 0.2, hazeColor: '#ffcf9e' });
     L.glow(c, sx, sy + 10, 760, '#ffcf8a', 0.32);
   }
-  PV.shot('C42', { draw(ctx, t, d) {
+  /* ---------------------------------------------------------------- C42: the two of them (PV.anime) */
+  // The same camera as C22 (g06) and C33 (g09): the pair 'sit_side' seen from the front-oblique (facing -0.42, camPitch 0.2) —
+  // she is on his LEFT again (screen right), as on the promise night. The low sun is behind them (golden backlight): their faces
+  // sit in a warm lavender shade with a lit sliver toward the sun, a broad rim of gold round hair and shoulders (head rimW 2).
+  // The pair stands right of centre so the white bridge of C15's photo stays clear on the left and the sun glows behind her.
+  // Acting (local time on twos): eyes closed in the light → 0.7 (167.7『ねえ』) her eyes open and she turns her face to him, her
+  // lips shaping ね (piano A4, 0.75) and え (F#5, 1.5 — the note the accident took) → the smile opens on the second note;
+  // 2.25 (169.25) the guitar answers (原作6789『何？』): he turns to her, a calm face.
+  const C42F = { x: 1165, y: 1006, s: 178, facing: -0.42, camPitch: 0.2, rimDir: 0.42, cx: 1110, cy: 520, region: [620, 190, 1060, 890] };
+  function c42Act(tq) {
+    return {
+      open: sm(0.66, 0.84, tq), glance: sm(0.7, 0.82, tq), turn: PV.ease.inOut(clamp((tq - 0.76) / 0.5, 0, 1)),
+      ne: gauss(tq, 0.86, 0.07), e: gauss(tq, 1.62, 0.09), bloom: sm(1.55, 2.05, tq),
+      answer: PV.ease.inOut(clamp((tq - 2.18) / 0.42, 0, 1)), breath: gauss(tq, 0.62, 0.12),
+    };
+  }
+  const C42_FACE = { rimW: 2, shade: 0.58, lightDir: 0.42, faceLift: 0.72 };
+  // the golden backlight: the 'sunset' light with the fronts of the bodies in more shade (the sun is behind them)
+  let c42L = null;
+  const c42Light = () => c42L || (c42L = Object.assign({}, PV.anime.LIGHT.sunset, { amb: 0.4, dark: 0.86 }));
+  function c42HerHead(a) {
+    const say = Math.max(a.ne, a.e);
+    if (a.open < 0.3) return Object.assign({ expr: 'closed', blush: 0.24, noBlink: true }, C42_FACE);
+    return Object.assign({
+      expr: 'gentle', blush: 0.3 + 0.3 * a.bloom, noBlink: a.bloom < 0.5,
+      eyes: { open: lerp(0.35, 0.96, a.open) * (1 - 0.1 * a.bloom), look: [-0.85 * Math.max(a.glance, a.turn), -0.14 * a.turn], smile: 0.4 * a.bloom, hlK: 1.05 + 0.25 * a.bloom, shine: 1 },
+      mouth: say > 0.2 ? { shape: 'e', open: 0.34 * say } : { shape: 'smile', open: 0.08 + 0.2 * a.bloom },
+    }, C42_FACE);
+  }
+  function c42HisHead(a) {
+    const w = a.answer;
+    return Object.assign({
+      expr: 'neutral', blush: 0.08 + 0.14 * w,
+      eyes: { open: lerp(0.86, 1.04, w), look: [lerp(-0.05, 0.7, w), lerp(0.18, 0.02, w)] },
+      brows: { inner: 0.18 * w, outer: 0.1 * w },
+      mouth: { shape: 'smile', open: 0, asym: -0.35 * w },
+    }, C42_FACE);
+  }
+  // backlit blades in front of the two (they sit IN the grass), deterministic, swaying on twos
+  function c42FrontBlades(c, tq) {
+    const r = PV.rng(4290);
+    for (let i = 0; i < 150; i++) {
+      const x = 760 + 820 * r(), base = 1000 + 95 * r(), len = 26 + 56 * r(), lean = (r() - 0.45) * 0.6 + 0.08 * Math.sin(tq * 1.7 + i), bw = 2.2 + 3 * r();
+      const tx = x + lean * len, ty = base - len;
+      c.fillStyle = PV.mix('#1c141a', '#2f2128', r()); c.beginPath(); c.moveTo(x - bw, base); c.quadraticCurveTo(x + lean * len * 0.3, base - len * 0.6, tx, ty); c.quadraticCurveTo(x + lean * len * 0.3 + bw * 0.4, base - len * 0.5, x + bw, base); c.closePath(); c.fill();
+      if (r() < 0.7) { c.strokeStyle = PV.rgba(r() < 0.5 ? '#ffd394' : '#ffb470', 0.45 + 0.4 * r()); c.lineWidth = 1 + r(); c.beginPath(); c.moveTo(x + bw * 0.6, base - len * 0.3); c.quadraticCurveTo(x + lean * len * 0.3 + bw, base - len * 0.6, tx, ty); c.stroke(); }
+    }
+  }
+  // the two of them on twos, in a buffer that covers only their region (screen px at the tick's camera)
+  let c42Key = null;
+  function c42Layer(key, R, paint) {
+    const B = PV.buffer('g11:c42fig', R[2], R[3]);
+    if (c42Key !== key) { B.ctx.setTransform(1, 0, 0, 1, 0, 0); B.ctx.clearRect(0, 0, R[2], R[3]); paint(B.ctx); B.ctx.setTransform(1, 0, 0, 1, 0, 0); c42Key = key; }
+    return B.canvas;
+  }
+  const c42Cam = (tc, d) => { const push = PV.ease.inOut(clamp((tc + 0.6) / (d + 0.6), 0, 1)); return { zoom: 1.0 + 0.11 * push, cx: C42F.cx, cy: C42F.cy }; };
+  PV.shot('C42', { draw(ctx, t, d, S) {
     const tc = clamp(t, -0.7, d + 0.3);
     profCtx = ctx; prof('start');
-    const push = PV.ease.inOut(clamp((tc + 0.6) / (d + 0.6), 0, 1));
     const { hz, sx, sy } = C42;
     const n1 = attack(tc, 0.75, 0.35), n2 = attack(tc, 1.5, 0.6), n3 = attack(tc, 2.25, 0.45);   // ね / え / 何？
-    const k2 = Math.floor(tc * 12 + 0.5 + 1e-6);   // staggered 12 fps ticks
+    // staggered 12 fps ticks; the first half-second is one held drawing (eyes closed in the light, the music's one breath —
+    // and the dissolve from C41, which draws both shots, stays light)
+    const k2 = Math.max(0, Math.floor(tc * 12 + 0.5 + 1e-6) - 5) === 0 ? 0 : Math.floor(tc * 12 + 0.5 + 1e-6);
+    const cam = c42Cam(tc, d);
     const plate = PV.cached('g11:c42plate3', W, H, (c) => c42Plate(c, 1.5));       // static painting (the water shimmer is added live)
     prof('plate');
-    const fig = layer12('c42fig', k2, (c) => {
-      const tq = k2 / 12, lean = 0.2 * PV.ease.inOut(clamp((tq - 1.5) / 0.85, 0, 1)), hz2 = gauss(tq, 0.62, 0.12), m2 = attack(tq, 1.5, 0.6);
-      c.drawImage(c42Lawn(4202), -140 - 6 * Math.sin(tq * 0.9), 772);
-      L.coupleSittingBack(c, tq, { x: 880, y: 1004, scale: 1.34, seat: 'grass', lean, girlOutfit: 'blouse', boyOutfit: 'shirt', fps: 0,
-        wind: 0.42 - 0.25 * hz2, windDir: Math.PI - 0.15, light: -0.36, rimColor: '#ffc982', backlight: 0.3 + 0.1 * m2, glow: 0.9, rim: 1.15 });
+    // the lawn and the two of them, re-drawn on twos (12 fps) under the camera of their tick; each frame only the tiny
+    // difference of the slow push-in is applied to the layer
+    const camK = c42Cam(k2 / 12, d), FR = C42F.region;
+    const fig = c42Layer(k2, FR, (c) => {
+      const tq = k2 / 12, a = c42Act(tq), T = absT(S, 'C42', tq), P = C42F;
+      c.translate(-FR[0], -FR[1]); PV.camera(c, camK);
+      // soft contact shadow where they sit
+      const gs = c.createRadialGradient(P.x - 20, P.y + 8, 10, P.x - 20, P.y + 8, 2.6 * P.s); gs.addColorStop(0, 'rgba(18,10,16,0.5)'); gs.addColorStop(1, 'rgba(18,10,16,0)');
+      c.save(); c.translate(0, P.y + 8); c.scale(1, 0.18); c.translate(0, -(P.y + 8)); c.fillStyle = gs; c.fillRect(P.x - 3 * P.s, P.y + 8 - 2.6 * P.s, 6 * P.s, 5.2 * P.s); c.restore();
+      AN().pair(c, { pose: 'sit_side', x: P.x, y: P.y, scale: P.s, facing: P.facing, camPitch: P.camPitch, T, light: c42Light(), rimDir: P.rimDir,
+        wind: 0.3 - 0.2 * a.breath, windDir: 0.25,                // the breeze off the sea streams their hair away from her face
+        params: { side: 'left', look: 0.45 * a.turn, boyLook: 0.85 * a.answer, boyNod: 0.07 + 0.03 * (1 - a.answer) },
+        senpai: { outfit: 'ending', head: c42HerHead(a) },
+        boy: { outfit: 'ending', head: c42HisHead(a) } });
+      prof('pair');
+      c42FrontBlades(c, tq);
+      prof('blades');
+      c.setTransform(1, 0, 0, 1, 0, 0);
     });
     prof('figs');
-    ctx.save(); PV.camera(ctx, { zoom: 1.0 + 0.075 * push, cx: 880, cy: 640 });
+    ctx.save(); PV.camera(ctx, cam);
     ctx.drawImage(plate, 0, 0);
     // live shimmer on the sun's road (the plate itself is still)
     ctx.save(); ctx.globalCompositeOperation = 'screen';
@@ -560,22 +750,30 @@
       ctx.globalAlpha = tw * 0.7; ctx.drawImage(dot('#fff0c8'), x - 7 - (y - hz) * 0.05, y - 1.5, 14 + (y - hz) * 0.1, 3);
     }
     ctx.restore();
-    // the notes on the water, each on its own side: ね (piano, left: her side), え, 何？ (guitar, right: his side)
+    // the notes on the water, on the side of their instrument: ね, え (piano, left), 何？ (guitar, right)
     glint(ctx, 560, 700, 0.8 + 0.4 * n1, 0.2 + 0.9 * n1);
     glint(ctx, 470, 652, 1.15 + 0.5 * n2, 0.2 + 1.0 * n2);
-    glint(ctx, 1330, 712, 0.9 + 0.4 * n3, 0.2 + 0.9 * n3, '#ffe6c0');
-    ctx.drawImage(fig, 0, 380, W, H - 380, 0, 380, W, H - 380);      // (the figures and the lawn live below y 380)
+    glint(ctx, 1640, 690, 0.9 + 0.4 * n3, 0.2 + 0.9 * n3, '#ffe6c0');
+    // anamorphic streak through the sun (behind the two: it must not cross their faces)
+    ctx.save(); ctx.globalCompositeOperation = 'screen';
+    const sg = ctx.createLinearGradient(sx - 1000, 0, sx + 1000, 0); sg.addColorStop(0, 'rgba(255,214,150,0)'); sg.addColorStop(0.5, `rgba(255,232,190,${0.32 + 0.1 * n2})`); sg.addColorStop(1, 'rgba(255,214,150,0)');
+    ctx.fillStyle = sg; ctx.fillRect(sx - 1000, sy - 3, 2000, 6);
     ctx.restore();
+    ctx.restore();
+    // the backlit lawn (static painting; it only sways a little, on twos) under the two of them
+    ctx.save(); PV.camera(ctx, cam); ctx.drawImage(c42Lawn(4202), -140 - Math.round(6 * Math.sin((k2 / 12) * 0.9)), 772); ctx.restore();
+    ctx.save(); PV.camera(ctx, { zoom: cam.zoom / camK.zoom, cx: cam.cx, cy: cam.cy }); ctx.drawImage(fig, FR[0], FR[1]); ctx.restore();
+    // the low sun just behind her shoulder bleeds over the edge of her silhouette (light, not a hard cut-out)
+    ctx.save(); PV.camera(ctx, cam); ctx.globalCompositeOperation = 'screen';
+    const sb = ctx.createRadialGradient(sx + 40, sy + 18, 0, sx + 40, sy + 18, 230); sb.addColorStop(0, 'rgba(255,236,196,0.5)'); sb.addColorStop(0.45, 'rgba(255,214,150,0.18)'); sb.addColorStop(1, 'rgba(255,214,150,0)');
+    ctx.fillStyle = sb; ctx.fillRect(sx - 200, sy - 220, 480, 480); ctx.restore();
     prof('comp');
     // light in the air: dust + a few petals, slow; the light breathes with the notes on its own side
     L.dust(ctx, tc, { seed: 4211, count: 90, alpha: 0.55, color: '#ffe2b0', size: 3.4, vx: -8, vy: -10, drift: 40 });
     L.petals(ctx, tc, { seed: 4212, count: 9, size: 10, fall: 26, wind: -40, color: '#ffd8c0', alpha: 0.7 });
     ctx.save(); ctx.globalCompositeOperation = 'screen';
     spark(ctx, 600, 560, 520, '#ffcf8a', 0.1 + 0.22 * n2 + 0.1 * n1);
-    spark(ctx, 1200, 560, 460, '#ffe1b8', 0.12 * n3);
-    // anamorphic streak through the sun
-    const sg = ctx.createLinearGradient(sx - 1000, 0, sx + 1000, 0); sg.addColorStop(0, 'rgba(255,214,150,0)'); sg.addColorStop(0.5, `rgba(255,232,190,${0.32 + 0.1 * n2})`); sg.addColorStop(1, 'rgba(255,214,150,0)');
-    ctx.fillStyle = sg; ctx.fillRect(sx - 1000, sy - 3, 2000, 6);
+    spark(ctx, 1500, 560, 460, '#ffe1b8', 0.12 * n3);
     ctx.restore();
     prof('fx');
   } });

@@ -69,67 +69,6 @@
       c.fillRect(0, 0, 64, 64);
     });
   }
-  /* ============================================================ figure primitives
-   * (adapted from figures.js, which keeps them private) — used for the standing girl in profile (C12) */
-  const fadd = (a, b) => [a[0] + b[0], a[1] + b[1]];
-  const fsub = (a, b) => [a[0] - b[0], a[1] - b[1]];
-  const flen = (a) => Math.hypot(a[0], a[1]);
-  const fpolar = (p, ang, r) => [p[0] + Math.cos(ang) * r, p[1] + Math.sin(ang) * r];
-  const dirDeg = (p, deg, len) => [p[0] + Math.sin(deg * PI / 180) * len, p[1] + Math.cos(deg * PI / 180) * len];
-  const frameF = (o, up) => (x, h) => [o[0] - up[1] * x + up[0] * h, o[1] + up[0] * x + up[1] * h];
-  function spline(c, pts, closed, move = true, k = 1) {
-    const n = pts.length; if (n < 2) return;
-    const P = (i) => (closed ? pts[((i % n) + n) % n] : pts[Math.max(0, Math.min(n - 1, i))]);
-    if (move) c.moveTo(pts[0][0], pts[0][1]); else c.lineTo(pts[0][0], pts[0][1]);
-    const m = closed ? n : n - 1;
-    for (let i = 0; i < m; i++) {
-      const p0 = P(i - 1), p1 = P(i), p2 = P(i + 1), p3 = P(i + 2);
-      const s1 = p1[2] ? 0 : k / 6, s2 = p2[2] ? 0 : k / 6;
-      c.bezierCurveTo(p1[0] + (p2[0] - p0[0]) * s1, p1[1] + (p2[1] - p0[1]) * s1, p2[0] - (p3[0] - p1[0]) * s2, p2[1] - (p3[1] - p1[1]) * s2, p2[0], p2[1]);
-    }
-    if (closed) c.closePath();
-  }
-  function blob(c, pts, k) { c.beginPath(); spline(c, pts, true, true, k); c.fill(); }
-  function ell(c, x, y, rx, ry, rot = 0) { c.beginPath(); c.ellipse(x, y, Math.max(1e-4, rx), Math.max(1e-4, ry), rot, 0, TAU); c.fill(); }
-  function smoothPoly(c, P, move) {
-    const n = P.length; if (move) c.moveTo(P[0][0], P[0][1]); else c.lineTo(P[0][0], P[0][1]);
-    if (n < 3) { for (let i = 1; i < n; i++) c.lineTo(P[i][0], P[i][1]); return; }
-    for (let i = 1; i < n - 1; i++) c.quadraticCurveTo(P[i][0], P[i][1], (P[i][0] + P[i + 1][0]) / 2, (P[i][1] + P[i + 1][1]) / 2);
-    c.lineTo(P[n - 1][0], P[n - 1][1]);
-  }
-  function limb(c, p0, p1, prof, n = 14) {
-    const dx = p1[0] - p0[0], dy = p1[1] - p0[1], l = Math.hypot(dx, dy) || 1e-6, ux = dx / l, uy = dy / l, ax = uy, ay = -ux;
-    const at = (f) => {
-      for (let i = 0; i < prof.length - 1; i++) if (f <= prof[i + 1][0]) { const a = prof[i], b = prof[i + 1]; const k = clamp((f - a[0]) / ((b[0] - a[0]) || 1)); const e = k * k * (3 - 2 * k); return [lerp(a[1], b[1], e), lerp(a[2], b[2], e)]; }
-      const z = prof[prof.length - 1]; return [z[1], z[2]];
-    };
-    const A = [], B = [];
-    for (let i = 0; i <= n; i++) { const f = i / n, w = at(f), px = p0[0] + dx * f, py = p0[1] + dy * f; A.push([px + ax * w[0], py + ay * w[0]]); B.push([px - ax * w[1], py - ay * w[1]]); }
-    const ang = Math.atan2(uy, ux), w0 = at(0), w1 = at(1);
-    const r1 = (w1[0] + w1[1]) / 2, o1 = (w1[0] - w1[1]) / 2, r0 = (w0[0] + w0[1]) / 2, o0 = (w0[0] - w0[1]) / 2;
-    c.beginPath(); smoothPoly(c, A, true);
-    c.arc(p1[0] + ax * o1, p1[1] + ay * o1, Math.max(1e-4, r1), ang - HP, ang + HP, false);
-    smoothPoly(c, B.reverse(), false);
-    c.arc(p0[0] + ax * o0, p0[1] + ay * o0, Math.max(1e-4, r0), ang + HP, ang + 3 * HP, false);
-    c.closePath(); c.fill();
-  }
-  function local(c, p, a, k, my, fn) { c.save(); c.translate(p[0], p[1]); c.rotate(a); c.scale(k, k * (my || 1)); fn(c); c.restore(); }
-  // girl specs (head units, girl 7.2u)
-  const GIRL = { hipY: 3.78, torso: 2.18, waistH: 0.72, upArm: 1.15, foreArm: 0.98, hand: 0.72, armR: 0.125, thigh: 1.8, shin: 1.72, legR: 0.27, head: 1, neck: 0.7 };
-  const S_THIGH = [[0, 0.34, 0.34], [0.3, 0.3, 0.26], [0.75, 0.205, 0.185], [1, 0.162, 0.158]];
-  const S_SHIN = [[0, 0.162, 0.158], [0.22, 0.13, 0.198], [0.5, 0.108, 0.148], [0.85, 0.083, 0.085], [1, 0.078, 0.08]];
-  const S_UPARM = [[0, 0.15, 0.15], [0.2, 0.145, 0.124], [0.5, 0.118, 0.108], [1, 0.088, 0.086]];
-  const S_FOREARM = [[0, 0.088, 0.086], [0.25, 0.096, 0.09], [1, 0.054, 0.052]];
-  const GIRL_CAP_SIDE = [[0.33, -0.4], [0.2, -0.56], [-0.05, -0.62], [-0.32, -0.55], [-0.5, -0.33], [-0.55, -0.05], [-0.48, 0.22], [-0.36, 0.36], [-0.22, 0.18], [-0.05, 0.02], [0.12, -0.12], [0.22, -0.26]];
-  function headProfileGirl(c) {
-    blob(c, [[-0.04, -0.53], [0.22, -0.47], [0.36, -0.3], [0.395, -0.1], [0.385, -0.01], [0.465, 0.125, 1], [0.39, 0.175], [0.4, 0.23], [0.372, 0.262], [0.39, 0.295], [0.345, 0.34], [0.35, 0.395], [0.29, 0.44], [0.1, 0.42], [-0.04, 0.3], [-0.28, 0.2], [-0.44, -0.05], [-0.38, -0.33]]);
-  }
-  function girlBangsSide(c, t, wind) {
-    const wx = -wind; const b = (x, y, i, sh) => [x + wx * 0.08 * (1 + 0.4 * N2(i * 3.3, t * 1.4)), y - Math.abs(wx) * 0.04 * (1 + N2(i, t)), sh ? 1 : 0];
-    blob(c, [[0.28, -0.44], b(0.41, -0.3, 0), b(0.45, -0.05, 1, 1), [0.385, -0.12], b(0.41, 0.0, 2, 1), [0.33, -0.08], [0.25, -0.02], [0.18, 0.06], [0.1, -0.2], [0.02, -0.42]]);
-  }
-  function shoeLoafer(c, ankle, ang, size) { local(c, ankle, ang, size, 1, (cc) => blob(cc, [[-0.12, -0.06], [-0.2, 0.08], [-0.2, 0.27, 1], [0.1, 0.29], [0.7, 0.29], [0.86, 0.24], [0.83, 0.12], [0.58, 0.04], [0.3, -0.02], [0.08, -0.08]])); }
-
   /* ========================================================================== C09
    * Overhead, his left palm held up over his lap (a callus on every fingertip). Her right forefinger comes in from
    * above-left, stops a breath short of him, and touches the middle fingertip at 29.6 (= 1.6 local).
@@ -309,14 +248,132 @@
     L.dust(ctx, u, { seed: 94, count: 46, size: 2.4, alpha: 0.5, drift: 40, vx: 9, vy: -4, color: '#fff3dc' });
   } });
 
+  /* ===================================================================== the music-room set (PV.anime characters)
+   * The grand piano stands where g01 put it for C02/C04 (anime rework): she sits facing the blackboard end of the room,
+   * the windows behind her on her left, so the camera that looks at the window wall sees her face from the treble end.
+   * PIANO: room point of the piano's anchor and its rotY (instruments.js grandPiano), her bench in piano-local x. */
+  const PIANO = { at: [7.46, 4.77], yaw: -0.52, benchX: -0.5 };
+  const pianoL2R = (p) => { const a = PIANO.yaw, c = Math.cos(a), s = Math.sin(a), x = p[0] - 0.84, z = p[2] - 0.745; return [PIANO.at[0] + x * c + z * s, p[1], PIANO.at[1] - x * s + z * c]; };
+  const BENCH = pianoL2R([PIANO.benchX, 0.495, 0.745]);           // top centre of her bench: the keys are one of her heads above it
+  const HER_DIR = [Math.cos(PIANO.yaw), -Math.sin(PIANO.yaw)];     // the room direction she faces at the keys (x, z)
+  const HER_RT = [Math.sin(PIANO.yaw), Math.cos(PIANO.yaw)];       // her right (the treble end)
+  const KEY_Z = (-0.15 - PIANO.benchX) / 0.23 + 0.06;             // pose 'piano' keyZ: the key front edge in her head units
+  const HEAD_M = { senpai: 0.23, boy: 0.244 };                     // head height (chin -> crown) in metres: 161 cm / 7.0, 178 cm / 7.3
+  const AN = () => PV.anime;
+  const V3 = {
+    add: (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]], sub: (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]],
+    mul: (a, k) => [a[0] * k, a[1] * k, a[2] * k], dot: (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2],
+    cross: (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]],
+    norm: (a) => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; },
+  };
+  // a pinhole camera with the conventions of instruments.js (r = f x up, u = r x f, screen y down): usable as grandPiano's
+  // roomCam ({eye, f, u, focal, cx, cy}) and for placing the figures
+  function mkCam(eye, tgt, fov) {
+    const f = V3.norm(V3.sub(tgt, eye)), r = V3.norm(V3.cross(f, [0, 1, 0])), u = V3.cross(r, f);
+    const focal = (W / 2) / Math.tan(fov * PI / 360), cam = { eye, f, r, u, focal, cx: W / 2, cy: H / 2, near: 0.05 };
+    cam.cs = (p) => { const d = V3.sub(p, eye); return [V3.dot(d, r), V3.dot(d, u), V3.dot(d, f)]; };
+    cam.p = (p) => { const q = cam.cs(p), z = Math.max(q[2], cam.near); return [cam.cx + focal * q[0] / z, cam.cy - focal * q[1] / z, q[2]]; };
+    cam.scaleAt = (p) => focal / Math.max(cam.cs(p)[2], cam.near);
+    return cam;
+  }
+  // a figure whose pose anchor is at room point p, facing the room direction fd [x, z], seen by camera cam: its screen
+  // anchor, head size in px, facing relative to the line of sight (+ toward screen right), the camera's pitch toward its chest
+  function figPlace(cam, p, fd, who, chestH) {
+    const a = cam.p(p), s = cam.scaleAt(p) * HEAD_M[who];
+    let tx = cam.eye[0] - p[0], tz = cam.eye[2] - p[2]; const tl = Math.hypot(tx, tz); tx /= tl; tz /= tl;
+    let rx = cam.r[0], rz = cam.r[2]; const rl = Math.hypot(rx, rz) || 1; rx /= rl; rz /= rl;
+    return { x: a[0], y: a[1], scale: s, facing: Math.atan2(fd[0] * rx + fd[1] * rz, fd[0] * tx + fd[1] * tz),
+      camPitch: Math.atan2(cam.eye[1] - p[1] - (chestH || 0.45), tl) };
+  }
+  // the 2-D affine [a, b, c, d, e, f] (setTransform order) that maps the three points s[i] onto d[i]
+  function affine3(s, d) {
+    const [x0, y0] = s[0], [x1, y1] = s[1], [x2, y2] = s[2], det = x0 * (y1 - y2) - y0 * (x1 - x2) + (x1 * y2 - x2 * y1);
+    const solve = (v0, v1, v2) => [(v0 * (y1 - y2) - y0 * (v1 - v2) + (v1 * y2 - v2 * y1)) / det,
+      (x0 * (v1 - v2) - v0 * (x1 - x2) + (x1 * v2 - x2 * v1)) / det,
+      (x0 * (y1 * v2 - y2 * v1) - y0 * (x1 * v2 - x2 * v1) + v0 * (x1 * y2 - x2 * y1)) / det];
+    const X = solve(d[0][0], d[1][0], d[2][0]), Y = solve(d[0][1], d[1][1], d[2][1]);
+    return [X[0], Y[0], X[1], Y[1], X[2], Y[2]];
+  }
+  const area2 = (q) => { let a = 0; for (let i = 0; i < q.length; i++) { const p = q[i], r = q[(i + 1) % q.length]; a += p[0] * r[1] - r[0] * p[1]; } return a; };
+  function hull2(pts) {
+    const p = pts.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]); if (p.length < 3) return p;
+    const cr = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+    const lo = [], up = [];
+    for (const q of p) { while (lo.length >= 2 && cr(lo[lo.length - 2], lo[lo.length - 1], q) <= 0) lo.pop(); lo.push(q); }
+    for (let i = p.length - 1; i >= 0; i--) { const q = p[i]; while (up.length >= 2 && cr(up[up.length - 2], up[up.length - 1], q) <= 0) up.pop(); up.push(q); }
+    return lo.slice(0, -1).concat(up.slice(0, -1));
+  }
+  // the scene's grand piano options under camera cam (R: a musicRoom result, for its window environment and sun). The library's
+  // rimLit pass costs ~85 ms per new camera: the piano keeps its own lit lacquer edges instead (the camera moves every frame)
+  const pianoOpts = (R, cam, extra) => Object.assign(R.piano(PIANO.at[0], PIANO.at[1], PIANO.yaw, { lidOpen: 1, bench: false, desk: false }), { roomCam: cam }, extra || {});
+  // the piano under camera cam into a full-frame layer (re-used by keysOver), rimmed, painted onto ctx; returns grandPiano's result
+  function drawPiano(ctx, R, cam) {
+    const PB = PV.buffer('g03:piano'); PB.ctx.clearRect(0, 0, W, H);
+    { // its soft shadow on the floor (the library's own shadow is a blurred full-frame pass): a projected ellipse under the case
+      const c0 = cam.p(pianoL2R([0.95, 0, 0.72])), cx = cam.p(pianoL2R([1.95, 0, 0.72])), cz = cam.p(pianoL2R([0.95, 0, 1.6]));
+      const ax = [cx[0] - c0[0], cx[1] - c0[1]], az = [cz[0] - c0[0], cz[1] - c0[1]];
+      PB.ctx.save(); PB.ctx.setTransform(ax[0], ax[1], az[0], az[1], c0[0], c0[1]);
+      PB.ctx.fillStyle = radial(PB.ctx, 0, 0, 1, [[0, 'rgba(24,14,10,0.42)'], [0.6, 'rgba(24,14,10,0.24)'], [1, 'rgba(24,14,10,0)']]);
+      PB.ctx.beginPath(); PB.ctx.arc(0, 0, 1, 0, TAU); PB.ctx.fill(); PB.ctx.restore(); }
+    const res = L.grandPiano(PB.ctx, pianoOpts(R, cam, { cache: false, shadow: 0 })) || {};
+    PRF('pianoDraw', PB.ctx);
+    ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(PB.canvas, 0, 0); ctx.restore();
+    PRF('pianoBlit', ctx);
+    res.layer = PB.canvas;
+    return res;
+  }
+  // 先輩 at the grand piano, seen by camera cam (her own bench; the keys are the scene's piano: keyH / keyZ match it)
+  function drawPianist(c, cam, T, o) {
+    const P = figPlace(cam, BENCH, HER_DIR, 'senpai', 0.42);
+    return AN().figure(c, {
+      who: 'senpai', outfit: 'uniform', pose: 'piano', facing: P.facing, camPitch: P.camPitch, x: P.x, y: P.y, scale: P.scale, T,
+      light: o.light || 'window', rimDir: o.rimDir === undefined ? -2.0 : o.rimDir, rimA: o.rimA, rimColor: o.rimColor, amb: o.amb,
+      params: { intensity: o.intensity, play: o.play === undefined ? 1 : o.play, hands: o.hands || 'keys', look: o.look || 'keys', breathe: o.breathe || 0,
+        lean: o.lean || 0, tilt: o.tilt || 0, neckYaw: o.neckYaw || 0, keys: false, bench: true, benchH: 2.15, keyH: 1.0, keyZ: KEY_Z },
+      head: o.head || {},
+    });
+  }
+  // The scene's keyboard lies in front of her lap and under her hands (the body library only knows that for its own keys):
+  // after she is painted, the piano (the same cached image) is painted again inside the projected keyboard -- key tops, the
+  // front of the keybed, the treble cheek block and the treble front leg -- minus her arms (a capsule from each shoulder to just
+  // past each hand). c: the layer she is painted in (identity transform), info: PV.anime.figure's return, s: her head px
+  function keysOver(c, pianoLayer, cam, info, s) {
+    const Wd = 1.49, cw = (Wd - 1.222) / 2, P = (x, y, z) => cam.p(pianoL2R([x, y, z]));
+    const polys = [
+      [P(-0.152, 0.74, cw), P(0.002, 0.74, cw), P(0.002, 0.74, Wd - cw), P(-0.152, 0.74, Wd - cw)],          // key tops (black keys included)
+      [P(-0.158, 0.62, cw), P(-0.158, 0.745, cw), P(-0.158, 0.745, Wd - cw), P(-0.158, 0.62, Wd - cw)],      // front of the keybed
+    ];
+    const corners = (b) => { const o = []; for (const x of [b[0], b[3]]) for (const y of [b[1], b[4]]) for (const z of [b[2], b[5]]) o.push(P(x, y, z)); return o; };
+    for (const b of [[-0.176, 0.62, Wd - cw - 0.004, 0.003, 0.806, Wd + 0.004], [-0.142, 0, Wd - cw + 0.01, -0.028, 0.63, Wd - 0.008]]) polys.push(hull2(corners(b)));
+    let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+    for (const q of polys) for (const p of q) { x0 = Math.min(x0, p[0]); y0 = Math.min(y0, p[1]); x1 = Math.max(x1, p[0]); y1 = Math.max(y1, p[1]); }
+    x0 = Math.max(0, Math.floor(x0) - 2); y0 = Math.max(0, Math.floor(y0) - 2); x1 = Math.min(W, Math.ceil(x1) + 2); y1 = Math.min(H, Math.ceil(y1) + 2);
+    if (x1 <= x0 || y1 <= y0) return;
+    const B = PV.buffer('g03:keysOver'), bc = B.ctx;
+    bc.clearRect(x0, y0, x1 - x0, y1 - y0);
+    bc.save(); bc.beginPath();
+    for (let q of polys) { if (area2(q) < 0) q = q.slice().reverse(); q.forEach((p, i) => (i ? bc.lineTo(p[0], p[1]) : bc.moveTo(p[0], p[1]))); bc.closePath(); }
+    bc.clip(); bc.drawImage(pianoLayer, 0, 0); bc.restore();
+    bc.globalCompositeOperation = 'destination-out'; bc.lineCap = 'round'; bc.strokeStyle = '#000'; bc.lineWidth = s * 0.44;
+    for (const k of ['L', 'R']) {
+      const S0 = info.shoulders[k], Hh = info.hands[k];
+      bc.beginPath(); bc.moveTo(S0[0], S0[1]); bc.lineTo(Hh[0] + (Hh[0] - S0[0]) * 0.22, Hh[1] + (Hh[1] - S0[1]) * 0.22); bc.stroke();
+    }
+    bc.globalCompositeOperation = 'source-over';
+    c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.drawImage(B.canvas, x0, y0, x1 - x0, y1 - y0, x0, y0, x1 - x0, y1 - y0); c.restore();
+  }
+
   /* ========================================================================== C10
-   * The room from behind her, low and to her left; the camera swings right and rises (multiplane: the window wall
-   * slides right/up behind her, the near motes and the shaded curtain at the right edge slide left/down). She sways
-   * with the melody (piano MEL_A, rubato: 31.0 F#5 / 32.2 E5 / 32.54 D5 / 33.25 A4 / 34.0 C#5). */
-  const C10_PIANO = { x: 5.75, z: 3.35, yaw: 1.32 };
-  const C10_CAM = { eye: [6.75, 1.42, 7.9], target: [5.15, 1.02, 2.6], fov: 46 };
+   * The singing piano. The camera starts on her right (her profile at the keys, the windows behind her) and swings
+   * round toward her front while it rises (orbit right + crane up): the profile opens into a 3/4 face. Eyes closed, a calm
+   * smile, the hair rimmed gold by the window; she sways with the melody (piano MEL_A, rubato: 31.0 F#5 / 32.2 E5 / 32.54
+   * D5 / 33.25 A4 / 34.0 C#5) and, at the end of the cut, slowly opens her eyes: the light comes on in them (design 2-5).
+   * The piano and she are drawn with the real orbiting camera every frame; the room behind (curtains, sky, petals) is drawn
+   * by a fixed camera and laid in with two affine warps (wall / floor) that agree on the wall's base line. */
   const C10_NOTES = [0.0, 1.2, 1.54, 2.25, 3.0];
-  const benchOf = (p) => [p.x - 1.46 * Math.cos(p.yaw), 0.5, p.z + 1.46 * Math.sin(p.yaw)];
+  // dev timing (PV._g03prof = true): per-stage ms printed to the console
+  let PRF_T = 0, PRF_L = [];
+  function PRF(tag, c) { if (!PV._g03prof) return; if (c) c.getImageData(0, 0, 1, 1); const n = performance.now(); if (tag === 'start') { PRF_T = n; PRF_L = []; return; } PRF_L.push(tag + ' ' + (n - PRF_T).toFixed(0)); PRF_T = n; if (tag === 'end') console.error('g03 ' + PRF_L.join(' | ')); }
   const ppmAt = (R, w) => Math.abs(R.project([w[0], w[1], w[2]])[1] - R.project([w[0], w[1] + 1, w[2]])[1]);
   const BAYS = [0, 1, 2, 3].map(k => [1.3 + k * 3.1, 1.3 + k * 3.1 + 2.5]);
   function glassPath(ctx, R, inset) {
@@ -426,78 +483,114 @@
       c.filter = 'blur(10px)'; c.drawImage(b.canvas, 0, 0);
     });
   }
-  // multiplane: depths relative to her (1 = her) -- the window wall ~2.2, the piano ~1.35, the near curtain ~0.45.
-  // As the camera swings right around her, what is behind her slides right and up, what is in front slides left and
-  // down, and she stays the pivot (px of parallax per unit of (1/z - 1) at the end of the move).
-  const C10_PAR = { x: -84, y: 33 };
-  const c10Par = (z, kk) => [C10_PAR.x * kk * (1 / z - 1), C10_PAR.y * kk * (1 / z - 1)];
-  // the static half of the set under the fixed 3D camera (memoised once: a pure function of the camera)
-  let c10G = null;
-  function c10Geom(R) {
-    if (c10G) return c10G;
-    const res = (() => { const b = PV.makeCanvas(W, H); const r = L.grandPiano(b.ctx, R.piano(C10_PIANO.x, C10_PIANO.z, C10_PIANO.yaw, { lidOpen: 1, bench: false, rimLit: { alpha: 1 } })) || {}; r._canvas = b.canvas; return r; })();
-    // keep only the piano's box (plus room for its glow and floor shadow)
-    const bb = res.bbox || [0, 0, W, H], x0 = Math.max(0, Math.floor(bb[0] - 80)), y0 = Math.max(0, Math.floor(bb[1] - 80)), x1 = Math.min(W, Math.ceil(bb[2] + 80)), y1 = Math.min(H, Math.ceil(bb[3] + 120));
-    const pc = PV.makeCanvas(x1 - x0, y1 - y0); pc.ctx.drawImage(res._canvas, -x0, -y0);
-    const bench = benchOf(C10_PIANO), fl = R.project([bench[0], 0, bench[2]]), j0 = R.project([0, 0, 0]), j1 = R.project([14, 0, 0]);
-    c10G = { piano: pc.canvas, px: x0, py: y0, lidTop: res.lidTop || [1100, 300], bench, bp: R.project(bench), ppm: ppmAt(R, bench), ys: fl[1],
-      wb: (x) => j0[1] + (j1[1] - j0[1]) * (x - j0[0]) / ((j1[0] - j0[0]) || 1) };
-    return c10G;
+  // the move (24 fps): k 0 -> 1, already under way at the cut and still easing at the next one
+  const C10K = (u) => lerp(0.06, 1.0, PV.ease.sine(clamp((u + 0.7) / 4.9)));
+  const C10_PIV = V3.add(BENCH, [0, 0.6, 0]);              // her chest: the pivot of the move
+  // camera at move k: orbit angle b from her right side (b = 0: her profile) toward her front, a crane up and a slight push;
+  // it aims a little ahead of her (toward the keys) so she sits left of centre with the open piano on the right
+  function c10Cam(k) {
+    const b = lerp(0.2, 0.62, k);
+    const dir = [HER_RT[0] * Math.cos(b) + HER_DIR[0] * Math.sin(b), HER_RT[1] * Math.cos(b) + HER_DIR[1] * Math.sin(b)];
+    const D = lerp(3.45, 3.05, k), y = lerp(1.3, 1.85, k);
+    const eye = [C10_PIV[0] + dir[0] * D, y, C10_PIV[2] + dir[1] * D];
+    const tgt = [C10_PIV[0] + HER_DIR[0] * 0.5, lerp(0.98, 1.06, k), C10_PIV[2] + HER_DIR[1] * 0.5];
+    return mkCam(eye, tgt, 34);
   }
+  // the fixed camera that paints the room: the middle of the move through a wider lens, so the warps never run out of picture
+  const C10_ROOMCAM = (() => { const c = c10Cam(0.5); return { eye: c.eye, target: V3.add(c.eye, c.f), fov: 52 }; })();
+  // the room (painted by R's fixed camera into src) laid into the frame of camera cam: the window wall and the floor each get
+  // the affine that is exact at three of their points; both share two points of the wall's base line, so they meet seamlessly
+  function c10Room(ctx, R, cam, src) {
+    const xa = BENCH[0] - 1.8, xb = BENCH[0] + 2.6;
+    const B0 = [xa, 0, 0], B1 = [xb, 0, 0], Wt = [(xa + xb) / 2, 2.4, 0], Fb = [BENCH[0] + 0.4, 0, BENCH[2] - 0.6];
+    const S = (p) => R.project(p), D = (p) => cam.p(p);
+    const Aw = affine3([S(B0), S(B1), S(Wt)], [D(B0), D(B1), D(Wt)]);
+    const Af = affine3([S(B0), S(B1), S(Fb)], [D(B0), D(B1), D(Fb)]);
+    const l0 = D([-3, 0, 0]), l1 = D([17, 0, 0]), yAt = (x) => l0[1] + (l1[1] - l0[1]) * (x - l0[0]) / ((l1[0] - l0[0]) || 1);
+    const ya = yAt(-300), yb = yAt(W + 300);
+    ctx.save(); ctx.beginPath(); ctx.moveTo(-300, -300); ctx.lineTo(W + 300, -300); ctx.lineTo(W + 300, yb + 1.5); ctx.lineTo(-300, ya + 1.5); ctx.closePath(); ctx.clip();
+    ctx.setTransform(Aw[0], Aw[1], Aw[2], Aw[3], Aw[4], Aw[5]); ctx.imageSmoothingQuality = 'medium'; ctx.drawImage(src, 0, 0); ctx.restore();
+    ctx.save(); ctx.beginPath(); ctx.moveTo(-300, ya - 0.5); ctx.lineTo(W + 300, yb - 0.5); ctx.lineTo(W + 300, H + 300); ctx.lineTo(-300, H + 300); ctx.closePath(); ctx.clip();
+    ctx.setTransform(Af[0], Af[1], Af[2], Af[3], Af[4], Af[5]); ctx.imageSmoothingQuality = 'medium'; ctx.drawImage(src, 0, 0); ctx.restore();
+  }
+  // her light: the window behind her, the spring sun from the upper left (the hair rimmed gold), the face softly filled
+  let C10L = null;
+  const C10_ROOM = { stamp: null, R: null };
+  const c10Light = () => C10L || (C10L = Object.assign({}, AN().LIGHT.window, { amb: 0.18, rim: '#ffd890', rimA: 1.0, dark: 0.95, sat: 0.94, shadow: '#9a92c4' }));
   PV.shot('C10', { draw(ctx, t, d, S) {
-    const tt = clamp(t, -0.3, d + 0.3), u = localT(S, 'C10', tt), T = SB.C10 + u;
-    const k = lerp(0.08, 1.0, PV.ease.sine(clamp((u + 0.7) / 4.9))), kk = k - 0.08;   // camera move, already under way at the cut
-    // her breath on the phrase: a lift into each note, the long notes (F#5, C#5) the most
-    let env = 0; for (let i = 0; i < C10_NOTES.length; i++) env += (i === 0 || i === 4 ? 1 : 0.6) * Math.exp(-Math.pow((u - C10_NOTES[i] - 0.2) / 0.38, 2));
-    // ---- 1) the room (3D camera fixed) into its own layer at identity; the petals outside the open windows go with it
-    const gust = 1.0 + 0.85 * bell(u, 0.9, 0.9) + 0.7 * bell(u, 3.2, 0.8);
+    const tt = clamp(t, -0.3, d + 0.3), u = localT(S, 'C10', tt), T = SB.C10 + u, uq = AN().onTwos(u);
+    if (S) S.post = Object.assign({}, S.post, { bloom: 0.2 });      // her face against the bright window: keep the thin eye lines crisp
+    PRF('start');
+    const k = C10K(u), cam = c10Cam(k);
+    // her breath on the phrase (on twos): a lift into each note, the long notes (F#5, C#5) the most
+    let env = 0; for (let i = 0; i < C10_NOTES.length; i++) env += (i === 0 || i === 4 ? 1 : 0.6) * Math.exp(-Math.pow((uq - C10_NOTES[i] - 0.2) / 0.38, 2));
+    // ---- 1) the room under its fixed camera (curtains, sky, the petals outside the open windows, the warm afternoon wash),
+    //         painted on twos into its own plate (a pure function of the drawing time), laid in by the warps every frame
+    const rq = uq, gust = 1.0 + 0.85 * bell(rq, 0.9, 0.9) + 0.7 * bell(rq, 3.2, 0.8);
     const RB = PV.buffer('g03:c10room'), rc = RB.ctx;
-    const R = L.musicRoom(rc, T, { view: 'windows', time: 'noon', furniture: 'none', wind: gust, cam: C10_CAM, shaft: 1.7 });
-    rc.save(); glassPath(rc, R, 0); rc.clip();
-    L.petals(rc, u + 3, { seed: 61, count: 60, size: 9, fall: -110, wind: 70 + 60 * k, alpha: 0.95, color: '#ffd6e4' });
-    L.petals(rc, u + 7, { seed: 62, count: 22, size: 15, fall: -170, wind: 110 + 70 * k, alpha: 0.9, color: '#ffe1ea' });
-    rc.restore();
-    const G = c10Geom(R);
-    // ---- 2) the 2D camera (push in, rise, lean) shared by every layer, each layer offset by its own parallax
-    ctx.save(); PV.camera(ctx, { zoom: 1.0 + 0.07 * k, x: -14 * k, y: 34 * k, rot: 0, cx: 700, cy: 560 }); const M = ctx.getTransform(); ctx.restore();
-    const at = (p) => [M.a * p[0] + M.c * p[1] + M.e, M.b * p[0] + M.d * p[1] + M.f];
-    const [wx, wy] = c10Par(2.2, kk);
-    ctx.save(); ctx.setTransform(M); ctx.translate(wx, wy);                                       // the window wall
-    ctx.beginPath(); ctx.moveTo(-400, -400); ctx.lineTo(W + 400, -400); ctx.lineTo(W + 400, G.wb(W + 400) + 24); ctx.lineTo(-400, G.wb(-400) + 24); ctx.closePath(); ctx.clip();
-    ctx.drawImage(RB.canvas, 0, 0); ctx.restore();
-    { // the floor: sheared so its far edge travels with the wall while the boards under her stay put
-      const xm = G.bp[0], ywb = G.wb(xm), ys = G.ys, den = (ywb - ys) || -1, sh = wx / den, kv = wy / den;
-      ctx.save(); ctx.setTransform(M); ctx.transform(1, 0, sh, 1 + kv, -sh * ys, -kv * ys);
-      ctx.beginPath(); ctx.moveTo(-400, G.wb(-400) + 2); ctx.lineTo(W + 400, G.wb(W + 400) + 2); ctx.lineTo(W + 400, H + 400); ctx.lineTo(-400, H + 400); ctx.closePath(); ctx.clip();
-      ctx.drawImage(RB.canvas, 0, 0); ctx.restore();
+    if (C10_ROOM.stamp !== rq || !C10_ROOM.R) {
+      C10_ROOM.stamp = rq; rc.setTransform(1, 0, 0, 1, 0, 0); rc.clearRect(0, 0, W, H);
+      C10_ROOM.R = L.musicRoom(rc, SB.C10 + rq, { view: 'windows', time: 'noon', furniture: 'none', wind: gust, cam: C10_ROOMCAM, shaft: 1.5, dust: false });
+      rc.save(); glassPath(rc, C10_ROOM.R, 0); rc.clip();
+      L.petals(rc, rq + 3, { seed: 61, count: 60, size: 9, fall: -110, wind: 70 + 60 * C10K(rq), alpha: 0.95, color: '#ffd6e4' });
+      L.petals(rc, rq + 7, { seed: 62, count: 22, size: 15, fall: -170, wind: 110 + 70 * C10K(rq), alpha: 0.9, color: '#ffe1ea' });
+      rc.restore();
+      // the spring afternoon: a warm wash from the windows (upper left) over the room
+      rc.save(); rc.globalCompositeOperation = 'soft-light';
+      rc.fillStyle = PV.linGrad(rc, 0, 0, W * 0.8, H, [[0, 'rgba(255,226,176,0.32)'], [0.55, 'rgba(255,220,176,0.16)'], [1, 'rgba(255,214,170,0.05)']]); rc.fillRect(0, 0, W, H); rc.restore();
     }
-    const [px, py] = c10Par(1.35, kk);
-    ctx.save(); ctx.setTransform(M); ctx.drawImage(G.piano, G.px + px, G.py + py); ctx.restore();  // the piano, a little behind her
+    const R = C10_ROOM.R;
+    PRF('room', rc);
+    c10Room(ctx, R, cam, RB.canvas);
+    PRF('warp', ctx);
+    // ---- 2) the grand piano under the real camera
+    const pr = drawPiano(ctx, R, cam);
+    PRF('piano', ctx);
+    const P = figPlace(cam, BENCH, HER_DIR, 'senpai', 0.42), s = P.scale;
+    const head0 = cam.p(V3.add(BENCH, [0, 0.66, 0]));
     // ---- 3) warm note-petals rising out of the open piano: the ones behind her first
-    const hp = at([G.bp[0], G.bp[1] - 4.15 * G.ppm * 0.22]), lp = at([G.lidTop[0] + px, G.lidTop[1] + py]);
-    const notesO = { seed: 7, n: 108, em: { x: lerp(hp[0], lp[0], 0.6), y: lp[1] + 140, w: 760, h: 420 }, par: C10_PAR.x * kk, parY: C10_PAR.y * kk, focusZ: 1.0, size: 24, alpha: 1 };
+    const inside = cam.p(pianoL2R([0.75, 1.05, 0.7]));      // the open case: the notes are born over the strings
+    const notesO = { seed: 7, n: 120, em: { x: inside[0], y: inside[1] - 0.6 * s, w: 3.8 * s, h: 1.8 * s }, par: -70 * k, parY: 30 * k, focusZ: 1.0, size: 27, alpha: 1 };
     warmNotes(ctx, u, Object.assign({ zMin: 1.0 }, notesO));
-    // ---- 4) her (the pivot of the move), turning a little more toward us as the camera comes round
-    const turn = lerp(0.1, 0.38, k) + 0.03 * env;
-    ctx.save(); ctx.setTransform(M);
-    L.girlAtPianoBack(ctx, T, { x: G.bp[0], y: G.bp[1] - 1.5 * env, scale: G.ppm / 418, intensity: 0.26, turn, bench: true, outfit: 'blouse',
-      light: -1.95, rimColor: '#ffd38a', rim: 1.9, rimWidth: 2.0, backlight: 0.4, glow: 1.0, fill: '#141018', hairLen: 2.6, wind: 0.14, windDir: PI + 0.2 });
-    ctx.restore();
-    // golden light wrapping her hair from the window ahead (breathes with the phrase)
-    glowAt(ctx, hp[0] - 10, hp[1] - 40, 260, '#ffd9a0', 0.2 + 0.08 * env);
+    PRF('notes', ctx);
+    // ---- 4) her: eyes closed, the calm smile; at the end of the cut the eyes open slowly and the light comes on in them
+    const open = sm(2.62, 3.16, uq), opened = open > 0.02;
+    const sway = Math.sin(uq * 1.9) * 0.5 + 0.5 * N2(1.3, uq * 0.6);
+    // the eyes open softly (the smile stays in the lower lids), looking down toward her hands; the highlights come on last
+    const head = opened
+      ? { expr: 'gentle', eyes: { open: 0.74 * open, closed: 'down', smile: 0.42, shine: sm(0.3, 1, open), hlK: 1.12, look: [0.42, 0.34] },
+        mouth: { shape: 'smile', open: 0 }, brows: { inner: 0.35, outer: -0.05 }, noBlink: true, blush: 0.3 }
+      : { expr: 'closed', eyes: { smile: 0.3 }, mouth: { shape: 'smile', open: 0.1 * Math.min(1, env) }, blush: 0.22 + 0.05 * env };
+    Object.assign(head, { turn: -0.08 - 0.1 * k - 0.05 * env - 0.06 * open, rim: 1.15, rimW: 2.1, hair: { wind: 0.12 + 0.2 * (gust - 1), windDir: 0.15 } });
+    // the window glow behind her head and shoulders: she reads against light (drawn under her)
+    glowAt(ctx, head0[0] - 0.9 * s, head0[1] - 0.2 * s, 3.2 * s, '#fff0d4', 0.22 + 0.06 * env);
+    const info = drawPianist(ctx, cam, T, { light: c10Light(), rimDir: -2.15, intensity: 0.32, look: 'ahead', lean: -0.02 * env, tilt: 0.05 * (sway - 0.5) + 0.04 * env, head });
+    PRF('fig', ctx);
+    keysOver(ctx, pr.layer, cam, info, s);
+    PRF('keys', ctx);
+    // the light comes on in her eyes: a small sparkle blooms on the near eye's highlight as it opens fully, then settles
+    { const g = sm(3.0, 3.16, u) * (1 - 0.7 * sm(3.22, 3.48, u)), Hd = info && info.head;
+      if (g > 0.01 && Hd && Hd.eyeL) {
+        const r = Hd.size * 0.075 * (0.8 + 0.4 * g), x = Hd.eyeL[0] - 0.02 * Hd.size, y = Hd.eyeL[1] - 0.022 * Hd.size;
+        glowAt(ctx, x, y, r * 2.2, '#fff6e2', 0.45 * g);
+        ctx.save(); ctx.globalCompositeOperation = 'screen'; ctx.globalAlpha = 0.9 * g; ctx.fillStyle = '#fffaf0'; ctx.translate(x, y); ctx.rotate(0.3);
+        ctx.beginPath(); // a four-pointed star: long thin arms, a bright core
+        for (let i = 0; i < 8; i++) { const a = i * PI / 4, rr = i % 2 ? r * 0.13 : (i % 4 ? r * 0.62 : r); ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); }
+        ctx.closePath(); ctx.fill(); ctx.restore(); } }
     // ---- 5) the near layers: notes in front of her, the shaded curtain at the right edge, big petals at the lens
     warmNotes(ctx, u, Object.assign({ zMax: 1.0 }, notesO));
-    const spr = c10CurtainSprite(), sway = Math.sin(u * 0.9) * 0.02 + N2(2.2, u * 0.5) * 0.012, [cx0, cy0] = c10Par(0.45, kk);
-    ctx.drawImage(spr, Math.round(1440 + cx0 + sway * 300), Math.round(-100 + cy0));
-    const mote = spriteMote(), [nx, ny] = c10Par(0.3, kk);
+    const spr = c10CurtainSprite(), cs = Math.sin(u * 0.9) * 0.02 + N2(2.2, u * 0.5) * 0.012;
+    ctx.drawImage(spr, Math.round(1450 - 60 * k + cs * 300), Math.round(-100 - 20 * k));
+    const mote = spriteMote();
     ctx.save();
     for (let i = 0; i < 5; i++) {
-      const r1 = R1(i, 77), r2 = R1(i, 78), x = ((r1 * 2300 + u * 40 + nx) % 2300 + 2300) % 2300 - 190, y = 120 + r2 * 760 - u * 18 + ny + 30 * Math.sin(u * 0.7 + i);
+      const r1 = R1(i, 77), r2 = R1(i, 78), x = ((r1 * 2300 + u * 40 - 190 * k) % 2300 + 2300) % 2300 - 190, y = 120 + r2 * 760 - u * 18 - 60 * k + 30 * Math.sin(u * 0.7 + i);
       const sz = 46 + 40 * R1(i, 79);
       ctx.globalAlpha = 0.5; ctx.drawImage(spritePetal(7, i % 2), x - sz, y - sz, sz * 2, sz * 2);
       ctx.globalCompositeOperation = 'screen'; ctx.globalAlpha = 0.25; ctx.drawImage(mote, x - sz * 1.4, y - sz * 1.4, sz * 2.8, sz * 2.8); ctx.globalCompositeOperation = 'source-over';
     }
     ctx.restore();
+    PRF('end', ctx);
   } });
 
   /* ========================================================================== C11
@@ -875,67 +968,71 @@
   } });
 
   /* ========================================================================== C12
-   * Wide, against the windows. She stands by the piano (left), he sits with the guitar on his lap (right); both
-   * heads bowed toward each other. A branch sways beyond the glass; dust sinks slowly through the band of light. */
-  const C12_CAM = { eye: [7.85, 1.36, 8.3], target: [7.85, 1.1, 0], fov: 64 };
-  const C12_PIANO = { x: 6.35, z: 2.85, yaw: 1.18 };
-  const C12_GIRL = [7.62, 0, 2.55], C12_BOY = [8.92, 0.45, 2.45];
-  // the standing girl in profile, facing right, head bowed, the handkerchief she lent him hanging from her joined hands
-  function girlStandingProfile(ctx, t, o) {
-    const tq = Math.floor(t * 12 + 1e-6) / 12, sp = GIRL;
-    const br = 0.01 * Math.sin(tq * 1.6);                         // breathing
-    const bow = (o.bow === undefined ? 0.52 : o.bow) + 0.02 * Math.sin(tq * 0.7);
-    const P = [0, -sp.hipY + 0.02 + br * 0.3];
-    const lam = 0.05, up = [Math.sin(lam), -Math.cos(lam)], Lt = sp.torso;
-    const F = frameF(P, up);
-    const N = F(0.0, Lt), S = F(-0.03, Lt - 0.27 - br);
-    const nl = lam + 0.22, nt = fadd(N, [Math.sin(nl) * sp.neck * 0.42, -Math.cos(nl) * sp.neck * 0.42]);
-    const ht = lam * 0.5 + bow, head = fadd(nt, [Math.sin(ht) * sp.neck * 0.5 + Math.cos(ht) * 0.03, -Math.cos(ht) * sp.neck * 0.5 + Math.sin(ht) * 0.03]);
-    const KN = dirDeg(P, 4, sp.thigh), AN = dirDeg(KN, -2, sp.shin);         // near leg straight
-    const KF = dirDeg(P, -6, sp.thigh * 0.98), AF = dirDeg(KF, 6, sp.shin);  // far leg relaxed, knee a touch forward
-    const Wr = fadd(P, [0.4, 0.1]);                                             // arms hanging, hands together in front of her skirt
-    const elbow = (sh, k) => { const d = fsub(Wr, sh), l = flen(d), a1 = sp.upArm * k, a2 = sp.foreArm * k; const D = clamp(l, Math.abs(a1 - a2) + 1e-3, a1 + a2 - 1e-3); const ca = (a1 * a1 + D * D - a2 * a2) / (2 * a1 * D); return fpolar(sh, Math.atan2(d[1], d[0]) + Math.acos(clamp(ca, -1, 1)), a1); };
-    const EN = elbow(S, 1), EF = elbow(fadd(S, [0.06, 0.02]), 1);
-    const wh = sp.waistH, len = 1.95, wind = o.wind || 0.15;
-    L.figureRender(ctx, o, null, (Fg) => {
-      Fg.layer({ fill: Fg.tone(0.06) }, (c) => { // far side: leg, arm
-        limb(c, P, KF, S_THIGH); limb(c, KF, AF, S_SHIN); shoeLoafer(c, AF, 0, 1);
-        limb(c, fadd(S, [0.06, 0.02]), EF, S_UPARM); limb(c, EF, fadd(Wr, [0.04, 0.03]), S_FOREARM);
-      });
-      Fg.layer({ inner: 0.35 }, (c) => {
-        limb(c, P, KN, S_THIGH); limb(c, KN, AN, S_SHIN); shoeLoafer(c, AN, 0, 1);
-        // pleated skirt (profile), stirring a little
-        const fx = 0.5, bx = -0.66, wx = -wind;
-        const pts = [F(0.22, wh + 0.02), F(0.34, wh - 0.55), F(fx + 0.04, wh - len + 0.02)];
-        const n = 8;
-        for (let i = 1; i < n; i++) { const uu = i / n; const p = F(lerp(fx, bx, uu) + wx * 0.12 * (1 - Math.abs(uu - 0.5)), wh - len - 0.04 * Math.sin(PI * uu) + (i % 2 ? 0.025 : 0) - 0.03 * N2(uu * 3, tq * 1.2)); pts.push([p[0], p[1], i % 2 ? 0 : 1]); }
-        pts.push(F(bx - 0.03, wh - len + 0.02), F(-0.46, wh - 0.6), F(-0.24, wh + 0.02));
-        blob(c, pts);
-        // torso (blouse): back slightly rounded, chest, collar
-        const k = 1, h = (v) => v * k;
-        blob(c, [F(-0.15, Lt + 0.16), F(-0.22, Lt - 0.05), F(-0.36, h(1.74)), F(-0.34, h(1.25)), F(-0.27, h(0.8)), F(-0.33, 0.36), F(-0.43, 0.02), F(-0.34, -0.29),
-          F(0.18, -0.28), F(0.3, 0.12), F(0.3, h(0.5)), F(0.28, h(0.85)), F(0.34, h(1.2)), F(0.45, h(1.47)), F(0.36, h(1.8)), F(0.18, Lt - 0.05), F(0.13, Lt + 0.16)]);
-        limb(c, N, nt, [[0, 0.17, 0.17], [1, 0.15, 0.15]]);
-        // head (face never acted: a soft profile under the fringe)
-        c.save(); c.translate(head[0], head[1]); c.rotate(ht);
-        headProfileGirl(c); blob(c, GIRL_CAP_SIDE); girlBangsSide(c, tq, wind);
-        c.restore();
-      });
-      // her long hair, falling down her back (the inner rim keeps it separate from the blouse)
-      Fg.layer({ inner: 0.5 }, (c) => {
-        L.hairLong(c, tq, { x: head[0], y: head[1], scale: 1 / 92, view: 'side', len: 2.75, wind: wind * 1.4, windDir: PI + 0.25, tilt: ht * 0.85, seed: 17, count: 14, wisps: 4, fps: 0, color: c.fillStyle, hl: Fg.bounds ? undefined : Fg.hl(0.5) });
-      });
-      // near arm across her body, hands meeting at the handkerchief
-      Fg.layer({ inner: 0.45 }, (c) => {
-        limb(c, S, EN, S_UPARM); limb(c, EN, Wr, S_FOREARM);
-        ell(c, Wr[0] + 0.06, Wr[1] + 0.02, 0.12, 0.085, 0.4);
-      });
-      Fg.layer({ fill: Fg.tone(0.55, '#f2ece2'), inner: 0.3 }, (c) => { // the white handkerchief hanging from her fingers, stirring
-        const sw = 0.04 * Math.sin(tq * 1.3) + 0.03 * N2(4.1, tq * 0.6);
-        blob(c, [fadd(Wr, [0.0, 0.04]), fadd(Wr, [0.15, 0.06]), fadd(Wr, [0.2 + sw, 0.3]), fadd(Wr, [0.16 + sw * 1.6, 0.58]), fadd(Wr, [0.06 + sw * 1.6, 0.64]), fadd(Wr, [-0.01 + sw, 0.34])]);
-      });
-    });
-    return { head, hands: Wr };
+   * The two of them in the window light, from the side and a little in front (both faces 3/4, cheated toward the lens):
+   * she stands by the piano (left), he sits on a chair with the school acoustic on his lap (right). The chime's last note
+   * (36.5); he cries without a sound, head down, and says V04 「俺……先輩の音。好きだよ」 (36.80 / 37.88–38.88 / 39.59–40.05):
+   * on 「好きだよ」 he lifts his eyes to her (design 3-4: the core line is said looking straight at her). She goes from the
+   * startled face she came over with (原作866) to a soft, moved one. A branch sways beyond the glass, dust sinks through the
+   * band of light; a very slow push-in. */
+  const C12_CAM = { eye: [8.32, 1.28, 6.0], target: [8.32, 1.1, 2.5], fov: 40 };
+  const C12_PIANO = { x: 6.95, z: 2.75, yaw: 1.18 };
+  const C12_GIRL = [7.9, 0, 2.6], C12_BOY = [8.8, 0.427, 2.42];
+  const C12_HER_DIR = (() => { const l = Math.hypot(1, 0.62); return [1 / l, 0.62 / l]; })();     // toward him, cheated toward the lens
+  const C12_HIS_DIR = (() => { const l = Math.hypot(1, 0.66); return [-1 / l, 0.66 / l]; })();    // toward her, cheated toward the lens
+  // anime "on twos": a figure layer repainted only when its stamp changes (paint is a pure function of the stamp)
+  const TW = {};
+  function twos(key, stamp, paint) {
+    const b = PV.buffer('g03:2s:' + key);
+    if (TW[key] !== stamp) { TW[key] = stamp; b.ctx.setTransform(1, 0, 0, 1, 0, 0); b.ctx.globalAlpha = 1; b.ctx.globalCompositeOperation = 'source-over'; b.ctx.clearRect(0, 0, W, H); paint(b.ctx); }
+    return b.canvas;
+  }
+  const lerpObj = (a, b, k) => { const o = {}; for (const key of new Set(Object.keys(a).concat(Object.keys(b)))) { const x = a[key], y = b[key]; o[key] = (typeof x === 'number' && typeof y === 'number') ? x + (y - x) * k : (k < 0.5 ? (x === undefined ? y : x) : (y === undefined ? x : y)); } return o; };
+  function lerpDeep(a, b, k) {
+    if (typeof a === 'number' && typeof b === 'number') return a + (b - a) * k;
+    if (Array.isArray(a) && Array.isArray(b)) return a.map((v, i) => lerpDeep(v, b[i], k));
+    if (a && b && typeof a === 'object' && typeof b === 'object') { const o = {}; for (const key in a) o[key] = key in b ? lerpDeep(a[key], b[key], k) : a[key]; for (const key in b) if (!(key in o)) o[key] = b[key]; return o; }
+    return k < 0.5 ? a : b;
+  }
+  // her pose: the library's 'stand', the right hand rising from her side to her chest (prm.k 0..1) -- registered under a g03_
+  // name in PV.anime.FIG_POSES only for the duration of the call
+  const G03_CHEST = 'g03_standChest';
+  const standChestPose = {
+    facing: 'front', anchor: 'ground point between the feet',
+    body(sp, prm, tq, o, OF) { return AN().FIG_POSES.stand.body(sp, prm, tq, o, OF); },
+    props(G, prm, tq, o) { },
+    limbs(J, sp, prm, tq, o, OF) {
+      const B = AN().FIG_POSES.stand, k = prm.k || 0;
+      const a = B.limbs(J, sp, Object.assign({}, prm, { arms: 'relax' }), tq, o, OF), b = B.limbs(J, sp, Object.assign({}, prm, { arms: 'chest' }), tq, o, OF);
+      const R = lerpDeep(a.arms.R, b.arms.R, k); R.hand = Object.assign({}, R.hand, { curl: lerp(0.3, 0.42, k), spread: lerp(0.06, 0.03, k) });
+      return { legs: a.legs, arms: { L: a.arms.L, R } };
+    },
+  };
+  function withPose(name, def, fn) {
+    const P = AN().FIG_POSES, had = Object.prototype.hasOwnProperty.call(P, name), old = P[name];
+    P[name] = def;
+    try { return fn(); } finally { if (had) P[name] = old; else delete P[name]; }
+  }
+  // her face (global time T, on twos): startled -> the surprise eases on 「先輩の音」 -> soft and moved, eyes welling, on 「好きだよ」
+  function c12HerHead(T) {
+    const E = AN().EXPR, s1 = sm(37.55, 38.3, T), s2 = sm(39.45, 40.1, T);
+    const sur = { eyes: { open: 1.12, wide: 0.7, pupil: 0.78, look: [0.55, 0.32] }, brows: { inner: 0.75, outer: 0.55, furrow: 0 }, mouth: { shape: 'o', open: 0.22 }, blush: 0.12 };
+    const ease = { eyes: { open: 1.0, wide: 0.15, pupil: 0.9, sad: 0.15, look: [0.55, 0.36] }, brows: { inner: 0.62, outer: 0.05, furrow: 0.12 }, mouth: { shape: 'o', open: 0.05 }, blush: 0.18 };
+    const soft = { eyes: { open: 0.84, smile: 0.36, tears: 0.56, sad: 0.16, pupil: 1, look: [0.55, 0.3] }, brows: { inner: 0.58, outer: -0.1, furrow: 0 }, mouth: { shape: 'smile', open: 0 }, blush: 0.44 };
+    const A1 = s1 < 1 ? { eyes: lerpObj(sur.eyes, ease.eyes, s1), brows: lerpObj(sur.brows, ease.brows, s1), mouth: lerpObj(sur.mouth, ease.mouth, s1), blush: lerp(sur.blush, ease.blush, s1) } : ease;
+    const R = s2 > 0 ? { eyes: lerpObj(A1.eyes, soft.eyes, s2), brows: lerpObj(A1.brows, soft.brows, s2), mouth: s2 < 0.5 ? { shape: 'o', open: A1.mouth.open * (1 - 2 * s2) } : { shape: 'smile', open: 0 }, blush: lerp(A1.blush, soft.blush, s2) } : A1;
+    void E;
+    return Object.assign({ expr: s2 > 0.5 ? 'gentle' : 'surprise', noBlink: s1 < 0.6 }, R);
+  }
+  // his face (global time T): head down, tears streaming, the line said quietly (a small mouth from the real voice); he lifts
+  // his eyes to her for 「好きだよ」
+  function c12HisHead(T) {
+    const up = sm(39.0, 39.5, T), mo = AN().mouth(T, 'boy');
+    return {
+      expr: 'sad', noBlink: true,
+      eyes: { open: lerp(0.5, 0.88, up), tears: 0.95, sad: lerp(0.6, 0.28, up), look: [lerp(-0.25, -0.75, up), lerp(0.62, -0.3, up)] },
+      brows: { inner: lerp(0.8, 0.6, up), outer: -0.22, furrow: lerp(0.35, 0.15, up) },
+      mouth: { shape: 'frown', open: 0.42 * mo.open + 0.04 }, blush: 0.32,
+    };
   }
   // a cherry branch just outside the bay behind them (fresh leaves, a few last blossoms), swaying in the wind; seen
   // where the glass is clear of the curtains (the transoms + the middle of the bay), soft (focus is on the room)
@@ -971,8 +1068,9 @@
     ctx.beginPath();
     for (const [a, b, y0, y1] of regions) { const q = [[a, y0, -0.09], [b, y0, -0.09], [b, y1, -0.09], [a, y1, -0.09]].map(p => R.project(p)); ctx.moveTo(q[0][0], q[0][1]); for (let i = 1; i < 4; i++) ctx.lineTo(q[i][0], q[i][1]); ctx.closePath(); }
     ctx.clip();
-    const base = R.project([x1 + 0.3, 2.66, -0.9]), sway = 0.045 * Math.sin(u * 1.25) + 0.03 * N2(u * 0.7, 3.3);
-    ctx.translate(base[0], base[1]); ctx.rotate(sway); ctx.scale(0.8, 0.8);
+    // (the sprite was drawn for a wide lens: 0.8 at ~167 px/m at the branch -- scale it with the camera's magnification there)
+    const bw = [x1 + 0.3, R.cam.scaleAt([x1, 2, -0.9]) > 300 ? 2.02 : 2.66, -0.9], base = R.project(bw), k = 0.8 * Math.min(1.5, R.cam.scaleAt(bw) / 167), sway = 0.045 * Math.sin(u * 1.25) + 0.03 * N2(u * 0.7, 3.3);
+    ctx.translate(base[0], base[1]); ctx.rotate(sway); ctx.scale(k, k);
     ctx.globalAlpha = 0.85;
     ctx.drawImage(c12BranchSoft(), -880, -30);
     ctx.restore();
@@ -989,66 +1087,89 @@
     for (let y = 0; y < H; y += 2) for (let x = 0; x < W; x += 2) if (img[(y * W + x) * 4 + 3] > 2) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
     x0 = Math.max(0, x0 - 4); y0 = Math.max(0, y0 - 4); x1 = Math.min(W, x1 + 6); y1 = Math.min(H, y1 + 6);
     const pc = PV.makeCanvas(Math.max(2, x1 - x0), Math.max(2, y1 - y0)); pc.ctx.drawImage(pb.canvas, -x0, -y0);
-    const top = R.project([(C12_GIRL[0] + C12_BOY[0]) / 2 - 0.35, 2.3, -0.05]), mid = R.project([(C12_GIRL[0] + C12_BOY[0]) / 2, 1.2, 2.4]);
-    const rays = [], rr = PV.rng(31);
+    // shafts of sun between them: from the top of the window behind, along the sun (noon: [0.55, -0.56, 0.62]) down to the floor
+    const sun = [0.55, -0.56, 0.62], xm = (C12_GIRL[0] + C12_BOY[0]) / 2, rays = [], rr = PV.rng(31);
     for (let i = 0; i < 3; i++) {
-      const ang = 1.22 + (rr() - 0.5) * 0.12, len = 950 * (0.75 + 0.45 * rr()), w0 = 190 * (0.45 + 0.9 * rr()), w1 = w0 * 2.2, jr = (rr() - 0.5) * 60, al = 0.2 * (0.6 + 0.4 * rr());
-      const ox = top[0] + Math.cos(ang + HP) * jr, oy = top[1] + Math.sin(ang + HP) * jr, ex = ox + Math.cos(ang) * len, ey = oy + Math.sin(ang) * len, nx = Math.cos(ang + HP), ny = Math.sin(ang + HP);
-      const pts = [[ox + nx * w0 / 2, oy + ny * w0 / 2], [ex + nx * w1 / 2, ey + ny * w1 / 2], [ex - nx * w1 / 2, ey - ny * w1 / 2], [ox - nx * w0 / 2, oy - ny * w0 / 2]];
+      const sx = xm - 0.95 + (i - 1) * 0.42 + (rr() - 0.5) * 0.2, top = [sx, 2.32, -0.05], kf = top[1] / -sun[1], bot = [top[0] + sun[0] * kf, 0, top[2] + sun[2] * kf];
+      const a = R.project(top), e = R.project(bot), wa = (0.16 + 0.12 * rr()) * R.cam.scaleAt(top), we = wa * 2.4, al = 0.2 * (0.6 + 0.4 * rr());
+      const ang = Math.atan2(e[1] - a[1], e[0] - a[0]), nx = Math.cos(ang + HP), ny = Math.sin(ang + HP);
+      const pts = [[a[0] + nx * wa / 2, a[1] + ny * wa / 2], [e[0] + nx * we / 2, e[1] + ny * we / 2], [e[0] - nx * we / 2, e[1] - ny * we / 2], [a[0] - nx * wa / 2, a[1] - ny * wa / 2]];
       const bx0 = Math.min(...pts.map(p => p[0])) - 40, by0 = Math.min(...pts.map(p => p[1])) - 40, bx1 = Math.max(...pts.map(p => p[0])) + 40, by1 = Math.max(...pts.map(p => p[1])) + 40;
       const q = 0.25, sw = Math.ceil((bx1 - bx0) * q), sh = Math.ceil((by1 - by0) * q), sp = PV.makeCanvas(sw, sh), c = sp.ctx;
-      c.filter = 'blur(2.5px)'; c.setTransform(q, 0, 0, q, -bx0 * q, -by0 * q);
-      const g = c.createLinearGradient(ox, oy, ex, ey); g.addColorStop(0, `rgba(255,242,214,${al})`); g.addColorStop(0.35, `rgba(255,242,214,${al * 0.7})`); g.addColorStop(1, 'rgba(255,242,214,0)');
+      c.filter = 'blur(3px)'; c.setTransform(q, 0, 0, q, -bx0 * q, -by0 * q);
+      const g = c.createLinearGradient(a[0], a[1], e[0], e[1]); g.addColorStop(0, `rgba(255,242,214,${al})`); g.addColorStop(0.45, `rgba(255,242,214,${al * 0.7})`); g.addColorStop(1, 'rgba(255,242,214,0)');
       c.fillStyle = g; c.beginPath(); pts.forEach((p, k) => k ? c.lineTo(p[0], p[1]) : c.moveTo(p[0], p[1])); c.closePath(); c.fill();
       rays.push({ img: sp.canvas, x: bx0, y: by0, w: bx1 - bx0, h: by1 - by0 });
     }
-    c12G = { piano: pc.canvas, px: x0, py: y0, rays, mid };
+    // the window glow behind them and the three shafts composed once into one quarter-resolution light layer (one screen pass)
+    const mid = R.project([xm, 1.35, 2.2]), lb = PV.makeCanvas(W / 4, H / 4), lc = lb.ctx;
+    lc.scale(0.25, 0.25);
+    lc.fillStyle = radial(lc, mid[0] - 40, mid[1] - 120, 620, [[0, 'rgba(255,244,222,0.18)'], [0.3, 'rgba(255,244,222,0.076)'], [1, 'rgba(255,244,222,0)']]); lc.fillRect(0, 0, W, H);
+    lc.globalCompositeOperation = 'lighter'; for (const r of rays) lc.drawImage(r.img, r.x, r.y, r.w, r.h);
+    c12G = { piano: pc.canvas, px: x0, py: y0, rays, mid, light: lb.canvas };
     return c12G;
+  }
+  const C12_ROOM = { R: null };
+  function c12Plate() {
+    return PV.cached('g03:c12plate:v1', W, H, (c) => {
+      C12_ROOM.R = L.musicRoom(c, SB.C12 + 1.5, { view: 'windows', time: 'noon', furniture: 'none', wind: 0.3, cam: C12_CAM, shaft: 1.6, dust: false });
+      const G = c12Geom(C12_ROOM.R);
+      c.drawImage(G.piano, G.px, G.py);
+      // the same afternoon wash as C10
+      c.save(); c.globalCompositeOperation = 'soft-light';
+      c.fillStyle = PV.linGrad(c, 0, 0, W * 0.8, H, [[0, 'rgba(255,226,176,0.3)'], [0.55, 'rgba(255,220,176,0.15)'], [1, 'rgba(255,214,170,0.05)']]); c.fillRect(0, 0, W, H); c.restore();
+    });
+  }
+  // 彼 on the school chair with the acoustic on his right thigh (his left hand still holding the neck), head down, crying; the
+  // head comes up for 「好きだよ」. Painted at drawing time Tq (on twos, in step with his lip-sync), in the room camera's space
+  function c12Him(c, R, Tq) {
+    const P = figPlace(R.cam, C12_BOY, C12_HIS_DIR, 'boy', 0.45), up = sm(39.0, 39.5, Tq);
+    return AN().figure(c, {
+      who: 'boy', outfit: 'uniform', pose: 'seated_chair', facing: P.facing, camPitch: P.camPitch, x: P.x, y: P.y, scale: P.scale, T: Tq,
+      light: c10Light(), rimDir: -2.05, params: { variant: 'guitar', strum: 0, headDown: lerp(0.3, -0.44, up), tilt: lerp(0.06, -0.02, up), neckYaw: lerp(0, -0.12, up) },
+      head: Object.assign(c12HisHead(Tq), { turn: lerp(0.02, -0.16, up), rim: 1.0, rimW: 1.6, hair: { wind: 0.12, windDir: 0.2 } }),
+    });
+  }
+  // 先輩 standing by the piano, her right hand coming to her chest as he speaks; painted at Tq (on twos, the other phase)
+  function c12Her(c, R, Tq) {
+    const P = figPlace(R.cam, C12_GIRL, C12_HER_DIR, 'senpai', 1.2), k = sm(39.3, 40.0, Tq);
+    return withPose(G03_CHEST, standChestPose, () => AN().figure(c, {
+      who: 'senpai', outfit: 'uniform', pose: G03_CHEST, facing: P.facing, camPitch: P.camPitch, x: P.x, y: P.y, scale: P.scale, T: Tq,
+      light: c10Light(), rimDir: -2.05, params: { k, weight: 0.35, armBend: 0.25, nod: lerp(0.14, 0.08, sm(37.6, 38.6, Tq)), tilt: lerp(0.04, 0.1, k) },
+      head: Object.assign(c12HerHead(Tq), { turn: -0.06, rim: 1.1, rimW: 1.9, hair: { wind: 0.16, windDir: 0.15 } }),
+    }));
   }
   PV.shot('C12', { draw(ctx, t, d, S) {
     const tt = clamp(t, -0.3, d + 0.3), u = localT(S, 'C12', tt), T = SB.C12 + u;
+    if (S) S.post = Object.assign({}, S.post, { bloom: 0.22 });     // two faces against the bright window: keep the eye lines crisp
+    PRF('start');
     const zoom = 1.0 + 0.022 * smr(0, 4.0, u);
-    ctx.save(); PV.camera(ctx, { zoom, cx: 960, cy: 600 });
-    const R = L.musicRoom(ctx, T, { view: 'windows', time: 'noon', furniture: 'none', wind: 0.35, cam: C12_CAM, shaft: 2.0 });
+    // the room under its fixed camera, with the piano, painted once: the moment is still (原作873「無音」) -- only the branch
+    // beyond the glass, the dust and the light move
+    const RB = c12Plate(), R = C12_ROOM.R, G = c12Geom(R);
+    PRF('room', ctx);
+    ctx.save(); PV.camera(ctx, { zoom, cx: 960, cy: 560 });
+    ctx.drawImage(RB, 0, 0);
     c12Branch(ctx, R, u);
-    const G = c12Geom(R);
-    ctx.drawImage(G.piano, G.px, G.py);
-    // behind them: the glow of the windows and the band of light falling between them onto the floor (breathing)
-    glowAt(ctx, G.mid[0] + 40, G.mid[1] - 160, 560, '#fff4de', 0.2);
-    ctx.save(); ctx.globalCompositeOperation = 'screen';
-    G.rays.forEach((r, i) => { ctx.globalAlpha = 0.68 + 0.32 * (0.5 + 0.5 * N2(i * 3.1, u * 0.4)); ctx.drawImage(r.img, r.x, r.y, r.w, r.h); });
-    ctx.restore();
-    // her (left, facing right) and him (right, facing left), both bowed -- in their own layer, so the polished
-    // floor can mirror them
-    const M = ctx.getTransform(), dev = (p) => [M.a * p[0] + M.c * p[1] + M.e, M.b * p[0] + M.d * p[1] + M.f];
-    const FB = PV.buffer('g03:c12fig'), fc = FB.ctx; fc.clearRect(0, 0, W, H); fc.setTransform(M);
-    const gp = R.project(C12_GIRL), gppm = ppmAt(R, C12_GIRL);
-    const lift = 0.16 * sm(3.05, 3.6, u);   // at 「好きだよ」 her head comes up a little
-    girlStandingProfile(fc, T, { x: gp[0], y: gp[1], scale: gppm * 0.22 / 92, light: -1.8, rimColor: '#fff0d2', rim: 1.7, rimWidth: 1.3, backlight: 0.24, glow: 0.8, fill: '#07090f', bow: 0.55 - lift, wind: 0.18 });
-    const bp = R.project(C12_BOY), bppm = ppmAt(R, C12_BOY);
-    L.boySeated(fc, T * 0.22, { x: bp[0], y: bp[1], scale: bppm * 0.205 / 92, pose: 'guitar', flip: true, light: -1.45, rimColor: '#fff0d2', rim: 1.7, rimWidth: 1.3, backlight: 0.24, glow: 0.8, fill: '#07090f', guitarTone: 0.14, wind: 0.1 });
-    fc.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.restore();
-    { // the floor's reflection: mirrored about the line of their feet, soft, fading out within a short distance
-      const fg = dev(gp), fb = dev(R.project([C12_BOY[0], 0, C12_BOY[2]])), yF = (fg[1] + fb[1]) / 2, hgt = 7.4 * gppm * 0.22 * zoom;
-      const bx0 = Math.max(0, Math.floor(fg[0] - 0.45 * hgt)), bx1 = Math.min(W, Math.ceil(fb[0] + 0.75 * hgt)), by0 = Math.max(0, Math.floor(yF - 0.42 * hgt)), by1 = Math.min(H, Math.ceil(yF + 4));
-      if (bx1 - bx0 > 8 && by1 - by0 > 8) {
-        const q = 0.25, sw = Math.ceil((bx1 - bx0) * q), sh = Math.ceil((by1 - by0) * q), rb = PV.buffer('g03:c12refl', 260, 160), r2 = rb.ctx;
-        r2.clearRect(0, 0, 260, 160); r2.filter = 'blur(1.6px)'; r2.drawImage(FB.canvas, bx0, by0, bx1 - bx0, by1 - by0, 0, 0, sw, sh); r2.filter = 'none';
-        r2.globalCompositeOperation = 'destination-in'; r2.fillStyle = PV.linGrad(r2, 0, 0, 0, sh, [[0, 'rgba(0,0,0,0)'], [0.55, 'rgba(0,0,0,0.25)'], [1, 'rgba(0,0,0,1)']]); r2.fillRect(0, 0, sw, sh); r2.globalCompositeOperation = 'source-over';
-        ctx.save(); ctx.globalAlpha = 0.5; ctx.setTransform(1, 0, 0, -1, 0, 2 * yF); ctx.imageSmoothingQuality = 'low'; ctx.drawImage(rb.canvas, 0, 0, sw, sh, bx0, by0, bx1 - bx0, by1 - by0); ctx.restore();
-      }
-    }
-    ctx.drawImage(FB.canvas, 0, 0);
-    ctx.save(); PV.camera(ctx, { zoom, cx: 960, cy: 600 });
-    // the tear on the floor in front of him still catches the sun (a tiny glint, the echo of C11)
-    { const wp = R.project([C12_BOY[0] - 0.42, 0.0, C12_BOY[2] + 0.35]), tw = 0.75 + 0.25 * Math.sin(u * 2.3);
-      glowAt(ctx, wp[0], wp[1], 26, '#fff6e6', 0.55 * tw); glowAt(ctx, wp[0], wp[1], 7, '#ffffff', 0.8 * tw); }
+    // behind them: the glow of the windows and the bands of light falling between them onto the floor (breathing)
+    ctx.save(); ctx.globalCompositeOperation = 'screen'; ctx.globalAlpha = 0.8 + 0.2 * (0.5 + 0.5 * N2(3.1, u * 0.4)); ctx.imageSmoothingQuality = 'low';
+    ctx.drawImage(G.light, 0, 0, W, H); ctx.restore();
+    // the two of them, each repainted on twos (he on the even frames with his voice, she on the odd ones)
+    PRF('bg', ctx);
+    const him = twos('c12him', AN().onTwos(T), (c) => c12Him(c, R, AN().onTwos(T)));
+    PRF('him', PV.buffer('g03:2s:c12him').ctx);
+    const herT = AN().onTwos(T - 1 / 24) + 1 / 24, her = twos('c12her', herT, (c) => c12Her(c, R, herT));
+    PRF('her', PV.buffer('g03:2s:c12her').ctx);
+    // (only their boxes: the layers are otherwise empty)
+    const blit = (img, b) => { const x0 = Math.max(0, Math.floor(b[0])), y0 = Math.max(0, Math.floor(b[1])), x1 = Math.min(W, Math.ceil(b[2])), y1 = Math.min(H, Math.ceil(b[3])); if (x1 > x0 && y1 > y0) ctx.drawImage(img, x0, y0, x1 - x0, y1 - y0, x0, y0, x1 - x0, y1 - y0); };
+    const pb = figPlace(R.cam, C12_BOY, C12_HIS_DIR, 'boy', 0.45), pg = figPlace(R.cam, C12_GIRL, C12_HER_DIR, 'senpai', 1.2);
+    blit(him, [pb.x - 3.4 * pb.scale, pb.y - 5.2 * pb.scale, pb.x + 3.6 * pb.scale, pb.y + 3.2 * pb.scale]);
+    blit(her, [pg.x - 2.8 * pg.scale, pg.y - 7.8 * pg.scale, pg.x + 2.8 * pg.scale, pg.y + 0.5 * pg.scale]);
     // dust sinking slowly through the light (in front of them)
-    L.dust(ctx, u, { seed: 120, count: 60, x0: G.mid[0] - 300, x1: G.mid[0] + 360, y0: 200, y1: 900, size: 2.6, alpha: 0.85, drift: 22, vx: 2, vy: 10, color: '#fff3dc' });
-    L.dust(ctx, u, { seed: 121, count: 50, x0: 0, x1: W, y0: 60, y1: 1000, size: 2.0, alpha: 0.45, drift: 30, vx: 3, vy: 6, color: '#fff3dc' });
+    L.dust(ctx, u, { seed: 120, count: 64, x0: G.mid[0] - 520, x1: G.mid[0] + 520, y0: 100, y1: 960, size: 2.6, alpha: 0.72, drift: 24, vx: 2, vy: 9, color: '#fff3dc' });
     ctx.restore();
     // the lower edge settles into a warm shade (it also seats the subtitle)
     ctx.fillStyle = PV.linGrad(ctx, 0, 820, 0, H, [[0, 'rgba(46,32,24,0)'], [1, 'rgba(46,32,24,0.3)']]); ctx.fillRect(0, 820, W, H - 820);
+    PRF('end', ctx);
   } });
 })();

@@ -16,9 +16,15 @@
  *   (head units; the bench seat = origin; y down; +x = her LEFT = the bass end; +z = toward the keyboard) and projected with the
  *   figure's own orthographic camera (facing, camPitch), so the case, the lid and her body always agree. Seen from the audience
  *   side, the case wall hides her hands (as in a real hall): the face, the shoulders and the upper arms act.
- *   The piano pose is the library's 'piano' wrapped in a local variant (g05_piano: arms released toward the lap, shoulder lift
- *   for the breath, frozen tremble), registered under its own name in PV.anime.FIG_POSES (the library file is not edited).
- * The C15 photo: C19 uses PV.summerPhoto(ctx, w, h, layer) ('bg' | 'him') published by g04 (falls back to its own drawing).
+ *   Local helpers on the library's exports (the library files are not edited; new keys only, nothing existing is changed):
+ *   - pose 'g05_piano' in PV.anime.FIG_POSES: the library's 'piano' + the arms released toward the lap (rel), shoulder lift
+ *     for the breath (lift), a frozen tremble (trem), neckPitch / neckRoll;
+ *   - who 'g05_senpai' in PV.anime.BODY_SPECS: 先輩 with the neck 0.07 H shorter (作画修正 for these two cuts: with the
+ *     updo the whole nape shows and the library's neck read as a "giraffe" neck at 3/4 and in profile), + head.neckW 1.1–1.2;
+ *   - oneTear(): ONE tear down the near cheek from the head's anchors (the library's streaming tears run from both eyes and,
+ *     near the profile, the far eye's stream is drawn outside the face contour — reported).
+ * The C15 photo: C19 uses PV.summerPhoto(ctx, w, h, layer) ('bg' | 'him') published by g04 (an anime-bust fallback otherwise);
+ *   the tears land where HE is in that photo (the box of the 'him' layer), whatever its layout.
  */
 (function () {
   const PV = window.PV, L = PV.lib, W = PV.W, H = PV.H, TAU = Math.PI * 2;
@@ -190,7 +196,7 @@
     // ink round the board
     ctx.strokeStyle = pal.line; ctx.lineWidth = Math.max(1, c.s * 0.005); ctx.stroke(under);
     // the front edge of the lid catches a thin line of light
-    { const a = gp(c, ...gLid(GP.hinge, GP.fallZ)), b = gp(c, ...gLid(-3.35, GP.fallZ)); ctx.strokeStyle = PV.rgba(pal.edge, pal.edgeA * 0.7); ctx.lineWidth = Math.max(1, c.s * 0.005); ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke(); }
+    { const a = gp(c, ...gLid(GP.hinge, GP.fallZ)), b = gp(c, ...gLid(-3.35, GP.fallZ)); ctx.strokeStyle = PV.rgba(pal.edge, pal.edgeA * (pal.lidFrontA ?? 0.7)); ctx.lineWidth = Math.max(1, c.s * 0.005); ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke(); }
     // the prop stick from the bentside rim up to the board
     { const r = gp(c, -0.55, GP.rimY, 8.1), l = gp(c, ...gLid(-0.7, 8.1)); const k = 0.82, top = [lerp(r[0], l[0], k), lerp(r[1], l[1], k)];
       ctx.strokeStyle = pal.line; ctx.lineWidth = Math.max(2, c.s * 0.034); ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(r[0], r[1]); ctx.lineTo(top[0], top[1]); ctx.stroke();
@@ -291,7 +297,7 @@
   }
   PV.shot('C16', { draw(ctx, t, d, S) {
     if (S) S.post = Object.assign({}, S.post, { bloom: 0.15 });   // bright close-up: keep the thin eye lines crisp
-    ensurePose();
+    ensurePose(); bg16(false); bg16(true); veil16();                    // build every cache on the first frame (no hitch mid-cut)
     const tt = clamp(t, -0.3, d + 0.3), T = absT(S, 'C16', tt), tq = tw(T), cough = C16.cough;
     const k = sm(cough, cough + 1.3, T);                                       // the white gives way to the hall's amber
     const cam = gcam(CAM16.th, CAM16.ph, CAM16.x, CAM16.y, CAM16.s);
@@ -304,24 +310,24 @@
     const rel = sm(51.85, 52.75, tq);                                          // she lets the arms go
     const inh = sm(52.32, 52.86, tq);                                          // 52.4 the breath in: the shoulders rise
     const closeK = sm(52.42, 52.6, tq);                                        // ... with the eyes closed
-    const frozen = 1 - sm(cough, cough + 0.5, T);
+    const frozen = 1 - sm(cough, cough + 0.5, tq);
     const shallow = frozen * (0.5 + 0.5 * Math.sin(tq * TAU / 0.8));           // quick shallow breaths while frozen
-    const lookX = lerp(0.08, -0.32, eyeK), lookY = lerp(0.06, -0.02, eyeK) + 0.3 * closeK;
+    const lookX = lerp(0.08, -0.42, eyeK) * (1 - closeK), lookY = lerp(0.06, -0.03, eyeK) + 0.35 * closeK;   // the gaze drops as the lids close
     const open = closeK > 0 ? lerp(1.0, 0, closeK) : (lit ? 1.04 : 0.98) * blinkO;
     const head = {
-      expr: 'neutral', noBlink: true, neckW: 1.1, turn: -0.06 * headK + 0.05 * inh, roll: frozen * 0.006 * N2(tq * 11.3, 7.7),
+      expr: 'neutral', noBlink: true, neckW: 1.1, turn: -0.035 * headK + 0.04 * inh, roll: frozen * 0.006 * N2(tq * 11.3, 7.7),
       eyes: closeK > 0.5 ? { open: 0, closed: 'down', look: [0.1, 0.3] }
         : { open, look: [lookX, lookY], shine: lit ? 1 : 0.22, dull: lit ? 0 : 0.38, hlK: lit ? 1.12 : 0.78, wide: lit ? 0.12 * (1 - closeK) : 0 },
       brows: { inner: lerp(0.1, 0.34, sm(51.6, 51.9, tq)) - 0.18 * closeK, outer: lerp(-0.04, 0.06, sm(51.6, 51.9, tq)) },
       mouth: { shape: T < 51.62 && T > 51.43 ? 'o' : 'flat', open: frozen * 0.07 + (T > 51.43 && T < 51.62 ? 0.12 : 0) + 0.04 * inh },
       blush: lerp(0.03, 0.34, sm(51.75, 52.5, tq)),
-      lightDir: -2.5, shade: 0.035 + 0.04 * k,
+      lightDir: -2.5, shade: 0.03 + 0.025 * k,
     };
     const fig = {
       who: 'g05_senpai', outfit: 'dress', pose: 'g05_piano', facing: cam.th, camPitch: cam.ph, x: cam.x, y: cam.y, scale: cam.s, T,
       light: light16(k), keyDir: -2.45, rimDir: -2.2,
       params: { intensity: 0, play: 0, look: 'keys', rel, trem: frozen * 0.8, lift: 0.08 - 0.05 * rel + 0.012 * shallow + 0.045 * inh,
-        neckYaw: -0.13 * headK + 0.08 * inh, neckRoll: -0.03 * headK, neckPitch: lerp(0.02, -0.03, headK) + 0.1 * inh, bendAdd: -0.02 * inh },
+        neckYaw: -0.08 * headK + 0.07 * inh, neckRoll: -0.02 * headK, neckPitch: lerp(0.02, -0.03, headK) + 0.1 * inh, bendAdd: -0.02 * inh },
       head,
     };
     ctx.save();
@@ -341,24 +347,6 @@
     ctx.save(); ctx.globalCompositeOperation = 'screen'; ctx.globalAlpha = clamp(0.3 * (1 - 0.55 * k) + 0.12 * pulse); ctx.drawImage(veil16(), 0, 0); ctx.restore();
   } });
 
-  /* ---- TEMP dev sheet (removed before delivery): C16 variants side by side */
-  PV.shot('g05_dev16', { draw(ctx, t, d, S, env) {
-    ensurePose();
-    const q = new URLSearchParams(location.search), V = JSON.parse(q.get('v') || '[]');
-    ctx.fillStyle = '#f4f4f2'; ctx.fillRect(0, 0, W, H);
-    V.forEach((v, i) => {
-      ctx.save(); ctx.beginPath(); const cx = (i % 2) * 960, cy = Math.floor(i / 2) * 540; ctx.rect(cx, cy, 960, 540); ctx.clip(); ctx.translate(cx, cy); ctx.scale(0.5, 0.5);
-      const P17 = v.bg === 17; ctx.drawImage(P17 ? bg17(true) : bg16(false), 0, 0);
-      const cam = gcam(v.th ?? 0.86, v.ph ?? 0.15, v.x ?? 760, v.y ?? 1650, v.s ?? 430), PAL = P17 ? PAL17 : PAL16;
-      pianoBack(ctx, cam, PAL);
-      PV.anime.figure(ctx, { who: v.who || 'senpai', outfit: 'dress', pose: 'g05_piano', facing: cam.th, camPitch: cam.ph, x: cam.x, y: cam.y, scale: cam.s, T: v.T ?? 50.0, light: v.L || 'stage', faceLift: v.fl, keyDir: v.kd ?? -2.45, rimDir: v.rd ?? -2.2,
-        params: Object.assign({ intensity: 0, play: 0, look: 'keys' }, v.p || {}), costume: v.c, head: Object.assign({ expr: 'neutral', noBlink: true, lightDir: -2.5, shade: 0.05 }, v.h || {}) });
-      pianoFront(ctx, cam, PAL); pianoLid(ctx, cam, PAL);
-      ctx.restore();
-      ctx.fillStyle = '#c00'; ctx.font = '20px monospace'; ctx.fillText(JSON.stringify(v).slice(0, 90), (i % 2) * 960 + 10, Math.floor(i / 2) * 540 + 24);
-    });
-  } });
-
   /* ================================================================== C17 〈別れの曲〉
    * 53.0–57.0 (4.0 s). One spotlight; from the same audience side, a little further back and more to her side: she plays,
    * the shoulders moving slowly (原作3406), the face in 3/4 turning toward the profile as she sinks into the music.
@@ -371,7 +359,7 @@
   const PAL17 = {
     side: '#141015', top: '#3a2c22', inner: '#100c0c', innerWall: '#1a1412', plate: '#4a3820', strings: 'rgba(214,170,96,0.28)',
     lid: '#0e0b0d', lidEdge: '#2a201a', lidRefl: '#d6aa60', lidReflA: 0.16, lidSheen: '#ffd59a', lidSheenA: 0.1,
-    refl: '#ffd59a', reflA: 0.16, streaks: [[3.0, 0.45, 0.16], [6.0, 0.6, 0.12]], edge: '#ffd59a', edgeA: 0.85, line: '#060406',
+    refl: '#ffd59a', reflA: 0.16, streaks: [[3.0, 0.45, 0.16], [6.0, 0.6, 0.12]], edge: '#ffd59a', edgeA: 0.85, line: '#060406', lidFrontA: 0.3,
   };
   // her light: LIGHT.spot, but the spot is in front of her and above (her face is lit, the rim from above), not behind her
   let SPOT17 = null;
@@ -386,38 +374,64 @@
       L.godRays(c, 1.3, { x: 560, y: -160, angle: Math.PI / 2 + 0.05, spread: 0.3, count: 9, length: 1500, width: 150, flare: 3.2, color: '#ffe2b0', alpha: 0.1 + 0.06 * wk, seed: 17, jitter: 260, flicker: 0.4 });
     });
   }
+  // ONE tear down her near cheek (design: 「力強い顔のまま頬に一筋だけ」). The library's streaming tears run from both eyes and, near
+  // the profile, the far eye's stream is drawn outside the face contour (reported); so the eyes only well up (tears <= 0.5) and
+  // this local stroke, built on the head's anchors, runs from the inner corner of the near eye down the cheek.
+  function oneTear(ctx, hd, k, T, lightX) {
+    if (!hd || !hd.eyeL || !hd.chin || !hd.crown || k <= 0.001) return;
+    const s = hd.size, ux = hd.crown[0] - hd.chin[0], uy = hd.crown[1] - hd.chin[1], ul = Math.hypot(ux, uy) || 1;
+    let dn = [-ux / ul * 0.45, -uy / ul * 0.45 + 0.55]; const dl = Math.hypot(dn[0], dn[1]) || 1; dn = [dn[0] / dl, dn[1] / dl];   // down the cheek: the face's down + gravity
+    const rt = [-dn[1], dn[0]];                                                     // across it (toward screen right)
+    const fwd = Math.sign((hd.nose ? hd.nose[0] : hd.eyeL[0] + 1) - hd.eyeL[0]) || 1;  // toward the nose = the inner corner
+    const fa = clamp(hd.facing ?? 0.6), E = hd.eyeL, in0 = 0.018 * s * fa;     // toward the inner corner (less in profile)
+    const x0 = E[0] + dn[0] * 0.05 * s + rt[0] * fwd * in0, y0 = E[1] + dn[1] * 0.05 * s + rt[1] * fwd * in0;
+    const L = lerp(0.2, 0.3, fa) * s * clamp(k), pts = [];                      // to the jaw line (shorter on the narrow profile cheek)
+    for (let i = 0; i <= 12; i++) { const u = i / 12, d = L * u, side = -fwd * 0.012 * s * Math.sin(u * Math.PI * 0.85) * clamp(k * 1.4); pts.push([x0 + dn[0] * d + rt[0] * side, y0 + dn[1] * d + rt[1] * side]); }
+    const wv = (u) => s * (0.011 + 0.006 * (1 - PV.smooth(0, 0.3, u)) + 0.007 * PV.smooth(0.82, 1, u)) * PV.smooth(0, 0.08, u);
+    const A = PV.anime, nx = rt[0] * (lightX >= 0 ? 1 : -1), ny = rt[1] * (lightX >= 0 ? 1 : -1);
+    const off = (f) => pts.map((p, i) => { const u = i / 12, w = wv(u) * 0.5 * f; return [p[0] + nx * w, p[1] + ny * w]; });
+    A.taper(ctx, pts, wv, 'rgba(255,246,236,0.42)', true);                            // the water film (the skin shows through)
+    A.taper(ctx, off(-0.9), (u) => wv(u) * 0.16, 'rgba(120,70,60,0.22)', true);      // faint dark edge away from the light
+    A.taper(ctx, off(0.6), (u) => wv(u) * 0.3 * PV.smooth(0.04, 0.14, u), 'rgba(255,255,255,0.95)', true);   // the bright edge
+    const end = pts[pts.length - 1], r = 0.0085 * s;                                   // the bead at its tip and a glint
+    ctx.fillStyle = 'rgba(255,250,244,0.5)'; ctx.beginPath(); ctx.ellipse(end[0], end[1] + r * 0.4, r, r * 1.25, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.95)'; ctx.beginPath(); ctx.arc(end[0] - nx * r * 0.35, end[1] - r * 0.1, r * 0.34, 0, Math.PI * 2); ctx.fill();
+    const g = pts[Math.floor(pts.length * 0.45)]; ctx.beginPath(); ctx.arc(g[0] + nx * 0.003 * s, g[1], 0.004 * s, 0, Math.PI * 2); ctx.fill();
+  }
   PV.shot('C17', { draw(ctx, t, d, S) {
     if (S) S.post = Object.assign({}, S.post, { bloom: 0.22 });
-    ensurePose();
+    ensurePose(); bg17(false); bg17(true); veil16();
     const tt = clamp(t, -0.3, d + 0.3), T = absT(S, 'C17', tt), tq = tw(T);
     const warmK = smr(0.0, 3.2, tt);                  // white world -> warm hall light
     const whiteK = 0.62 * (1 - smr(0.0, 2.6, tt));    // leftover of C16's white
     const cam = gcam(CAM17.th, CAM17.ph, CAM17.x, CAM17.y, CAM17.s);
     // ---- acting
     const think = sm(53.6, 55.0, tq);                 // the thought of never seeing him again: brows knit, eyes fill
-    const strong = sm(55.7, 56.4, tq);                // 「一転。一呼吸。力強い顔」
-    const bf = Math.floor((T - 55.15) * 24 + 1e-6);   // the blink that lets the tear go
+    const strong = sm(55.75, 56.35, tq);              // 「一転。一呼吸。力強い顔」: the head comes up, the eyes open
+    const bf = Math.floor((T - 55.125) * 24 + 1e-6);  // the blink that lets the tear go
     const blinkO = bf < 0 || bf > 4 ? 1 : [0.5, 0.1, 0.0, 0.3, 0.75][bf];
-    const tears = T < 55.2 ? 0.5 * sm(53.9, 55.0, T) : lerp(0.5, 0.72, sm(55.2, 55.6, T));
+    const tearK = sm(55.21, 55.8, tq);                // ... one tear runs down her cheek (on twos)
+    const turnK = sm(54.0, 56.6, tq);                 // 3/4 -> toward the profile as she sinks into the music
     const head = {
-      expr: 'focus', noBlink: true, neckW: 1.1,
-      eyes: { open: (0.82 + 0.1 * strong) * blinkO, focus: lerp(0.55, 0.9, strong), tears, look: [0.25, 0.2 - 0.14 * strong], hlK: 1.05 },
-      brows: { furrow: lerp(0.25, 0.8, think), inner: lerp(-0.2, 0.05, think) - 0.35 * strong },
-      mouth: { shape: 'flat', open: 0 }, blush: 0.12 + 0.08 * think,
-      lightDir: -2.0, shade: 0.1,
+      expr: 'focus', noBlink: true, neckW: 1.2,
+      eyes: { open: lerp(0.64, 0.92, strong) * blinkO, focus: lerp(0.12, 0.8, strong), sad: 0.25 * think * (1 - strong), tears: 0.5 * sm(53.9, 55.0, tq) * (1 - 0.4 * tearK) * (1 - 0.6 * turnK), look: [lerp(0.0, 0.18, strong), lerp(0.45, 0.08, strong)], hlK: 1.05 },
+      brows: { furrow: lerp(0.1, 0.8, think), inner: lerp(0.02, 0.15, think) - 0.42 * strong },
+      mouth: { shape: 'flat', open: 0 }, blush: 0.12 + 0.1 * think,
+      lightDir: -2.0, shade: 0.05,
     };
     const fig = {
       who: 'g05_senpai', outfit: 'dress', pose: 'g05_piano', facing: cam.th, camPitch: cam.ph, x: cam.x, y: cam.y, scale: cam.s, T,
       light: spot17(), keyDir: -1.95, rimDir: -1.7,
-      params: { intensity: lerp(0.38, 0.7, strong), play: 1, look: 'keys', lift: 0.03, neckYaw: lerp(-0.2, 0.12, sm(54.2, 56.3, tq)), neckPitch: lerp(0.03, -0.04, strong) },
+      params: { intensity: lerp(0.38, 0.72, strong), play: 1, look: 'keys', lift: 0.03, neckYaw: lerp(-0.3, 0.28, turnK), neckPitch: lerp(0.06, -0.04, strong) },
       head,
     };
     ctx.save();
-    PV.camera(ctx, { zoom: 1.0 + 0.06 * PV.ease.inOut(clamp(tt / d)), cx: 700, cy: 420, x: 4 * Math.sin(tt * 0.5) });
+    PV.camera(ctx, { zoom: 1.0 + 0.1 * PV.ease.inOut(clamp(tt / d)), cx: 700, cy: 420, x: 4 * Math.sin(tt * 0.5) });
     ctx.drawImage(bg17(false), 0, 0);
     if (warmK > 0.002) { ctx.globalAlpha = warmK; ctx.drawImage(bg17(true), 0, 0); ctx.globalAlpha = 1; }
     pianoBack(ctx, cam, PAL17);
-    PV.anime.figure(ctx, fig);
+    const F = PV.anime.figure(ctx, fig);
+    oneTear(ctx, F && F.head, tearK, T, -1);
     pianoFront(ctx, cam, PAL17);
     pianoLid(ctx, cam, PAL17);
     L.dust(ctx, tt, { seed: 23, count: 70, x0: 300, x1: 1100, y0: 0, y1: 1000, size: 2.6, alpha: 0.55 + 0.25 * warmK, color: '#fff0d0', drift: 40, vx: -3, vy: 6 });
@@ -569,8 +583,8 @@
 
   /* ================================================================== C19 帰りの電車
    * 60.0–63.0 (3.0s). Night train window, streaming street-light bokeh. Close on the phone. 60.3 the notification:
-   * 「――おめでとう。」 and the summer photo (backlit two, horizon, white bridge) arrive. 61.6 one tear falls on the screen;
-   * his outline in the photo blurs and disappears. Static, the train's tiny sway.
+   * 「――おめでとう。」 and the summer photo of C15 (g04's PV.summerPhoto) arrive. 61.6 one tear falls on the screen on his
+   * face (62.25 a second on his chest); he blurs and melts into the light. Static, the train's tiny sway.
    */
   const C19 = { msg: 0.3, photo: 0.56, tear: 1.6, tear2: 2.25 };
   // ---- the summer photo of C15 (backlit two, horizon, white bridge). Layers: bg (sky/sea/bridge/her) and him.
@@ -591,54 +605,14 @@
         // the sun behind them: a hot backlight between their heads
         L.glow(b, 1010, 330, 900, '#fff8e6', 0.9); L.glow(b, 1010, 330, 260, '#ffffff', 1.0);
       }
-      // the two, backlit, facing the lens (faces in shadow). She is on the left with the wide-brimmed hat.
+      // (fallback only — g04 publishes the real photo) the two smiling at the lens, anime busts: she stands on his left, so
+      // facing the camera she is on the screen-right (design sheet 1-4), white one-piece + straw hat; he in the open blue shirt.
+      // Backlit by the sun between their heads, the faces lit by the sea.
       const fig = (who) => {
         const isHim = who === 'him';
-        L.figureRender(b, { x: isHim ? 1190 : 770, y: 800, scale: 3.3, style: 'silhouette', light: -1.45, rimColor: '#fff4dc', backlight: 0.45, glow: 0.75, fill: isHim ? '#1d2232' : '#262b3c' }, null, (F) => {
-          F.raw((c) => {
-            const faceFill = (cx, cy, rx, ry, rot) => { // face in shadow, a little sea-bounce from below
-              c.save(); c.translate(cx, cy); c.rotate(rot);
-              c.fillStyle = '#1c2130'; c.beginPath(); c.moveTo(0, -ry); c.bezierCurveTo(rx * 1.1, -ry, rx * 1.05, ry * 0.35, rx * 0.55, ry * 0.8); c.quadraticCurveTo(0, ry * 1.12, -rx * 0.55, ry * 0.8); c.bezierCurveTo(-rx * 1.05, ry * 0.35, -rx * 1.1, -ry, 0, -ry); c.fill();
-              const g = c.createLinearGradient(0, -ry, 0, ry); g.addColorStop(0, 'rgba(30,36,52,0)'); g.addColorStop(1, 'rgba(80,104,150,0.16)'); c.fillStyle = g; c.fill();
-              c.restore();
-            };
-            if (!isHim) {
-              // long hair streaming to the left in the sea wind
-              c.fillStyle = '#11141e';
-              c.beginPath(); c.moveTo(0.38, -0.92); c.bezierCurveTo(0.58, -0.3, 0.62, 0.5, 0.46, 1.5); c.lineTo(-0.62, 1.5); c.bezierCurveTo(-0.95, 0.7, -1.3, 0.1, -1.66, -0.22); c.bezierCurveTo(-1.1, -0.38, -0.64, -0.82, -0.4, -0.95); c.closePath(); c.fill();
-              c.lineWidth = 0.045; c.strokeStyle = '#11141e'; c.lineCap = 'round';
-              for (const [y0, k] of [[-0.62, 1], [-0.32, 0.82], [0.0, 0.92], [0.3, 0.7]]) { c.beginPath(); c.moveTo(-0.45, y0); c.quadraticCurveTo(-1.15, y0 - 0.22 * k, -1.85 * k, y0 - 0.08); c.stroke(); }
-              // shoulders in a sleeveless white one-piece (backlit: blue-grey)
-              c.fillStyle = '#2c3348'; c.beginPath(); c.moveTo(-0.95, 1.6); c.bezierCurveTo(-0.95, 0.75, -0.7, 0.5, -0.24, 0.42); c.lineTo(0.24, 0.42); c.bezierCurveTo(0.7, 0.5, 0.95, 0.75, 0.95, 1.6); c.closePath(); c.fill();
-              c.fillStyle = '#3b4560'; c.beginPath(); c.moveTo(-0.52, 1.6); c.lineTo(-0.48, 0.62); c.quadraticCurveTo(0, 0.86, 0.48, 0.62); c.lineTo(0.52, 1.6); c.closePath(); c.fill();
-              c.fillStyle = '#1e2232'; c.beginPath(); c.moveTo(-0.12, 0.05); c.lineTo(0.12, 0.05); c.lineTo(0.15, 0.5); c.quadraticCurveTo(0, 0.6, -0.15, 0.5); c.closePath(); c.fill();   // neck
-              faceFill(0.02, -0.36, 0.3, 0.4, 0.1);
-              // side hair framing the face
-              c.fillStyle = '#11141e';
-              c.beginPath(); c.moveTo(-0.33, -0.7); c.quadraticCurveTo(-0.42, -0.1, -0.3, 0.42); c.lineTo(-0.21, 0.3); c.quadraticCurveTo(-0.28, -0.2, -0.2, -0.64); c.closePath(); c.fill();
-              c.beginPath(); c.moveTo(0.36, -0.7); c.quadraticCurveTo(0.45, -0.1, 0.36, 0.34); c.lineTo(0.27, 0.26); c.quadraticCurveTo(0.33, -0.2, 0.24, -0.64); c.closePath(); c.fill();
-              // wide-brimmed straw hat, tipped toward him
-              c.save(); c.translate(0.0, -0.72); c.rotate(0.1);
-              c.fillStyle = '#ebe5d8'; c.beginPath(); c.ellipse(0, 0.05, 0.82, 0.16, 0, 0, TAU); c.fill();
-              c.fillStyle = '#d9d1c1'; c.beginPath(); c.ellipse(0, 0.09, 0.78, 0.1, 0, 0, Math.PI); c.fill();
-              c.fillStyle = '#ebe5d8'; c.beginPath(); c.moveTo(-0.36, 0.03); c.bezierCurveTo(-0.38, -0.4, 0.38, -0.4, 0.36, 0.03); c.closePath(); c.fill();
-              c.fillStyle = '#8fa7cf'; c.beginPath(); c.moveTo(-0.37, -0.02); c.quadraticCurveTo(0, 0.04, 0.37, -0.02); c.lineTo(0.37, -0.1); c.quadraticCurveTo(0, -0.04, -0.37, -0.1); c.closePath(); c.fill();
-              c.restore();
-            } else {
-              // him: the selfie arm reaching to the lens (lower right), T-shirt, messy hair, head tipped toward her
-              c.fillStyle = '#1b2030'; c.beginPath(); c.moveTo(0.7, 0.6); c.quadraticCurveTo(1.3, 0.75, 1.75, 1.6); c.lineTo(1.2, 1.7); c.quadraticCurveTo(0.95, 1.05, 0.55, 0.95); c.closePath(); c.fill();
-              c.beginPath(); c.moveTo(-1.15, 1.6); c.bezierCurveTo(-1.15, 0.7, -0.8, 0.45, -0.28, 0.38); c.lineTo(0.28, 0.38); c.bezierCurveTo(0.8, 0.45, 1.1, 0.7, 1.1, 1.6); c.closePath(); c.fill();
-              c.fillStyle = '#262c3e'; c.beginPath(); c.moveTo(-0.2, 0.42); c.quadraticCurveTo(0, 0.6, 0.2, 0.42); c.lineTo(0.16, 0.4); c.quadraticCurveTo(0, 0.52, -0.16, 0.4); c.closePath(); c.fill();   // collar
-              c.fillStyle = '#1d2131'; c.beginPath(); c.moveTo(-0.14, 0.0); c.lineTo(0.14, 0.0); c.lineTo(0.17, 0.44); c.quadraticCurveTo(0, 0.52, -0.17, 0.44); c.closePath(); c.fill();   // neck
-              for (const sg of [-1, 1]) { c.fillStyle = '#1c2130'; c.beginPath(); c.ellipse(sg * 0.33, -0.3, 0.06, 0.11, sg * 0.2, 0, TAU); c.fill(); }   // ears
-              faceFill(-0.02, -0.38, 0.31, 0.42, -0.08);
-              c.fillStyle = '#0e111a'; c.beginPath();
-              c.moveTo(-0.38, -0.22); c.quadraticCurveTo(-0.5, -0.64, -0.36, -0.82); c.quadraticCurveTo(-0.3, -1.0, -0.08, -0.98); c.quadraticCurveTo(0.02, -1.08, 0.17, -0.99); c.quadraticCurveTo(0.42, -0.96, 0.44, -0.72);
-              c.quadraticCurveTo(0.54, -0.52, 0.41, -0.24); c.lineTo(0.35, -0.42); c.quadraticCurveTo(0.28, -0.63, 0.07, -0.62); c.lineTo(-0.01, -0.5); c.lineTo(-0.11, -0.64); c.quadraticCurveTo(-0.31, -0.62, -0.32, -0.42); c.closePath(); c.fill();
-              c.beginPath(); c.moveTo(-0.3, -0.9); c.lineTo(-0.42, -0.98); c.lineTo(-0.36, -0.82); c.closePath(); c.fill();
-            }
-          });
-        });
+        PV.anime.bust(b, { who: isHim ? 'boy' : 'senpai', outfit: isHim ? 'tee' : 'summer', x: isHim ? 790 : 1180, y: 960, size: isHim ? 320 : 300,
+          yaw: isHim ? 0.12 : -0.1, roll: isHim ? 0.06 : -0.07, T: 48.5, expr: 'smile', noBlink: true, light: 'summer', rimDir: -1.45, faceLift: 0.35,
+          hair: { wind: isHim ? 0.35 : 0.9, windDir: Math.PI } });
       };
       if (layer === 'her' || layer === 'bg') fig('her');
       if (layer === 'him') fig('him');
@@ -646,7 +620,28 @@
       if (layer === 'bg' && L.flare) L.flare(b, 1010, 330, 0.7, '#fff2d0');
       c.drawImage(big.canvas, 240, 180, 1440, 1080, 0, 0, PW, PH);
     });
-    return { bg: make('bg'), him: make('him'), w: PW, h: PH };
+    const him = make('him');
+    return { bg: make('bg'), him, w: PW, h: PH, at: himAt(him) };
+  }
+  // where he is in the photo (the tears must land on HIM whatever the layout of g04's photo): the box of the 'him' layer's
+  // opaque pixels, read once; the first drop on his face, the second on his chest. Falls back to the old layout.
+  let HIM_AT = null;
+  function himAt(cv) {
+    if (HIM_AT) return HIM_AT;
+    let at = { u1: 0.655, v1: 0.42, u2: 0.6, v2: 0.66 };
+    try {
+      const w = cv.width, h = cv.height, d = cv.getContext('2d').getImageData(0, 0, w, h).data;
+      let x0 = w, y0 = h, x1 = -1, y1 = -1;
+      for (let y = 0; y < h; y += 2) for (let x = 0; x < w; x += 2) if (d[(y * w + x) * 4 + 3] > 60) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+      if (x1 > x0 + 8 && y1 > y0 + 8) {
+        // the head: the mean x of the opaque pixels in the top fifth of his box
+        const yh = y0 + (y1 - y0) * 0.2; let sx = 0, n = 0;
+        for (let y = y0; y < yh; y += 2) for (let x = x0; x <= x1; x += 2) if (d[(y * w + x) * 4 + 3] > 60) { sx += x; n++; }
+        const hx = n ? sx / n : (x0 + x1) / 2, bh = y1 - y0;
+        at = { u1: clamp(hx / w, 0.08, 0.92), v1: clamp((y0 + bh * 0.24) / h, 0.15, 0.85), u2: clamp((hx - 0.045 * w) / w, 0.08, 0.92), v2: clamp((y0 + bh * 0.5) / h, 0.2, 0.9) };
+      }
+    } catch (e) { /* tainted or empty: keep the default */ }
+    return (HIM_AT = at);
   }
   // ---- the chat screen (drawn inside the phone's screen, local units: w=272, h=524)
   function sheen19(c, w, h) {   // glass sheen over the screen
@@ -780,7 +775,7 @@
     // ---- the phone (close) in her hand, the train's small sway
     const sway = { x: 4 * Math.sin(tt * 3.1) + 2 * Math.sin(tt * 7.3), y: 3 * Math.sin(tt * 4.3 + 1) + 1.5 * N2(tt * 6, 3), r: 0.004 * Math.sin(tt * 2.7) };
     const P = summerPhotoLayers();
-    const drops = [{ at: C19.tear, u: 0.655, v: 0.42 }, { at: C19.tear2, u: 0.6, v: 0.66 }];
+    const drops = [{ at: C19.tear, u: P.at.u1, v: P.at.v1 }, { at: C19.tear2, u: P.at.u2, v: P.at.v2 }];
     const st = {
       drawPhotoInto(c, R) {
         c.drawImage(P.bg, R.x, R.y, R.w, R.h);
