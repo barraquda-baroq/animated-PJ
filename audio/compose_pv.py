@@ -177,6 +177,17 @@ def m3_m4():
     c.pedal('pf', 31.0, 33.95); c.pedal('pf', 34.0, 36.2); c.pedal('pf', 36.25, 36.95)
     themes.guitar_pick(c.S, 'gt', c.b(31.0), [themes.PROG_A[0], [(3, 'C#2', ['A2', 'E3', 'A3', 'C#4']), (1, 'A1', ['A2', 'E3', 'G3', 'C#4'])]], vel=50)
     c.chord('st', 31.0, 3.0, ['D3', 'A3', 'F#4'], 40); c.chord('st', 34.0, 2.25, ['C#3', 'A3', 'E4'], 44); c.chord('st', 36.25, 1.2, ['A2', 'G3', 'C#4', 'E4'], 46)
+    # dynamics: the call-and-response grows; the sung phrase swells to the small peak (35.6) and relaxes into A7
+    def dyn(b):
+        t = c.t0 + b * 60.0 / c.bpm
+        if t < 22.0: return 0.9
+        if t < 28.0: return 0.92 + 0.1 * (t - 22.0) / 6.0
+        if t < 31.0: return 0.86
+        if t < 35.6: return 0.9 + 0.18 * (t - 31.0) / 4.6
+        return 1.08 - 0.25 * min(1.0, (t - 35.6) / 1.0)
+    c.S.shape_velocity(dyn, names=['pf', 'gt'])
+    # the two instruments move toward the centre as they start to sing together
+    c.ramp('pf', 31.0, 34.0, 10, PAN_PIANO, 52, 12); c.ramp('gt', 31.0, 34.0, 10, PAN_GUITAR, 76, 12)
     x = c.render({'pf': 1.0, 'gt': 0.85, 'pad': 0.35, 'cel': 0.4, 'st': 0.42}, rt60=2.3, wet=0.28, length=36.95 - 19.8)
     x = dsp.fade(x, 0.0, 0.25)
     put(x, 19.8, name='M3_M4', lufs=-24)
@@ -281,6 +292,12 @@ def m11():
     # 74.0 A7sus4 held, unresolved, cut at 75.5
     c.chord('st', 74.0, 1.6, ['A2', 'E3', 'G3', 'D4', 'E4'], 50); c.chord('pf', 74.0, 1.5, ['A2', 'E3', 'G3', 'D4'], 50)
     c.chord('gt', 74.0, 1.5, ['A2', 'E3', 'G3', 'D4', 'E4'], 54, roll=0.035); c.pedal('pf', 74.0, 75.45)
+    def dyn11(b):
+        t = c.t0 + b * 60.0 / c.bpm
+        if 70.0 <= t < 72.2: return 0.95 + 0.12 * (t - 70.0) / 2.2
+        if 72.2 <= t < 74.0: return 1.07 - 0.15 * (t - 72.2) / 1.8
+        return 1.0
+    c.S.shape_velocity(dyn11, names=['pf', 'gt'])
     x = c.render({'pf': 1.0, 'gt': 0.85, 'st': 0.5, 'vc': 0.45}, rt60=2.6, wet=0.3, length=12.5)
     x = dsp.fade(x, 0.3, 0.06)
     put(x, 63.0, name='M11', lufs=-23)
@@ -456,7 +473,7 @@ def m21():
     nine = ['A4', 'D5', 'E5', 'G5', 'A5', 'D6', 'E6', 'G6', 'A6']
     for k, q in enumerate(nine):
         who = 'pf' if k % 2 == 0 else 'gt'
-        c.n(who, 174.75 + k * 0.25, 0.6, q, 54 + k * 3)
+        c.n(who, 174.75 + k * 0.25, 0.6, q, 50 + k * 5)
     c.chord('st', 174.75, 2.25, ['A2', 'E3', 'G3', 'D4', 'E4', 'A4'], 60)
     c.pedal('pf', 174.75, 176.95)
     # 177.0 D(add9) tutti — the promise resolves, the title completes; 177.35 guitar strum ('アイロニー')

@@ -43,7 +43,14 @@
   // 5. 第一話 — 「楽譜が、一斉に、消えた」 the page on the music desk empties into white
   PV.shot('dev_instruments_5', { draw(ctx, t) {
     const g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#16120f'); g.addColorStop(1, '#0b0908'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-    L.glow(ctx, W * 0.3, H * 0.15, 900, '#fff1d8', 0.25);
+    // the page rests on the piano's black-lacquer music desk; afternoon window light from the upper left
+    ctx.save(); ctx.translate(W * 0.5, H * 0.56); ctx.rotate(-0.03); ctx.transform(1, 0, -0.04, 0.92, 0, 0);
+    const dk = ctx.createLinearGradient(-640, -580, 400, 470); dk.addColorStop(0, '#1a1716'); dk.addColorStop(0.4, '#0c0b0d'); dk.addColorStop(1, '#070709');
+    ctx.fillStyle = dk; ctx.fillRect(-660, -600, 1320, 1070);
+    const sh = ctx.createLinearGradient(-660, -600, -300, 80); sh.addColorStop(0, 'rgba(255,240,215,0.09)'); sh.addColorStop(0.5, 'rgba(255,240,215,0.015)'); sh.addColorStop(1, 'rgba(255,240,215,0)'); ctx.fillStyle = sh; ctx.fillRect(-660, -600, 1320, 1070);
+    ctx.fillStyle = '#050506'; ctx.fillRect(-660, 470, 1320, 36); ctx.fillStyle = 'rgba(255,236,206,0.32)'; ctx.fillRect(-660, 470, 1320, 2.2);
+    ctx.restore();
+    L.glow(ctx, W * 0.22, H * 0.08, 900, '#fff1d8', 0.3);
     L.sheetMusic(ctx, t, { x: W * 0.5, y: H * 0.54, w: 700, rot: -0.03, skewX: -0.04, scaleY: 0.92, dissolve: PV.smooth(1.0, 5.4, t), light: { angle: -2.4 } });
   } });
 

@@ -452,7 +452,7 @@ PV.timeline = {
   },
   {
    "type": "credit",
-   "text": "原作　宮本有楽『キミの右手のアイロニー』　　劇場アニメーション　20XX年　公開\nVOICEVOX:冥鳴ひまり　VOICEVOX:玄野武宏　VOICEVOX:九州そら",
+   "text": "原作　宮本有楽『キミの右手のアイロニー』　　劇場アニメーション　近日公開\n音声合成：Open JTalk ／ HTS voice \"Mei\"（© Nagoya Institute of Technology, CC BY 3.0）・nitech_jp_atr503_m001",
    "start": 177.8,
    "end": 180.0,
    "style": "bottom",
@@ -465,126 +465,126 @@ PV.timeline = {
    "type": "subtitle",
    "text": "ねえ……どうして今日は拍手をくれたの",
    "start": 12.65,
-   "end": 16.474,
+   "end": 16.47,
    "speaker": "先輩"
   },
   {
    "type": "subtitle",
    "text": "え？　だって、今のはミスなかったじゃん",
    "start": 16.55,
-   "end": 19.782,
+   "end": 20.05,
    "speaker": "彼"
   },
   {
    "type": "subtitle",
    "text": "ねえ……左手、見せて",
    "start": 28.2,
-   "end": 30.888,
+   "end": 31.15,
    "speaker": "先輩"
   },
   {
    "type": "subtitle",
    "text": "俺……先輩の音。好きだよ",
    "start": 36.85,
-   "end": 40.318,
+   "end": 40.65,
    "speaker": "彼"
   },
   {
    "type": "subtitle",
    "text": "コンクールが終わったらさ……また、セッションしようね",
    "start": 70.45,
-   "end": 75.185,
+   "end": 75.65,
    "speaker": "先輩"
   },
   {
    "type": "subtitle",
    "text": "先輩……その右手、もう……",
    "start": 83.85,
-   "end": 86.873,
+   "end": 87.6,
    "speaker": "彼"
   },
   {
    "type": "subtitle",
    "text": "動かないんだってさ……",
    "start": 88.35,
-   "end": 90.809,
+   "end": 91.1,
    "speaker": "彼"
   },
   {
    "type": "subtitle",
    "text": "この気持ちが……分からないわよ！　貴方には！",
    "start": 99.05,
-   "end": 102.9,
+   "end": 103.3,
    "speaker": "先輩"
   },
   {
    "type": "subtitle",
    "text": "コードが……押さえられなくなるじゃない！",
    "start": 106.35,
-   "end": 109.173,
+   "end": 110.0,
    "speaker": "先輩"
   },
   {
    "type": "subtitle",
    "text": "自分のために生きられないなら……俺のために生きてよ",
    "start": 110.45,
-   "end": 114.367,
+   "end": 115.8,
    "speaker": "彼"
   },
   {
    "type": "subtitle",
    "text": "全部は無理だけど……俺が……先輩の右手になるよ",
    "start": 117.05,
-   "end": 121.478,
+   "end": 123.0,
    "speaker": "彼"
   },
   {
    "type": "subtitle",
    "text": "だって、貴方が、ワタシの右手の代わりになってくれるんでしょう",
    "start": 123.95,
-   "end": 129.822,
+   "end": 130.15,
    "speaker": "先輩"
   },
   {
    "type": "subtitle",
    "text": "はなして。",
    "start": 136.05,
-   "end": 137.073,
+   "end": 137.6,
    "speaker": "先輩"
   },
   {
    "type": "subtitle",
    "text": "嫌だ……離したくない……",
    "start": 137.95,
-   "end": 140.687,
+   "end": 141.15,
    "speaker": "彼"
   },
   {
    "type": "subtitle",
    "text": "ちゃんと、人を好きになりなさい",
    "start": 141.45,
-   "end": 144.581,
+   "end": 144.65,
    "speaker": "叔母"
   },
   {
    "type": "subtitle",
    "text": "なんで……あるの",
    "start": 151.85,
-   "end": 153.95,
+   "end": 154.15,
    "speaker": "先輩"
   },
   {
    "type": "subtitle",
    "text": "そんなの……先輩との、演奏が、楽しかったからに……決まってるだろ",
    "start": 154.35,
-   "end": 160.627,
+   "end": 161.15,
    "speaker": "彼"
   },
   {
    "type": "subtitle",
    "text": "左手、見せて",
    "start": 170.2,
-   "end": 172.416,
+   "end": 172.45,
    "speaker": "先輩"
   }
  ]

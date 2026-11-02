@@ -214,12 +214,24 @@
     if (blurPx > 0) { const b = PV.buffer('instr:hsB', W / 2, H / 2); b.ctx.clearRect(0, 0, W / 2, H / 2); b.ctx.filter = `blur(${(blurPx / 2).toFixed(2)}px)`; b.ctx.drawImage(a.canvas, 0, 0); b.ctx.filter = 'none'; src = b.canvas; }
     ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = alpha; ctx.globalCompositeOperation = op || 'source-over'; ctx.drawImage(src, 0, 0, W, H); ctx.restore();
   }
+  // same as halfSoft at quarter resolution (very soft shadows / glows: 4x fewer pixels to blur), optional screen bbox
+  function quarterSoft(ctx, fn, blurPx, alpha, op, bbox) {
+    const T0 = ctx.getTransform(); const qw = W / 4, qh = H / 4;
+    const a = PV.buffer('instr:qsA', qw, qh); a.ctx.clearRect(0, 0, qw, qh); a.ctx.setTransform(T0.a * 0.25, T0.b * 0.25, T0.c * 0.25, T0.d * 0.25, T0.e * 0.25, T0.f * 0.25); fn(a.ctx); a.ctx.setTransform(1, 0, 0, 1, 0, 0);
+    let src = a.canvas;
+    if (blurPx > 0) { const b = PV.buffer('instr:qsB', qw, qh); b.ctx.clearRect(0, 0, qw, qh); b.ctx.filter = `blur(${(blurPx / 4).toFixed(2)}px)`; b.ctx.drawImage(a.canvas, 0, 0); b.ctx.filter = 'none'; src = b.canvas; }
+    ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = alpha; ctx.globalCompositeOperation = op || 'source-over';
+    if (typeof bbox === 'function') bbox = bbox();
+    if (bbox) { const x0 = Math.max(0, Math.floor(bbox[0] / 4)), y0 = Math.max(0, Math.floor(bbox[1] / 4)), x1 = Math.min(qw, Math.ceil(bbox[2] / 4)), y1 = Math.min(qh, Math.ceil(bbox[3] / 4)); if (x1 > x0 && y1 > y0) ctx.drawImage(src, x0, y0, x1 - x0, y1 - y0, x0 * 4, y0 * 4, (x1 - x0) * 4, (y1 - y0) * 4); }
+    else ctx.drawImage(src, 0, 0, W, H);
+    ctx.restore();
+  }
   // luminous white-out (over-exposure): the brights bloom and bleed first, then the whole frame lifts to paper white.
   // (a flat 'screen' of white only turned the frame into grey fog)
   function whiteoutFx(ctx, w, col) {
     w = clamp(w); if (w <= 0) return;
-    const qw = W / 4, qh = H / 4;
-    const b = PV.buffer('instr:woSmall', qw, qh); b.ctx.clearRect(0, 0, qw, qh); b.ctx.filter = 'blur(5px)'; b.ctx.drawImage(ctx.canvas, 0, 0, qw, qh); b.ctx.filter = 'none';
+    const qw = W / 6, qh = H / 6;
+    const b = PV.buffer('instr:woSmall', qw, qh); b.ctx.clearRect(0, 0, qw, qh); b.ctx.filter = 'blur(3.4px)'; b.ctx.drawImage(ctx.canvas, 0, 0, qw, qh); b.ctx.filter = 'none';
     ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = clamp(w * 1.6) * 0.85; ctx.drawImage(b.canvas, 0, 0, W, H);
     ctx.globalCompositeOperation = 'screen'; ctx.globalAlpha = Math.pow(w, 1.5); ctx.fillStyle = col || '#f8f8f6'; ctx.fillRect(0, 0, W, H);
@@ -388,6 +400,17 @@
         const rd = o.rimDir === undefined ? -2.3 : o.rimDir, rw = o.rimWidth || Math.max(2, (o.scale || 330) * 0.007);
         rimLight(ctx, buf, { bbox: res && res.bbox, dx: Math.cos(rd) * rw, dy: Math.sin(rd) * rw, color: o.rimColor || '#ffe9c4', alpha: o.rimAlpha === undefined ? 0.9 : o.rimAlpha, soft: rw * 3 });
       }
+      // a few faint inner contour lines (rim top, lid edge, key line) so the flat shape still reads as a grand piano
+      if (res && o.innerLines !== false) {
+        const cam = res.cam, Lp = o.length || 2.0, Wd = o.width || (Lp > 2.4 ? 1.57 : 1.49), G = pianoGeo(Lp, Wd), yt = PN.yt;
+        const ang = clamp(o.lidOpen === undefined ? 0.8 : o.lidOpen) * 0.6, ca = Math.cos(ang), sa = Math.sin(ang);
+        ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = cs(hx(o.rimColor || '#ffe9c4'), o.innerAlpha === undefined ? 0.32 : o.innerAlpha); ctx.lineWidth = Math.max(1, (o.scale || 330) * 0.0035);
+        ctx.beginPath();
+        for (let i = 1; i < G.P.length; i++) { const a = G.P[i], b = G.P[(i + 1) % G.P.length]; const mid = [(a[0] + b[0]) / 2, yt, (a[1] + b[1]) / 2]; if (!cam.facing(mid, G.segN[i])) continue; const pa = cam.p([a[0], yt, a[1]]), pb = cam.p([b[0], yt, b[1]]); ctx.moveTo(pa[0], pa[1]); ctx.lineTo(pb[0], pb[1]); }
+        if (ang > 0.01) { let first = true; for (const q of G.lidPts) { if (q[1] < Wd * 0.25) continue; const p = cam.p([q[0], yt + q[1] * sa, q[1] * ca]); if (first) { ctx.moveTo(p[0], p[1]); first = false; } else ctx.lineTo(p[0], p[1]); } }
+        const k0 = cam.p([-PN.keyLen, PN.yk, G.cheekW]), k1 = cam.p([-PN.keyLen, PN.yk, Wd - G.cheekW]); ctx.moveTo(k0[0], k0[1]); ctx.lineTo(k1[0], k1[1]);
+        ctx.stroke(); ctx.restore();
+      }
       return res;
     }
     if (o.rimLit) {
@@ -488,6 +511,7 @@
         fillP(ctx, pts, cs(c)); if (!sil) { ctx.strokeStyle = cs(c); ctx.lineWidth = 1; ctx.stroke(); }
       }
       if (!sil) drawPianoInterior(ctx, cam, G, st, ySb);
+      else { const top = cam.poly(P.map(p => [p[0], yt, p[1]])); if (top) fillP(ctx, top, cs(st.silCol)); } // silhouettes must not be see-through
     }
     // near outer walls
     near.sort((x, y) => cam.depth([(P[y][0] + P[(y + 1) % n][0]) / 2, yt, (P[y][1] + P[(y + 1) % n][1]) / 2]) - cam.depth([(P[x][0] + P[(x + 1) % n][0]) / 2, yt, (P[x][1] + P[(x + 1) % n][1]) / 2]));
@@ -648,7 +672,10 @@
       const nS = above ? nTop : vmul(nTop, -1);
       const pA = [Lp * 0.5, 0, 0], pB = [Lp * 0.5, 0, Wd * 0.75];
       const A = rot(pA[0], above ? yt + th : yt, pA[2]), B = rot(pB[0], above ? yt + th : yt, pB[2]);
-      const cA = lacquer(st, A, nS, 1, true), cB = lacquer(st, B, nS, 1, true);
+      // seen almost edge-on (front views, or from behind the player) the Fresnel term would turn the black lid into a
+      // pale plank against a bright room: keep it a dark blade, the edge highlight carries the shape
+      const vd0 = vnorm(vsub(vmul(vadd(A, B), 0.5), st.eye)), edgeOn = Math.abs(vdot(vd0, nS)) < 0.14;
+      const cA = lacquer(st, A, nS, edgeOn ? 0.3 : 1, true), cB = lacquer(st, B, nS, edgeOn ? 0.3 : 1, true);
       const sA = cam.p(A), sB = cam.p(B);
       const g = ctx.createLinearGradient(sA[0], sA[1], sB[0], sB[1]);
       g.addColorStop(0, cs(cA)); g.addColorStop(1, cs(above ? cB : cadd(cB, [18, 14, 10])));
@@ -712,8 +739,9 @@
     const cheekL = box(-0.172, yb, 0, 0.0, 0.80, cheekW), cheekR = box(-0.172, yb, Wd - cheekW, 0.0, 0.80, Wd);
     const leftFar = cam.depth([-0.1, 0.7, 0]) > cam.depth([-0.1, 0.7, Wd]);
     drawHex(ctx, cam, leftFar ? cheekL : cheekR, (nr, fc) => lq(nr, fc, nr[1] > 0.5 ? 0.45 : 1));
-    // name board / case front above the keys
+    // name board / case front above the keys (full width above the cheek blocks: the case front has no hole at the ends)
     const nb = cam.poly([[0, yk - 0.01, cheekW], [0, yk - 0.01, Wd - cheekW], [0, yt, Wd - cheekW], [0, yt, cheekW]]);
+    if (cam.facing([0, 0.85, zc], [-1, 0, 0])) for (const [za, zb] of [[0, cheekW + 0.002], [Wd - cheekW - 0.002, Wd]]) { const q = cam.poly([[0, 0.795, za], [0, 0.795, zb], [0, yt, zb], [0, yt, za]]); if (q) fillP(ctx, q, sil ? S(st.silCol) : lq([-1, 0, 0], [0, 0.89, (za + zb) / 2])); }
     if (nb && cam.facing([0, 0.85, zc], [-1, 0, 0])) {
       fillP(ctx, nb, sil ? S(st.silCol) : lq([-1, 0, 0], [0, 0.82, zc]));
       if (!sil) {
@@ -723,6 +751,8 @@
         if (s * 0.08 > 6) { ctx.fillStyle = 'rgba(200,160,80,0.75)'; ctx.fillRect(m[0] - s * 0.04, m[1] - s * 0.004, s * 0.08, s * 0.008); }
       }
     }
+    // keybed: a solid block under the keys (in a silhouette nothing may show through it)
+    if (sil) drawHex(ctx, cam, box(kx0 - 0.004, yb, cheekW - 0.002, 0.002, yk - 0.002, Wd - cheekW + 0.002), () => S(st.silCol));
     // keybed / key slip
     const ks = cam.poly([[kx0 - 0.004, yb + 0.005, cheekW], [kx0 - 0.004, yb + 0.005, Wd - cheekW], [kx0 - 0.004, yk - 0.02, Wd - cheekW], [kx0 - 0.004, yk - 0.02, cheekW]]);
     if (ks && cam.facing([kx0, 0.68, zc], [-1, 0, 0])) fillP(ctx, ks, sil ? S(st.silCol) : lq([-1, 0, 0], [kx0, 0.67, zc], 0.9));
@@ -850,32 +880,36 @@
       vis.push(k);
     }
     const tgt = o.dof ? true : null;
-    const c = ctx;
+    const paintKeys = (c, vis, dip, sub) => {
     c.save(); c.lineJoin = 'round';
     // key bed / gaps: dark plane under the keys + key slip + name board
-    const xs = vis.length ? Math.min(...vis.map(k => k.x0 * KW)) - 40 : fx - 600, xe = vis.length ? Math.max(...vis.map(k => k.x1 * KW)) + 40 : fx + 600;
+    const mg = sub ? 0 : 40;
+    const xs = vis.length ? Math.min(...vis.map(k => k.x0 * KW)) - mg : fx - 600, xe = vis.length ? Math.max(...vis.map(k => k.x1 * KW)) + mg : fx + 600;
     const bed = cam.poly([[xs, -14, -2], [xe, -14, -2], [xe, -14, KLEN + 4], [xs, -14, KLEN + 4]]); fillP(c, bed, '#060608');
     const slip = cam.poly([[xs, -15, -4], [xe, -15, -4], [xe, -60, -4], [xs, -60, -4]]);
-    if (slip && cam.facing([fx, -30, -4], [0, 0, -1])) {
+    if (!sub && slip && cam.facing([fx, -30, -4], [0, 0, -1])) {
       const a = cam.p([fx, -15, -4]), b = cam.p([fx, -60, -4]); const g = c.createLinearGradient(a[0], a[1], b[0], b[1]);
       g.addColorStop(0, cs(cadd([16, 16, 20], lcol, 0.08 * lk))); g.addColorStop(0.15, '#0b0b0e'); g.addColorStop(1, '#050507'); fillP(c, slip, sil ? '#000' : g);
     }
     PM('bed');
     // name board (fallboard) with reflection of the keys
     const zNB = KLEN + 3;
-    const nbPts = cam.poly([[xs, -4, zNB], [xe, -4, zNB], [xe, 75, zNB], [xs, 75, zNB]]);
+    const nbPts = sub ? null : cam.poly([[xs, -4, zNB], [xe, -4, zNB], [xe, 75, zNB], [xs, 75, zNB]]);
     if (nbPts) {
       const a = cam.p([fx, 75, zNB]), b = cam.p([fx, -4, zNB]); const g = c.createLinearGradient(a[0], a[1], b[0], b[1]);
       g.addColorStop(0, '#08080b'); g.addColorStop(0.7, '#0e0e12'); g.addColorStop(1, '#141418'); fillP(c, nbPts, g);
       if (!sil) {
         c.save(); c.beginPath(); trace(c, nbPts); c.clip();
         const nM = [0, 0, -1], dM = -zNB; // plane z = zNB  (n·p = d with n=(0,0,-1))
+        // the keys mirrored in the fallboard: two batched paths (whites, then blacks) instead of one fill per key
+        const refl = [new Path2D(), new Path2D()];
         for (const k of vis) {
           const d = dip(k.k); const x0 = k.x0 * KW + (k.black ? 0 : 0.5), x1 = k.x1 * KW - (k.black ? 0 : 0.5);
           const zA = k.black ? 55 : 60, yy = k.black ? BH : 0;
           const pts = cam.poly([[x0, yy + keyDrop(d, zA), zA], [x1, yy + keyDrop(d, zA), zA], [x1, yy + keyDrop(d, KLEN), KLEN], [x0, yy + keyDrop(d, KLEN), KLEN]].map(p => mirrorP(p, nM, dM)));
-          fillP(c, pts, k.black ? 'rgba(0,0,0,0.9)' : cs(cmul(ivory, 0.2 + 0.1 * lk), 0.85));
+          if (pts) { const P2 = refl[k.black ? 1 : 0]; P2.moveTo(pts[0][0], pts[0][1]); for (let q = 1; q < pts.length; q++) P2.lineTo(pts[q][0], pts[q][1]); P2.closePath(); }
         }
+        c.fillStyle = cs(cmul(ivory, 0.2 + 0.1 * lk), 0.85); c.fill(refl[0]); c.fillStyle = 'rgba(0,0,0,0.9)'; c.fill(refl[1]);
         // soft fade & gloss of the name board
         const g2 = c.createLinearGradient(a[0], a[1], b[0], b[1]); g2.addColorStop(0, 'rgba(8,8,11,0.95)'); g2.addColorStop(0.55, 'rgba(8,8,11,0.25)'); g2.addColorStop(1, 'rgba(8,8,11,0)');
         c.fillStyle = g2; c.fillRect(-W, -H, W * 3, H * 3);
@@ -916,10 +950,9 @@
       // front face
       const ff = cam.poly([[x0, yF, 0], [x1, yF, 0], [x1, yF - 12, 0], [x0, yF - 12, 0]]);
       if (ff && cam.facing([(x0 + x1) / 2, yF - 6, 0], [0, 0, -1])) {
-        const a = cam.p([x0, yF, 0]), b = cam.p([x0, yF - 12, 0]); const g = c.createLinearGradient(a[0], a[1], b[0], b[1]);
-        const fl = 0.5 + 0.35 * Math.max(0, -ldir[2]);
-        g.addColorStop(0, cs(cmul(ivory, fl + 0.15))); g.addColorStop(0.25, cs(cmul(ivory, fl))); g.addColorStop(1, cs(cmul(ivory, fl * 0.55)));
-        fillP(c, ff, sil ? '#000' : g);
+        const fl = 0.5 + 0.35 * Math.max(0, -ldir[2]); const a = cam.p([x0, yF, 0]), b = cam.p([x0, yF - 12, 0]);
+        if (Math.hypot(b[0] - a[0], b[1] - a[1]) > 14) { const g = c.createLinearGradient(a[0], a[1], b[0], b[1]); g.addColorStop(0, cs(cmul(ivory, fl + 0.15))); g.addColorStop(0.25, cs(cmul(ivory, fl))); g.addColorStop(1, cs(cmul(ivory, fl * 0.55))); fillP(c, ff, sil ? '#000' : g); }
+        else fillP(c, ff, sil ? '#000' : cs(cmul(ivory, fl * 0.85))); // small on screen: flat
       }
       // top
       const tp = cam.poly([[x0, yF, 0], [x1, yF, 0], [x1, yB, KLEN], [x0, yB, KLEN]]);
@@ -954,8 +987,8 @@
     // ---- black-key shadows on white keytops (soft)
     if (!sil) {
       const lx = -ldir[0] / Math.max(0.15, ldir[1]), lz = -ldir[2] / Math.max(0.15, ldir[1]);
-      const sc = cam.scaleAt([fx, 0, 75]);
-      halfSoft(c, s => {
+      const sc = cam.scaleAt([fx, 0, 75]); const sbb = [1e9, 1e9, -1e9, -1e9];
+      quarterSoft(c, s => {
         s.fillStyle = '#000'; s.beginPath();
         for (const k of vis) {
           if (!k.black) continue; const d = dip(k.k);
@@ -964,10 +997,10 @@
           const q2 = cam.poly([[x0 + lx * hh, 0.2, 50 + lz * hh], [x1 + lx * hh, 0.2, 50 + lz * hh], [x1 + lx * hh, 0.2, KLEN + lz * hh], [x0 + lx * hh, 0.2, KLEN + lz * hh]]);
           const q3 = cam.poly([[x0, 0.2, 50], [x0 + lx * hh, 0.2, 50 + lz * hh], [x0 + lx * hh, 0.2, KLEN + lz * hh], [x0, 0.2, KLEN]]);
           const q4 = cam.poly([[x1, 0.2, 50], [x1 + lx * hh, 0.2, 50 + lz * hh], [x1 + lx * hh, 0.2, KLEN + lz * hh], [x1, 0.2, KLEN]]);
-          for (const q of [q1, q2, q3, q4]) if (q) trace(s, q);
+          for (const q of [q1, q2, q3, q4]) if (q) { trace(s, q); for (const p of q) { if (p[0] < sbb[0]) sbb[0] = p[0]; if (p[1] < sbb[1]) sbb[1] = p[1]; if (p[0] > sbb[2]) sbb[2] = p[0]; if (p[1] > sbb[3]) sbb[3] = p[1]; } }
         }
         s.fill('nonzero');
-      }, Math.max(2, sc * 2.2), 0.32 * lk * (1 - 0.85 * clamp(o.warp || 0)), 'multiply');
+      }, Math.max(2, sc * 2.2), 0.32 * lk * (1 - 0.85 * clamp(o.warp || 0)), 'source-over', () => { /* black + alpha == multiply, but cheaper */ if (sbb[2] < sbb[0]) return [0, 0, 0, 0]; const T1 = c.getTransform(); const pr = [[sbb[0], sbb[1]], [sbb[2], sbb[1]], [sbb[2], sbb[3]], [sbb[0], sbb[3]]].map(p => [T1.a * p[0] + T1.c * p[1] + T1.e, T1.b * p[0] + T1.d * p[1] + T1.f]); const m = Math.max(8, sc * 6); return [Math.min(...pr.map(p => p[0])) - m, Math.min(...pr.map(p => p[1])) - m, Math.max(...pr.map(p => p[0])) + m, Math.max(...pr.map(p => p[1])) + m]; });
     }
     PM('shadows');
     // ---- black keys
@@ -1023,16 +1056,54 @@
       c.restore();
     }
     c.restore();
+    };
+    // static-camera cache: the keyboard with nothing pressed is painted once; each frame only the neighbourhood
+    // of the pressed keys is repainted inside a clip (a played run costs ~1/3 of a full repaint)
+    const dipAny = vis.some(k => dip(k.k) > 0.001);
+    if (o.warp > 0 || o.cache === false || sil) paintKeys(ctx, vis, dip, false);
+    else {
+      const T0 = ctx.getTransform();
+      const bkey = JSON.stringify([cam.eye, cam.f, cam.u, focal, cam.cx, cam.cy, light, o.ambient || '', o.ivory || '', (o.extraLights || []).length]);
+      const base = cachedLayer('keysBase', bkey, W, H, (bc) => paintKeys(bc, vis, () => 0, false));
+      ctx.drawImage(base, 0, 0);
+      if (dipAny) {
+        const pressed = vis.filter(k => dip(k.k) > 0.001).map(k => k.k).sort((a, b) => a - b);
+        const groups = []; for (const k of pressed) { const g = groups[groups.length - 1]; if (g && k - g[1] <= 5) g[1] = k; else groups.push([k, k]); }
+        // screen bbox of every visible key (to find every key that can overlap a repaint region, incl. nearer keys in front)
+        const khull = new Map(); for (const k of vis) { const pts = []; for (const x of [k.x0 * KW, k.x1 * KW]) for (const y of [-16, BH + 1]) for (const z of [0, KLEN]) pts.push(cam.p([x, y, z])); khull.set(k.k, hull(pts)); }
+        // separating-axis test for two convex screen polygons
+        const sep = (A, B) => { for (const P2 of [A, B]) for (let q = 0; q < P2.length; q++) { const a = P2[q], b = P2[(q + 1) % P2.length]; const nx = a[1] - b[1], ny = b[0] - a[0]; let a0 = 1e18, a1 = -1e18, b0 = 1e18, b1 = -1e18; for (const p of A) { const d = p[0] * nx + p[1] * ny; if (d < a0) a0 = d; if (d > a1) a1 = d; } for (const p of B) { const d = p[0] * nx + p[1] * ny; if (d < b0) b0 = d; if (d > b1) b1 = d; } if (a1 < b0 || b1 < a0) return true; } return false; };
+        for (const [k0, k1] of groups) {
+          const inner = KEYS.slice(Math.max(0, k0 - 2), Math.min(87, k1 + 2) + 1);
+          const xa = Math.min(...inner.map(k => k.x0 * KW)), xb = Math.max(...inner.map(k => k.x1 * KW));
+          const corners = [[xa, 20, -1], [xb, 20, -1], [xb, 20, KLEN + 2.5], [xa, 20, KLEN + 2.5], [xa, -16, KLEN + 2.5], [xb, -16, KLEN + 2.5], [xb, -16, -1], [xa, -16, -1]];
+          if (corners.some(p => cam.depth(p) < cam.near * 2)) { paintKeys(ctx, vis, dip, false); break; } // too close to the lens: full repaint
+          const clipQ = hull(corners.map(p => cam.p(p)));
+          const outer = vis.filter(k => (k.k >= k0 - 4 && k.k <= k1 + 4) || !sep(khull.get(k.k), clipQ));
+          // paint the patch offscreen, then lay it in through the clip with ONE draw (clipping each fill separately
+          // left a dark anti-aliasing seam along the patch border)
+          const B = PV.buffer('instr:keysPatch'); const T1 = ctx.getTransform();
+          const dq = clipQ.map(p => [T1.a * p[0] + T1.c * p[1] + T1.e, T1.b * p[0] + T1.d * p[1] + T1.f]);
+          const bx0 = Math.max(0, Math.floor(Math.min(...dq.map(p => p[0]))) - 2), by0 = Math.max(0, Math.floor(Math.min(...dq.map(p => p[1]))) - 2), bx1 = Math.min(W, Math.ceil(Math.max(...dq.map(p => p[0]))) + 2), by1 = Math.min(H, Math.ceil(Math.max(...dq.map(p => p[1]))) + 2);
+          if (bx1 <= bx0 || by1 <= by0) continue;
+          B.ctx.clearRect(bx0, by0, bx1 - bx0, by1 - by0); B.ctx.save(); B.ctx.beginPath(); B.ctx.rect(bx0, by0, bx1 - bx0, by1 - by0); B.ctx.clip(); B.ctx.setTransform(T1);
+          paintKeys(B.ctx, outer, dip, true); B.ctx.restore();
+          ctx.save(); ctx.beginPath(); trace(ctx, clipQ); ctx.clip(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(B.canvas, bx0, by0, bx1 - bx0, by1 - by0, bx0, by0, bx1 - bx0, by1 - by0); ctx.restore();
+        }
+      }
+      void T0;
+    }
+    PM('keys');
     if (whiteout > 0) whiteoutFx(ctx, whiteout);
     PM('reflB');
     if (tgt) {
       // depth of field: quarter-res blurred copy of the frame, masked away from the focus band, laid over the sharp keys
       const dof = typeof o.dof === 'object' ? o.dof : { amount: o.dof };
-      const amt = dof.amount || 6, qw = W / 4, qh = H / 4;
-      const small = PV.buffer('instr:keysSmall', qw, qh); small.ctx.clearRect(0, 0, qw, qh); small.ctx.filter = `blur(${(amt / 4).toFixed(2)}px)`; small.ctx.drawImage(ctx.canvas, 0, 0, qw, qh); small.ctx.filter = 'none';
+      const amt = dof.amount || 6, DS = 6, qw = W / DS, qh = H / DS;
+      const small = PV.buffer('instr:keysSmall', qw, qh); small.ctx.clearRect(0, 0, qw, qh); small.ctx.filter = `blur(${(amt / DS).toFixed(2)}px)`; small.ctx.drawImage(ctx.canvas, 0, 0, qw, qh); small.ctx.filter = 'none';
       const fk = KEYS[clamp(Math.round(o.focus === undefined ? 39 : o.focus), 0, 87)];
       const span = (dof.range || 5) * KW;
-      const T0 = ctx.getTransform(); const sp = p => { const q = T0.transformPoint({ x: p[0], y: p[1] }); return [q.x / 4, q.y / 4]; };
+      const T0 = ctx.getTransform(); const sp = p => { const q = T0.transformPoint({ x: p[0], y: p[1] }); return [q.x / DS, q.y / DS]; };
       const pa = sp(cam.p([fk.c * KW - span, 0, 60])), pb = sp(cam.p([fk.c * KW + span, 0, 60])), pf = sp(cam.p([fk.c * KW, 0, 60]));
       const fpos = clamp(Math.hypot(pf[0] - pa[0], pf[1] - pa[1]) / (Math.hypot(pb[0] - pa[0], pb[1] - pa[1]) || 1), 0.05, 0.95);
       small.ctx.globalCompositeOperation = 'destination-in';
@@ -1456,56 +1527,64 @@
     const shape = curtainShapeOverride || curtainShape(o, t);
     const N = o.strips || 34, M = o.rows || 16;
     const col = hx(o.color || '#fbfaf6'), dark = hx(o.shade || '#9aa6bd');
-    const P = (u, v) => {
-      const d = shape(u, v); const x = lerp(o.x0, o.x1, u) + d[0]; const y = lerp(o.yTop, o.yHem, v) + d[1] + (o.hemLift || 0) * v * v;
-      return o.toWorld ? o.toWorld(x, y, o.z0 + d[2]) : [x, y, o.z0 + d[2]];
-    };
-    const slope = (u, v) => { const e = 0.01; const a = shape(u - e, v), b = shape(u + e, v); return (b[2] - a[2]) / (2 * e * Math.abs(o.x1 - o.x0)); };
+    const width = Math.abs(o.x1 - o.x0);
+    const toP = (u, v, d) => { const x = lerp(o.x0, o.x1, u) + d[0]; const y = lerp(o.yTop, o.yHem, v) + d[1] + (o.hemLift || 0) * v * v; return o.toWorld ? o.toWorld(x, y, o.z0 + d[2]) : [x, y, o.z0 + d[2]]; };
+    // evaluate the cloth once on an (N+1) x (M+1) grid (the old code re-evaluated every column twice + every shading sample)
+    const D = [], PW = [], SP = [];
+    for (let i = 0; i <= N; i++) { const u = i / N, dc = [], pc = []; for (let j = 0; j <= M; j++) { const d = shape(u, j / M); dc.push(d); pc.push(toP(u, j / M, d)); } D.push(dc); PW.push(pc); SP.push(pc.map(p => cam.p(p))); }
+    const slopeIJ = (i, j) => { const a = D[Math.max(0, i - 1)][j][2], b = D[Math.min(N, i + 1)][j][2]; return (b - a) / (((Math.min(N, i + 1) - Math.max(0, i - 1)) / N) * width); };
     const backL = typeof o.back === 'function' ? o.back : () => (o.back === undefined ? 0.8 : o.back);
     const frontL = o.front === undefined ? 0.5 : o.front;
-    // strips from back-most to front-most is not needed (monotonic in u); draw left->right
-    const strips = [];
-    const shadeAt = (u, v) => {
-      const s = slope(u, v); const dens = clamp(Math.abs(s) * 1.6);
+    const shadeIJ = (i, j, sl) => {
+      const s = sl === undefined ? slopeIJ(i, j) : sl; const dens = clamp(Math.abs(s) * 1.6); const u = i / N, v = j / M;
       const bk = backL(u, v, lerp(o.x0, o.x1, u)); const fold = 0.5 + 0.5 * Math.sin(Math.atan(s) * 1.8);
       const lum = bk * (1.0 - 0.62 * dens) + frontL * (0.2 + 0.6 * fold);
       return cmix(dark, col, clamp(lum * 0.9 + 0.05));
     };
+    if (SP.some(c2 => c2.some(p => p[2] < cam.near))) { /* behind the camera: fall back to the clipped projector */ }
+    const jT = Math.round(M * 0.05), jM = Math.round(M * 0.5), jB = Math.round(M * 0.95);
     for (let i = 0; i < N; i++) {
-      const u0 = i / N, u1 = (i + 1) / N, um = (u0 + u1) / 2;
-      const left = [], right = [];
-      for (let j = 0; j <= M; j++) { const v = j / M; left.push(P(u0, v)); right.push(P(u1 + 0.004, v)); }
-      const pts = cam.poly(left.concat(right.reverse())); if (!pts) continue;
+      const left = PW[i], right = PW[i + 1];
+      let pts = null;
+      if (left.every(p => cam.depth(p) > cam.near) && right.every(p => cam.depth(p) > cam.near)) {
+        // screen-space polygon; the right edge is nudged 0.5 px outward to hide anti-aliasing seams between strips
+        const L2 = SP[i], R2 = SP[i + 1]; pts = [];
+        for (let j = 0; j <= M; j++) pts.push([L2[j][0], L2[j][1]]);
+        for (let j = M; j >= 0; j--) { const dx = R2[j][0] - L2[j][0], dy = R2[j][1] - L2[j][1], l = Math.hypot(dx, dy) || 1; pts.push([R2[j][0] + dx / l * 0.5, R2[j][1] + dy / l * 0.5]); }
+      } else pts = cam.poly(left.concat(right.slice().reverse()));
+      if (!pts) continue;
       let g;
       if (o.smooth) {
-        const pa = cam.p(P(u0, 0.5)), pb = cam.p(P(u1, 0.5));
-        g = ctx.createLinearGradient(pa[0], pa[1], pb[0], pb[1]); g.addColorStop(0, cs(shadeAt(u0, 0.5))); g.addColorStop(1, cs(shadeAt(u1, 0.5)));
+        // narrow strips: a flat colour per strip (mean of its two edges) is visually identical to a per-strip
+        // gradient and fills several times faster
+        g = cs(cmix(shadeIJ(i, jM), shadeIJ(i + 1, jM), 0.5));
       } else {
-        const pa = cam.p(P(um, 0)), pb = cam.p(P(um, 1));
+        const pa = SP[i][0], pb = SP[i][M]; const sl = j2 => (D[i + 1][j2][2] - D[i][j2][2]) / (width / N);
         g = ctx.createLinearGradient(pa[0], pa[1], pb[0], pb[1]);
-        g.addColorStop(0, cs(cmul(shadeAt(um, 0.05), 0.92))); g.addColorStop(0.5, cs(shadeAt(um, 0.5))); g.addColorStop(1, cs(shadeAt(um, 0.95)));
+        g.addColorStop(0, cs(cmul(shadeIJ(i, jT, sl(jT)), 0.92))); g.addColorStop(0.5, cs(shadeIJ(i, jM, sl(jM)))); g.addColorStop(1, cs(shadeIJ(i, jB, sl(jB))));
       }
-      strips.push([pts, g]);
+      fillP(ctx, pts, g);
     }
-    for (const [pts, g] of strips) fillP(ctx, pts, g);
     if (o.smooth) {
       // vertical modelling: rail shadow at the top, soft fall-off at the hem
-      const outline = []; for (let i = 0; i <= N; i++) outline.push(P(i / N, 0)); for (let i = N; i >= 0; i--) outline.push(P(i / N, 1));
+      const outline = []; for (let i = 0; i <= N; i++) outline.push(PW[i][0]); for (let i = N; i >= 0; i--) outline.push(PW[i][M]);
       const op = cam.poly(outline);
-      if (op) { const a = cam.p(P(0.5, 0)), b = cam.p(P(0.5, 1)); const vg = ctx.createLinearGradient(a[0], a[1], b[0], b[1]); vg.addColorStop(0, cs(dark, 0.45)); vg.addColorStop(0.12, cs(dark, 0.0)); vg.addColorStop(0.75, cs(dark, 0.0)); vg.addColorStop(1, cs(dark, 0.25)); fillP(ctx, op, vg); }
+      if (op) { const a = cam.p(PW[N >> 1][0]), b = cam.p(PW[N >> 1][M]); const vg = ctx.createLinearGradient(a[0], a[1], b[0], b[1]); vg.addColorStop(0, cs(dark, 0.45)); vg.addColorStop(0.12, cs(dark, 0.0)); vg.addColorStop(0.75, cs(dark, 0.0)); vg.addColorStop(1, cs(dark, 0.25)); fillP(ctx, op, vg); }
     }
     // hem & edge lines
     if (o.edge !== false) {
       const hem = [], ed0 = [], ed1 = [];
-      for (let i = 0; i <= N; i++) hem.push(P(i / N, 1));
-      for (let j = 0; j <= M; j++) { ed0.push(P(0, j / M)); ed1.push(P(1, j / M)); }
-      const lw = Math.max(0.8, 0.006 * cam.scaleAt(P(0.5, 0.8)));
+      for (let i = 0; i <= N; i++) hem.push(PW[i][M]);
+      for (let j = 0; j <= M; j++) { ed0.push(PW[0][j]); ed1.push(PW[N][j]); }
+      const lw = Math.max(0.8, 0.006 * cam.scaleAt(PW[N >> 1][Math.round(M * 0.8)]));
       strokeL(ctx, cam.line(hem), cs(cmul(dark, 0.85), 0.55), lw);
       strokeL(ctx, cam.line(o.edgeSide === 0 ? ed0 : ed1), cs(cmul(dark, 0.9), 0.35), lw * 0.8);
       // rail heading (gathered top band)
-      const top = []; for (let i = 0; i <= N; i++) top.push(P(i / N, 0.012));
+      const top = []; for (let i = 0; i <= N; i++) top.push(toP(i / N, 0.012, shape(i / N, 0.012)));
       strokeL(ctx, cam.line(top), cs(cmul(dark, 0.8), 0.5), lw * 1.6);
     }
+    let bx0 = 1e9, by0 = 1e9, bx1 = -1e9, by1 = -1e9; for (const c2 of SP) for (const p of c2) { if (p[2] < cam.near) continue; if (p[0] < bx0) bx0 = p[0]; if (p[1] < by0) by0 = p[1]; if (p[0] > bx1) bx1 = p[0]; if (p[1] > by1) by1 = p[1]; }
+    return [bx0, by0, bx1, by1];
   }
   L._curtainPanel = drawCurtainPanel;
 
@@ -1717,6 +1796,12 @@
     for (const [x0, x1] of BAYS) { const xm = (x0 + x1) / 2; panes.push([x0 + 0.06, xm - 0.03, sill + 0.06, wTop - 0.04], [xm + 0.03, x1 - 0.06, sill + 0.06, wTop - 0.04], [x0 + 0.06, xm - 0.03, wTop + 0.08, trTop - 0.05], [xm + 0.03, x1 - 0.06, wTop + 0.08, trTop - 0.05]); }
     const toFloor = p => { const k = -p[1] / sunDir[1]; return [p[0] + sunDir[0] * k, 0.002, p[2] + sunDir[2] * k]; };
     const items = furnitureList(o);
+    // colour grade (soft-light tint) applied once, inside the cached layers, only where they have paint
+    const gradeLayer = (c, holesToSkip) => {
+      if (!P.tintAmt) return; c.save(); c.setTransform(1, 0, 0, 1, 0, 0);
+      c.beginPath(); c.rect(0, 0, W, H); for (const h of holesToSkip || []) trace(c, h); c.clip('evenodd'); // layers live in camera space
+      c.globalCompositeOperation = 'soft-light'; c.fillStyle = cs(hx(P.tint), P.tintAmt); c.fillRect(0, 0, W, H); c.restore();
+    };
 
     ctx.save(); ctx.lineJoin = 'round';
     /* 1 ---- outside (per frame: sky, drifting clouds, rain; scenery cached) */
@@ -1875,6 +1960,7 @@
           }
         }, 5, 0.3, 'multiply');
       }
+      gradeLayer(c, holes);
     });
     ctx.drawImage(shell, 0, 0); PM('shell');
     /* 3 ---- rain drops on glass */
@@ -1895,8 +1981,14 @@
       hb.ctx.setTransform(T0.a * 0.5, T0.b * 0.5, T0.c * 0.5, T0.d * 0.5, T0.e * 0.5, T0.f * 0.5);
       const inGlass = x => BAYS.some(([a, b]) => x > a + 0.06 && x < b - 0.06);
       const back = (u, v, x) => (inGlass(x) ? 1 : 0.42) * (P.sun ? 1 : 0.72);
-      for (const cc of curtains) drawCurtainPanel(hb.ctx, cam, t, Object.assign({ yTop: 2.42, yHem: 0.6, z0: 0.12, folds: 5, depth: 0.055, color: P.curtain, shade: P.curtainShade, back, front: P.sun ? 0.25 : 0.4, strips: 18, rows: 11 }, cc));
-      ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = o.curtainAlpha === undefined ? 0.9 : o.curtainAlpha; ctx.drawImage(hb.canvas, 0, 0, W, H); ctx.restore();
+      let bb = [1e9, 1e9, -1e9, -1e9];
+      for (const cc of curtains) { const b = drawCurtainPanel(hb.ctx, cam, t, Object.assign({ yTop: 2.42, yHem: 0.6, z0: 0.12, folds: 5, depth: 0.055, color: P.curtain, shade: P.curtainShade, back, front: P.sun ? 0.25 : 0.4, strips: 13, rows: 9 }, cc)); bb = [Math.min(bb[0], b[0]), Math.min(bb[1], b[1]), Math.max(bb[2], b[2]), Math.max(bb[3], b[3])]; }
+      PM('curtainPanels');
+      // composite only the curtains' screen bbox (the whole half-res buffer upscaled cost ~10 ms)
+      const cr = [[bb[0], bb[1]], [bb[2], bb[1]], [bb[2], bb[3]], [bb[0], bb[3]]].map(p => [T0.a * p[0] + T0.c * p[1] + T0.e, T0.b * p[0] + T0.d * p[1] + T0.f]);
+      const sx0 = Math.max(0, Math.floor(Math.min(...cr.map(p => p[0])) / 2) - 2), sy0 = Math.max(0, Math.floor(Math.min(...cr.map(p => p[1])) / 2) - 2);
+      const sx1 = Math.min(W / 2, Math.ceil(Math.max(...cr.map(p => p[0])) / 2) + 2), sy1 = Math.min(H / 2, Math.ceil(Math.max(...cr.map(p => p[1])) / 2) + 2);
+      if (sx1 > sx0 && sy1 > sy0) { ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = o.curtainAlpha === undefined ? 0.9 : o.curtainAlpha; ctx.drawImage(hb.canvas, sx0, sy0, sx1 - sx0, sy1 - sy0, sx0 * 2, sy0 * 2, (sx1 - sx0) * 2, (sy1 - sy0) * 2); ctx.restore(); }
     }
     strokeL(ctx, cam.line([[0.2, 2.46, 0.1], [Lx - 0.2, 2.46, 0.1]]), cs(cmul(frameC, 0.7)), Math.max(1.5, 0.022 * cam.scaleAt([7, 2.46, 0.1])));
     PM('curtains');
@@ -1933,11 +2025,10 @@
       });
       const flick = 0.88 + 0.12 * PV.noise2(t * 0.35, 3.3);
       ctx.save(); ctx.globalCompositeOperation = 'screen'; ctx.globalAlpha = P.shaft * (o.shaft === undefined ? 1 : o.shaft) * flick; ctx.drawImage(shaftLayer, 0, 0, W, H); ctx.restore();
-      if (L.dust && o.dust !== false) L.dust(ctx, t, { seed: 8, count: 160, x0: 0, y0: 0, x1: W, y1: H, size: 2.4, alpha: 0.8, color: P.sunCol, mask: (x, y) => { for (const s of shafts) if (pointInPoly(x, y, s.hp)) return 1; return 0; } });
+      if (L.dust && o.dust !== false) L.dust(ctx, t, { seed: 8, count: 110, x0: 0, y0: 0, x1: W, y1: H, size: 2.4, alpha: 0.8, color: P.sunCol, mask: (x, y) => { for (const s of shafts) if (pointInPoly(x, y, s.hp)) return 1; return 0; } });
     }
     PM('shafts+dust');
-    /* 7 ---- grade */
-    if (P.tintAmt) { ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalCompositeOperation = 'soft-light'; ctx.fillStyle = cs(hx(P.tint), P.tintAmt); ctx.fillRect(0, 0, W, H); ctx.restore(); }
+    /* 7 ---- grade: baked into the cached shell / furniture layers (gradeLayer) */
     ctx.restore(); PM('end');
     const env = roomEnv(P);
     return {
@@ -2109,6 +2200,16 @@
     x.drawImage(LY.fixed, 0, 0, 1000, 1414); x.drawImage(LY.notes, 0, 0, 1000, 1414);
     return (LY.baked[key] = c.canvas);
   }
+  function sheetPaper(LY, paperHex, la) {
+    const key = 'paper|' + paperHex + '|' + la.toFixed(2); if (LY.baked[key]) return LY.baked[key];
+    const c = PV.makeCanvas(Math.round(1000 * SHEET_RES), Math.round(1414 * SHEET_RES)); const x = c.ctx; x.scale(SHEET_RES, SHEET_RES);
+    const pc = hx(paperHex);
+    const g = x.createLinearGradient(500 + Math.cos(la) * 700, 707 + Math.sin(la) * 900, 500 - Math.cos(la) * 700, 707 - Math.sin(la) * 900); g.addColorStop(0, cs(cadd(pc, [8, 8, 8]))); g.addColorStop(1, cs(cmul(pc, 0.9)));
+    x.fillStyle = g; x.fillRect(0, 0, 1000, 1414);
+    const tex = PV.cached('instr:paperTex', 256, 256, (cc) => { const img = cc.createImageData(256, 256); const r = PV.rng(3); for (let i = 0; i < 256 * 256; i++) { const v = 238 + (PV.fbm2((i % 256) / 18, Math.floor(i / 256) / 18, 3) * 14) + (r() - 0.5) * 10; img.data[i * 4] = v; img.data[i * 4 + 1] = v - 2; img.data[i * 4 + 2] = v - 6; img.data[i * 4 + 3] = 255; } cc.putImageData(img, 0, 0); });
+    x.globalCompositeOperation = 'multiply'; x.globalAlpha = 0.55; x.fillStyle = x.createPattern(tex, 'repeat'); x.fillRect(0, 0, 1000, 1414); x.globalAlpha = 1; x.globalCompositeOperation = 'source-over';
+    return (LY.baked[key] = c.canvas);
+  }
   /* o: {x,y (centre), w (px width), rot, skewX, scaleY, dissolve 0..1, rise, seed, paper:'#hex', ink, light:{angle}, shadow} */
   L.sheetMusic = function (ctx, t, o = {}) {
     const inkHex = o.ink || '#24201c';
@@ -2128,22 +2229,29 @@
       ctx.save(); ctx.transform(M.a, M.b, M.c, M.d, M.e, M.f); ctx.drawImage(sheetBaked(LY, o.paper || '#f4eee0', la), 0, 0, 1000, 1414); ctx.restore(); ctx.restore();
       return { corners };
     }
-    const pc = cmix(paper, white, sstep(0.1, 0.8, dis));
-    const g0 = tp(500 + Math.cos(la) * 700, 707 + Math.sin(la) * 900), g1 = tp(500 - Math.cos(la) * 700, 707 - Math.sin(la) * 900);
-    const pg = ctx.createLinearGradient(g0[0], g0[1], g1[0], g1[1]); pg.addColorStop(0, cs(cadd(pc, [8, 8, 8]))); pg.addColorStop(1, cs(cmul(pc, 0.9 + 0.1 * dis)));
-    fillP(ctx, corners, pg);
-    const tex = PV.cached('instr:paperTex', 256, 256, () => {});
+    // paper: the baked (gradient + fibre texture) sheet without ink, whitened toward #f8f8f6 as the page empties
     ctx.save(); ctx.transform(M.a, M.b, M.c, M.d, M.e, M.f);
-    if (dis < 0.95) { ctx.save(); ctx.globalCompositeOperation = 'multiply'; ctx.globalAlpha = 0.55 * (1 - dis); ctx.fillStyle = ctx.createPattern(tex, 'repeat'); ctx.fillRect(0, 0, 1000, 1414); ctx.restore(); }
+    // (dissolve path works on 0.75x page images: three full-page draws per frame at 1.4x cost ~20 ms)
+    const LO = 0.75, lo = img => { const m = LY.lo || (LY.lo = new Map()); let c2 = m.get(img); if (!c2) { c2 = PV.makeCanvas(Math.round(1000 * LO), Math.round(1414 * LO)); c2.ctx.imageSmoothingQuality = 'high'; c2.ctx.drawImage(img, 0, 0, c2.canvas.width, c2.canvas.height); m.set(img, c2); } return c2.canvas; };
+    ctx.drawImage(lo(sheetPaper(LY, o.paper || '#f4eee0', la)), 0, 0, 1000, 1414);
+    const wh = sstep(0.1, 0.8, dis); if (wh > 0.003) { ctx.globalAlpha = wh; ctx.fillStyle = cs(white); ctx.fillRect(0, 0, 1000, 1414); ctx.globalAlpha = 1; }
     const fa = dis > 0.45 ? clamp(1 - (dis - 0.45) / 0.4) : 1;
-    if (fa > 0.01) { ctx.globalAlpha = fa; ctx.drawImage(LY.fixed, 0, 0, 1000, 1414); ctx.globalAlpha = 1; }
-    const flying = [];
-    {
-      ctx.save(); ctx.beginPath(); ctx.rect(0, 0, 1000, 1414);
-      for (const c of LY.cells) { const q = (dis - c.rel) / 0.25; if (q > 0) { ctx.rect(c.i * CELL, c.j * CELL, CELL, CELL); if (q < 1.6) flying.push([c, q]); } }
-      ctx.clip('evenodd'); ctx.drawImage(LY.notes, 0, 0, 1000, 1414); ctx.restore();
+    if (fa > 0.01) { ctx.globalAlpha = fa; ctx.drawImage(lo(LY.fixed), 0, 0, 1000, 1414); ctx.globalAlpha = 1; }
+    const flying = []; const PM = profMarks(ctx, 'sheet');
+    // remaining ink: a page-resolution buffer from which released cells are erased incrementally
+    // (the old per-frame evenodd clip with hundreds of rects cost ~25 ms)
+    const IB = LY.inkBuf || (LY.inkBuf = { c: PV.makeCanvas(Math.round(1000 * LO), Math.round(1414 * LO)), dis: -1 });
+    if (dis < IB.dis || IB.dis < 0) { IB.c.ctx.globalCompositeOperation = 'copy'; IB.c.ctx.drawImage(lo(LY.notes), 0, 0); IB.c.ctx.globalCompositeOperation = 'source-over'; IB.dis = 0; }
+    const cpx = CELL * LO;
+    for (const c of LY.cells) {
+      const q = (dis - c.rel) / 0.25; if (q <= 0) continue;
+      if ((IB.dis - c.rel) / 0.25 <= 0) IB.c.ctx.clearRect(c.i * cpx - 0.5, c.j * cpx - 0.5, cpx + 1, cpx + 1);
+      if (q < 1.6) flying.push([c, q]);
     }
+    IB.dis = dis;
+    ctx.drawImage(IB.c.canvas, 0, 0, 1000, 1414);
     ctx.restore();
+    PM('page');
     // flying ink fragments: lift, drift, turn to light
     if (flying.length) {
       const base = ctx.getTransform(); const cs2 = CELL * SHEET_RES;
@@ -2159,16 +2267,17 @@
         else if (e < 0.4) { ctx.globalAlpha = 1; ctx.drawImage(LY.gold, sx0, sy0, cs2, cs2, -CELL / 2, -CELL / 2, CELL, CELL);
           ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = sstep(0.12, 0.4, e) * 0.8; ctx.drawImage(LY.glow, sx0, sy0, cs2, cs2, -CELL / 2, -CELL / 2, CELL, CELL); ctx.globalCompositeOperation = 'source-over'; }
         else {
-          const al = Math.pow(clamp((1 - e) / 0.6), 0.8); if (al <= 0.01) continue;
+          const al = Math.pow(clamp((1 - e) / 0.6), 0.8); if (al <= 0.02) continue;
           const tw = 0.75 + 0.25 * Math.sin(q * 14 + c.seed * 40);
-          ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.95 * al; ctx.drawImage(LY.glow, sx0, sy0, cs2, cs2, -CELL / 2, -CELL / 2, CELL, CELL);
-          ctx.globalAlpha = 0.6 * al * tw; ctx.drawImage(LY.glowSpr, -CELL * 1.2, -CELL * 1.2, CELL * 2.4, CELL * 2.4);
-          ctx.globalAlpha = al * tw; ctx.drawImage(LY.glowSpr, -CELL * 0.3, -CELL * 0.3, CELL * 0.6, CELL * 0.6);
+          ctx.globalCompositeOperation = 'lighter';
+          if (e < 0.62) { ctx.globalAlpha = 0.95 * al; ctx.drawImage(LY.glow, sx0, sy0, cs2, cs2, -CELL / 2, -CELL / 2, CELL, CELL); }
+          if (e > 0.5 || (c.i + c.j) % 2 === 0) { ctx.globalAlpha = 0.75 * al * tw; ctx.drawImage(LY.glowSpr, -CELL * 1.1, -CELL * 1.1, CELL * 2.2, CELL * 2.2); }
           ctx.globalCompositeOperation = 'source-over';
         }
       }
       ctx.setTransform(base); ctx.globalAlpha = 1;
     }
+    PM('fragments(' + flying.length + ')'); PM('end');
     if (dis > 0.6) { ctx.save(); ctx.globalCompositeOperation = 'screen'; const c0 = tp(500, 707); const R = 900 * k; const gg = ctx.createRadialGradient(c0[0], c0[1], 0, c0[0], c0[1], R); gg.addColorStop(0, `rgba(255,255,252,${0.5 * sstep(0.6, 1, dis)})`); gg.addColorStop(1, 'rgba(255,255,252,0)'); ctx.fillStyle = gg; ctx.fillRect(c0[0] - R, c0[1] - R, R * 2, R * 2); ctx.restore(); }
     ctx.restore();
     return { corners };
@@ -2456,13 +2565,15 @@
     });
     ctx.save(); ctx.lineJoin = 'round';
     ctx.drawImage(hall, 0, 0);
+    // haze (static: screen is order-independent, so it is baked into a cached layer and screened once)
+    const hazeL = cachedLayer('gymHaze', String(beams.toFixed(2)), W, H, (c) => { c.fillStyle = PV.linGrad(c, 0, H * 0.2, 0, H * 0.8, [[0, '#3a2a50', 0.0], [0.6, '#3a2a50', 0.25 * beams], [1, '#3a2a50', 0]]); c.fillRect(0, 0, W, H); });
     // colored light pools on the floor (dynamic: they follow the sweeping lamps)
     const sweep = k => Math.sin(t * (0.5 + k * 0.17) + k * 2.1);
     const pools = lamps.map(([x, y, z, ci], k) => [x * 0.15 + sweep(k) * 1.4, -2.2 + sweep(k + 3) * 0.8, ci]);
-    halfSoft(ctx, pc => { for (const [px, pz, ci] of pools) { const c0 = cam.p([px, 0, pz]); const R = 2.2 * cam.scaleAt([px, 0, pz]); pc.save(); pc.translate(c0[0], c0[1]); pc.scale(1, 0.3); const g = pc.createRadialGradient(0, 0, 0, 0, 0, R); g.addColorStop(0, cs(cols[ci], 0.7)); g.addColorStop(1, cs(cols[ci], 0)); pc.fillStyle = g; pc.beginPath(); pc.arc(0, 0, R, 0, TAU); pc.fill(); pc.restore(); } }, 0, 0.65 * beams, 'screen');
-    // beams through haze (half-res, additive)
+    // beams through haze + their pools on the floor: one half-res additive buffer, one blur, one composite
     {
       const hb = PV.buffer('instr:gymBeams', W / 2, H / 2); const hc = hb.ctx; hc.setTransform(1, 0, 0, 1, 0, 0); hc.clearRect(0, 0, W / 2, H / 2); const T0 = ctx.getTransform(); hc.setTransform(T0.a * 0.5, T0.b * 0.5, T0.c * 0.5, T0.d * 0.5, T0.e * 0.5, T0.f * 0.5); hc.globalCompositeOperation = 'lighter';
+      for (const [px, pz, ci] of pools) { const c0 = cam.p([px, 0, pz]); const R = 2.2 * cam.scaleAt([px, 0, pz]); hc.save(); hc.translate(c0[0], c0[1]); hc.scale(1, 0.3); const g = hc.createRadialGradient(0, 0, 0, 0, 0, R); g.addColorStop(0, cs(cols[ci], 0.62)); g.addColorStop(1, cs(cols[ci], 0)); hc.fillStyle = g; hc.beginPath(); hc.arc(0, 0, R, 0, TAU); hc.fill(); hc.restore(); }
       lamps.forEach(([lx, ly, lz, ci], k) => {
         const [px, pz] = pools[k]; const src = cam.p([lx, ly, lz]);
         const ring = []; for (let j = 0; j < 16; j++) { const a = j / 16 * TAU; ring.push(cam.p([px + Math.cos(a) * 1.4, 0, pz + Math.sin(a) * 1.4])); }
@@ -2474,8 +2585,7 @@
       ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalCompositeOperation = 'screen'; ctx.globalAlpha = 0.85 * beams; ctx.drawImage(hb2.canvas, 0, 0, W, H); ctx.restore();
       lamps.forEach(([lx, ly, lz, ci]) => { const p = cam.p([lx, ly, lz]); if (L.glow) { L.glow(ctx, p[0], p[1], 70, cs(cols[ci]).replace('rgb', 'rgb'), 0.9 * beams); } });
     }
-    // haze
-    ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalCompositeOperation = 'screen'; ctx.fillStyle = PV.linGrad(ctx, 0, H * 0.2, 0, H * 0.8, [[0, '#3a2a50', 0.0], [0.6, '#3a2a50', 0.25 * beams], [1, '#3a2a50', 0]]); ctx.fillRect(0, 0, W, H); ctx.restore();
+    ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalCompositeOperation = 'screen'; ctx.drawImage(hazeL, 0, 0); ctx.restore();
     // audience: silhouettes from behind, in depth layers (far rows paler with stage haze, near rows darkest),
     // shoulders / neck / head / hair readable, a few raised arms (fist, peace sign, phone with a lit screen)
     if (o.audience !== false) {
@@ -2499,8 +2609,8 @@
           const girl = h2 < 0.45, sh = (girl ? 0.95 : 1.05) + (h4 - 0.5) * 0.2, lean = (h1 - 0.5) * 0.3, sw = hr * 2.55 * sh;
           bc.save(); bc.translate(p[0], p[1]); bc.rotate(lean * 0.22); bc.fillStyle = col; bc.strokeStyle = col; bc.lineCap = 'round'; bc.lineJoin = 'round';
           // torso with sloped shoulders, neck, head
-          bc.beginPath(); bc.moveTo(-sw * 1.0, H * 2); bc.lineTo(-sw * 1.02, hr * 3.1); bc.quadraticCurveTo(-sw * 1.04, hr * 2.25, -sw * 0.74, hr * 2.15); bc.quadraticCurveTo(-hr * 0.9, hr * 2.02, -hr * 0.5, hr * 1.78);
-          bc.lineTo(hr * 0.5, hr * 1.78); bc.quadraticCurveTo(hr * 0.9, hr * 2.02, sw * 0.74, hr * 2.15); bc.quadraticCurveTo(sw * 1.04, hr * 2.25, sw * 1.02, hr * 3.1); bc.lineTo(sw * 1.0, H * 2); bc.closePath(); bc.fill();
+          bc.beginPath(); bc.moveTo(-sw * 1.0, H * 2); bc.lineTo(-sw * 1.02, hr * 2.75); bc.quadraticCurveTo(-sw * 1.05, hr * 2.22, -sw * 0.84, hr * 2.14); bc.lineTo(-hr * 1.1, hr * 1.98); bc.quadraticCurveTo(-hr * 0.62, hr * 1.9, -hr * 0.5, hr * 1.7);
+          bc.lineTo(hr * 0.5, hr * 1.7); bc.quadraticCurveTo(hr * 0.62, hr * 1.9, hr * 1.1, hr * 1.98); bc.lineTo(sw * 0.84, hr * 2.14); bc.quadraticCurveTo(sw * 1.05, hr * 2.22, sw * 1.02, hr * 2.75); bc.lineTo(sw * 1.0, H * 2); bc.closePath(); bc.fill();
           bc.beginPath(); bc.moveTo(-hr * 0.38, hr * 0.55); bc.lineTo(-hr * 0.48, hr * 2.0); bc.lineTo(hr * 0.48, hr * 2.0); bc.lineTo(hr * 0.38, hr * 0.55); bc.fill();
           bc.beginPath(); bc.ellipse(0, 0, hr * 0.84, hr * 1.02, 0, 0, TAU); bc.fill();
           bc.beginPath(); bc.ellipse(-hr * 0.84, hr * 0.12, hr * 0.14, hr * 0.24, 0, 0, TAU); bc.ellipse(hr * 0.84, hr * 0.12, hr * 0.14, hr * 0.24, 0, 0, TAU); bc.fill();
@@ -2885,7 +2995,7 @@
     const wallC = hx(P.wall), wallD = hx(P.wallDark), frameC = hx(P.frame);
     const rain = o.rain === undefined ? (time === 'rain' ? 1 : 0) : o.rain;
     const open = o.open === undefined ? (time === 'rain' ? 0 : 0.6) : o.open;
-    ctx.save(); ctx.beginPath(); ctx.rect(fx, fy, fw, fh); ctx.clip();
+    ctx.save(); ctx.beginPath(); ctx.rect(fx, fy, fw, fh); ctx.clip(); const PM = profMarks(ctx, 'window');
     // outside
     const hole = Q([[0, 0, -0.18], [ww, 0, -0.18], [ww, wh, -0.18], [0, wh, -0.18]]);
     ctx.save(); ctx.beginPath(); trace(ctx, hole); ctx.clip(); ctx.translate(fx, fy); ctx.scale(fw / W, fh / H); paintOutside(ctx, t, P, o, -(o.camX || 0) * 200); ctx.restore();
@@ -2919,12 +3029,13 @@
       c.restore();
     }
     });
-    ctx.drawImage(frameL, 0, 0);
+    PM('outside'); ctx.drawImage(frameL, 0, 0); PM('frame');
     // running drops (dynamic)
     if (rain > 0) {
       const glassR2 = Q([[0.05, 0.05, -0.09], [ww - 0.05 - (open > 0.5 ? ww * 0.45 : 0), 0.05, -0.09], [ww - 0.05 - (open > 0.5 ? ww * 0.45 : 0), wh - 0.05, -0.09], [0.05, wh - 0.05, -0.09]]);
       if (glassR2) { ctx.save(); ctx.beginPath(); trace(ctx, glassR2); ctx.clip(); const bb = glassR2.reduce((m, p) => [Math.min(m[0], p[0]), Math.min(m[1], p[1]), Math.max(m[2], p[0]), Math.max(m[3], p[1])], [1e9, 1e9, -1e9, -1e9]); glassDrops(ctx, t, { only: 'runners', x: bb[0], y: bb[1], w: bb[2] - bb[0], h: bb[3] - bb[1], seed: 77, scale: fw / 1100, density: 1.0 * rain }); ctx.restore(); }
     }
+    PM('runners');
     // curtains: two panels with an adjustable gap
     const gap = o.gap === undefined ? 0.28 : o.gap; const wind = o.wind === undefined ? (open > 0.05 ? 0.45 : 0) : o.wind;
     const wL = (ww + 0.5) * (1 - gap) / 2;
@@ -2933,7 +3044,7 @@
     for (const side of [-1, 1]) {
       const x0 = side < 0 ? -0.3 : ww + 0.3 - wL, x1 = side < 0 ? -0.3 + wL : ww + 0.3;
       const gr = grip && ((grip.side === 'left') === (side < 0)) ? grip : null;
-      const opts = { smooth: true, x0, x1, yTop: wh + 0.16, yHem: -0.3, z0: 0.14, folds: 5.2, depth: 0.04, color: P.curtain, shade: P.curtainShade, wind: wind * (side < 0 ? 0.7 : 1), windSide: -side, seed: side < 0 ? 5 : 8, strips: 56, rows: 16, front: P.sun ? 0.3 : 0.5, edgeSide: side < 0 ? 1 : 0,
+      const opts = { smooth: true, x0, x1, yTop: wh + 0.16, yHem: -0.3, z0: 0.14, folds: 5.2, depth: 0.04, color: P.curtain, shade: P.curtainShade, wind: wind * (side < 0 ? 0.7 : 1), windSide: -side, seed: side < 0 ? 5 : 8, strips: 110, rows: 14, front: P.sun ? 0.3 : 0.5, edgeSide: side < 0 ? 1 : 0,
         back: (u, v, x) => (x > 0.05 && x < ww - 0.05 && v < 0.82 ? 1 : 0.45) * (P.sun ? 1 : 0.62) };
       if (gr) {
         // the cloth is pulled toward the gripping hand: folds converge at the grip point
@@ -2958,8 +3069,9 @@
     }
     strokeL(ctx, cam.line([[-0.6, wh + 0.2, 0.12], [ww + 0.6, wh + 0.2, 0.12]]), cs(cmul(frameC, 0.7)), Math.max(2, 0.025 * cam.scaleAt([1, wh, 0])));
     // room-side dimness
+    PM('curtains');
     if (time === 'rain') { const vg = ctx.createRadialGradient(fx + fw / 2, fy + fh * 0.45, fh * 0.25, fx + fw / 2, fy + fh / 2, fh * 0.95); vg.addColorStop(0, 'rgba(20,26,40,0)'); vg.addColorStop(1, 'rgba(14,18,30,0.55)'); ctx.fillStyle = vg; ctx.fillRect(fx, fy, fw, fh); }
-    ctx.restore();
+    ctx.restore(); PM('end');
     return { cam, grip: gripPt, sill: cam.p([ww / 2, 0, 0]), gapCenter: cam.p([ww / 2, wh * 0.5, 0.14]) };
   };
   // curtain panel with a caller-supplied shape(u,v)->[dx,dy,w]

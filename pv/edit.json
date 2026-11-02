@@ -1,22 +1,78 @@
 {
  "voice": {
-  "V01": {"reverb": 0.24, "rt60": 1.3},
-  "V02": {"reverb": 0.22, "rt60": 1.3},
-  "V03": {"reverb": 0.14, "gain_db": -1.5},
-  "V04": {"reverb": 0.2, "gain_db": -1.0},
-  "V05": {"reverb": 0.16},
-  "V06": {"reverb": 0.35, "rt60": 2.2, "lp": 5500},
-  "V07": {"reverb": 0.6, "rt60": 3.2},
-  "V08": {"reverb": 0.22, "rt60": 1.8, "gain_db": 1.0},
-  "V09": {"reverb": 0.22, "rt60": 1.8, "gain_db": 1.0},
-  "V10": {"reverb": 0.14},
-  "V11": {"reverb": 0.16},
-  "V12": {"reverb": 0.0, "gain_db": -1.0},
-  "V13": {"reverb": 0.08, "gain_db": -7.0},
-  "V14": {"reverb": 0.12, "gain_db": -2.0},
-  "V15": {"reverb": 0.5, "rt60": 2.2, "lp": 6500, "gain_db": -1.5},
-  "V16": {"reverb": 0.12, "gain_db": -1.0},
-  "V17": {"reverb": 0.16},
-  "V18": {"reverb": 0.12, "gain_db": -1.0}
- }
+  "V01": {
+   "reverb": 0.24,
+   "rt60": 1.3
+  },
+  "V02": {
+   "reverb": 0.22,
+   "rt60": 1.3
+  },
+  "V03": {
+   "reverb": 0.14,
+   "gain_db": -1.5
+  },
+  "V04": {
+   "reverb": 0.2,
+   "gain_db": -1.0
+  },
+  "V05": {
+   "reverb": 0.16
+  },
+  "V06": {
+   "reverb": 0.35,
+   "rt60": 2.2,
+   "lp": 5500
+  },
+  "V07": {
+   "reverb": 0.6,
+   "rt60": 3.2
+  },
+  "V08": {
+   "reverb": 0.22,
+   "rt60": 1.8,
+   "gain_db": 1.0
+  },
+  "V09": {
+   "reverb": 0.22,
+   "rt60": 1.8,
+   "gain_db": 1.0
+  },
+  "V10": {
+   "reverb": 0.14
+  },
+  "V11": {
+   "reverb": 0.16
+  },
+  "V12": {
+   "reverb": 0.0,
+   "gain_db": -1.0
+  },
+  "V13": {
+   "reverb": 0.08,
+   "gain_db": -7.0
+  },
+  "V14": {
+   "reverb": 0.12,
+   "gain_db": -2.0
+  },
+  "V15": {
+   "reverb": 0.5,
+   "rt60": 2.2,
+   "lp": 6500,
+   "gain_db": -1.5
+  },
+  "V16": {
+   "reverb": 0.12,
+   "gain_db": -1.0
+  },
+  "V17": {
+   "reverb": 0.16
+  },
+  "V18": {
+   "reverb": 0.12,
+   "gain_db": -1.0
+  }
+ },
+ "credit_text": "原作　宮本有楽『キミの右手のアイロニー』　　劇場アニメーション　近日公開\n音声合成：Open JTalk ／ HTS voice \"Mei\"（© Nagoya Institute of Technology, CC BY 3.0）・nitech_jp_atr503_m001"
 }

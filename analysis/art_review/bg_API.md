@@ -2,68 +2,115 @@
 
 劇場アニメ背景（光と空気）用の Canvas2D ライブラリ。すべて決定論的（`t` と `seed` だけで決まる）。
 座標は 1920×1080 のキャンバス座標（y は下向き）。角度はラジアンで、0 は右、`-Math.PI/2` は上。
-重い静的絵（雲・海の下地・帯雲・嵐の雲・スカイライン・病室の遠景）は初回だけピクセル単位で描いて `PV.cached` / LRU に保存する。2 フレーム目以降は `drawImage` と小さなストロークだけになる。
+重い静的絵（雲・海の下地・帯雲・嵐の雲・スカイライン・病室の遠景・木漏れ日の投影）は初回だけ描いてキャッシュする。2 フレーム目以降は `drawImage` と小さなストロークだけになる。
 
-ショーケース: `pv/scenes/_dev_bg.js`（`dev_bg_1`〜`dev_bg_8`）。各カットの組み方はこのファイルをそのまま参考にしてよい。
+- ショーケース: `pv/scenes/_dev_bg.js`（`dev_bg_1`〜`dev_bg_8`）。各カットの組み方はこのファイルをそのまま手本にしてよい。
+- 美術監督の講評と修正記録: `analysis/art_review/bg_critique.md`
 
-## 最終画像
+## 最終画像（`analysis/art_review/bg_review/final/`）
 
 | 画像 | パス |
 |---|---|
-| 8カット一覧 t=4 | `analysis/art_review/bg/overview_t4.00.jpg` |
-| 8カット一覧 t=0 | `analysis/art_review/bg/overview_t0.00.jpg` |
-| 1 春の青空と積雲 | `analysis/art_review/bg/dev_bg_1_{0.00,4.00}.jpg` |
-| 2 夏の海・入道雲・白い大橋 | `analysis/art_review/bg/dev_bg_2_*.jpg` |
-| 3 夜の臨海公園（対岸の夜景・水面・夜の橋・ボケ） | `analysis/art_review/bg/dev_bg_3_*.jpg` |
-| 4 嵐の橋（t=0 暗、t=4 雷光） | `analysis/art_review/bg/dev_bg_4_*.jpg` |
-| 5 病室の窓外（窓枠つき使用例） | `analysis/art_review/bg/dev_bg_5_*.jpg` |
-| 6 中庭の木漏れ日 | `analysis/art_review/bg/dev_bg_6_*.jpg` |
-| 7 三日月の夜（住宅街・電線） | `analysis/art_review/bg/dev_bg_7_*.jpg` |
-| 8 夕焼けの海と橋 | `analysis/art_review/bg/dev_bg_8_*.jpg` |
-| 旧テストシーン互換確認 | `analysis/art_review/bg_compat/compat_sheet.jpg` |
-| 各カットの t=0 / t=4 並び | `analysis/art_review/bg/sheet_dev_bg_{1..8}.jpg` |
-| 改修前（比較用） | `analysis/art_review/bg_base/` |
+| 8 カット一覧（t=4 / t=0） | `final/overview_t4.00.jpg`, `final/overview_t0.00.jpg` |
+| 各カット（t=0, 2, 4） | `final/dev_bg_{1..8}_{0.00,2.00,4.00}.jpg` |
+| 各カットの時間変化 | `final/sheet_dev_bg_{1..8}.jpg` |
+| 旧テストシーン（互換確認） | `final_compat/compat_legacy.jpg` |
+| 他エージェントのショーケース（互換確認） | `final_compat/compat_others.jpg` |
+| 受け取り時点（比較用） | `bg_review/r0/`、さらに前の版は `bg_base/` |
 
-## 互換性について
+カット: 1 春の青空と積雲 / 2 夏の海・入道雲（かなとこ雲）・白い大橋 / 3 夜の臨海公園（夜景・観覧車・夜の橋・水面）/ 4 嵐の橋（t=0 暗、t=4 雷光）/ 5 病室の窓外 / 6 中庭の木漏れ日 / 7 三日月の夜 / 8 夕焼けの海と橋
 
-旧関数（`sky, cloudSprite, clouds, haze, glow, godRays, dust, bokeh, flare, rain, splashes, lightningPath, lightning, petals, sea, bridge, skyline, stars, noteShape, noteStorm, paper, blurred`）は、引数をすべて以前どおり受け付ける。
-- 以前のオプション名と意味はそのまま。追加したのはオプションだけ。`dev_sky / dev_storm / dev_sea / dev_title_*` はエラーなく描け、見た目だけ新しくなる。
-- 振る舞いが変わった点:
-  - `L.bridge` と `L.skyline` は灯りの配列を返すようになった（従来の呼び出しは戻り値を無視するので影響なし）。
-  - `noteStorm({count:0})` は 0 個を描く（以前は誤って 260 個描いていた）。
-  - `L.lightning` は `shadowBlur` を使わなくなり、約 5 秒→約 15ms に短縮。
+---
 
-## 処理コスト（ヘッドレス Chromium、ラスタライズ込み）
+## 互換性
 
-`first` はキャッシュ生成込みの初回、`steady` は 2 フレーム目以降。
+旧関数（`sky, cloudSprite, clouds, haze, glow, godRays, dust, bokeh, flare, rain, splashes, lightningPath, lightning, petals, sea, bridge, skyline, stars, noteShape, noteStorm, paper, blurred`）は、引数をすべて以前どおり受け付ける。オプションは追加しただけで、既存の名前と意味は変えていない。旧呼び出しは**配置そのまま、見た目だけ新しく**なる。
 
-| 関数 | first | steady |
+**配置と色の互換（今回の監督修正で直した点）**
+- `L.clouds` の流れと折り返しは、オリジナルのライブラリと同じ式に戻した。乱数の消費順も同じなので、旧呼び出しの雲は元の位置に出る。
+- 旧 API の暗い色指定（`colors:{lit:'#5a6b8f', mid:'#3a4766', shadow:'#151c30'}` など、嵐の雲）は暗いまま描く。ハイライトもリムも指定色から作るので、月夜の白い雲にならない。平均色はオリジナルとほぼ同じ。
+- `L.bridge` に暗い `color` を渡したとき（嵐のシルエット）は、影側をより暗くする。明るい青に寄せない。
+- `L.bridge` の主塔の既定は**1 本柱**（側面図として正しい形）。二本脚は `style:'H'`、逆 Y 字は `style:'Y'`。
+- `L.clouds` は呼び出し側の `globalAlpha` を掛け合わせ、ctx の状態を必ず元に戻す。以前は 1 に戻していた。
+
+**振る舞いの変化（知っておくこと）**
+- `L.bridge` / `L.skyline` / `L.ferrisWheel` は灯りの配列 `[{x,w,c,a}]` を返す（水面の映り込み用）。旧呼び出しは戻り値を無視するので影響しない。
+- `L.sea` の `sparkles` は「強い星形グリントの数」になった（既定 260）。きらめきの大部分は、別の光の道レイヤー（数千の横きらめき）が担う。
+- `L.sea` は近景に白波を描く（パレット既定: summer 0.45、spring・autumn 0.35、storm 0.6、sunset 0.12、night 0）。消すときは `crests:0`。
+- `L.skyline` は `lit` を渡すと、足元に遠い街灯の光の帯（`carpet`）を描く。不要なら `carpet:0`。
+- `L.noteStorm({count:0})` は何も描かない（以前は誤って 260 個描いていた）。
+- `L.lightning` は `shadowBlur` を使わない（約 5 秒 → 約 15ms）。
+- `L.foliage` の `blur` は、低解像度で描いて拡大する「ピンぼけ」方式になった（CSS の blur フィルタより約 3 倍速い）。`blur` が 4 を超えると、さらに本物のぼかしを足す。
+
+---
+
+## キャッシュと「毎フレーム動かしてよい引数」
+
+**原則**: スプライトを作る引数（形・色・光の向き・霞・サイズ）は**カットの中で一定**にする。値ごとに新しい絵が描かれ、重くなるうえメモリも増える。位置・時間・不透明度・拡大率は自由に動かしてよい。
+
+| 関数 | 毎フレーム動かしてよい | 一定にすべき（キャッシュの鍵） |
 |---|---|---|
-| skyDome | 57ms | 1ms |
-| clouds ×6 | 0.9s | 3ms |
-| cumulonimbus 1180×720 | 0.85s | 0.5ms |
-| cloudBand（cirrus） | 75ms | 2ms |
-| cloudBand（mackerel） | 250ms | 3ms |
-| stormClouds | 380ms | 10ms（雷光時 19ms） |
-| rainCurtain ×7 | 41ms | 12ms |
-| rain 700本 | 7ms | 6ms |
-| lightning | 19ms | 15ms |
-| sea | 65ms | 11ms |
-| nightWater | 64ms | 11ms |
-| bridge | 3ms | 1ms |
-| skyline | 41ms | 0.4ms |
-| stars | 2ms | 1ms |
-| moon | 4ms | 4ms |
-| godRays | 14ms | 13ms |
-| komorebi | 39ms | 25ms |
-| canopy | 37ms | 28ms |
-| foliage | 21ms | 16ms |
-| hospitalView | 0.43s | 29ms |
-| sunset | 0.52s | 20ms |
+| `skyDome` | なし（全オプションで LRU 14 枚） | 全部。太陽を動かすなら `sun` は渡さず `L.sun` を別に呼ぶ |
+| `cloudSprite` / `clouds` / `cumulonimbus` | 位置、`t`、`speed`、`alpha`、`scale`、`x0`/`x1`、`drift` | `w`・`h`（`clouds` なら `minW`/`maxW`/`aspect`）、`seed`、`type`、`palette`/色、`light`、`lightZ`、`haze`、`fade`、`anvil` |
+| `cloudBand` | `x`、`y`、`t`、`speed`、`alpha`、`morph` | `kind`、`w`、`h`、`seed`、`coverage`、`scaleX`/`scaleY`、色、`light`、`cell`、`perspective` |
+| `stormClouds` | `y`、`t`、`speed`、`flash`、`flashX`/`flashY`/`flashR`、`alpha`、`scud` | `h`、`seed`、`base`、`cells`、`colors` |
+| `sea` | `horizonY`、`y1`（ティルト可）、`sunX`、`sunY`、`road`、`shimmer`、`wobble`、`swell`、`crests`、`t` | `palette`/`stops`、`seed`、`chop`。`roadWidth` は 0.1 刻みでキャッシュされるので、ほぼ一定にする |
+| `nightWater` | `horizonY`、`y1`、灯りの位置（パンには `dx`）、灯りの明るさ、`t` | 灯りの色（20 段階に量子化されるので、少し変える程度は可） |
+| `bridge` / `ferrisWheel` / `wires` / `moon` / `sun` | 全部（キャッシュなし） | — |
+| `skyline` | `y`（パララックス・ティルト）、`t` | 他の全オプション（24 枚の LRU） |
+| `foliage` | `x`、`y`、`angle`、`wind`、`back`、`shade`、`blur`、`t` | `seed`、`length`、`depth`、`density`、`leaf`、`colors`、`width`、`cluster` |
+| `canopy` | `t`、`wind`。`sun` はゆっくりなら可（24px ごとに描き直す。6 枚の LRU） | `seed`、範囲、`rag`、`density`、`leaf`、`colors` |
+| `komorebi` | 範囲（64px 単位でキャッシュ）、`strength`、`shade`、`wind`、`t` | `color`、`seed`、`density`、`perspective`、`scale`、`flat` |
+| `hospitalView` | `x`/`y`/`w`/`h`、`t`、`wind`、`leafBlur` | `seed`、`bridge`、`bridgeX` |
+| `dust` / `bokeh` / `godRays` / `stars` / `flare` | 全部 | 色の文字列（色ごとに小さなスプライトを作るので、連続的に変える場合は数段階に丸める） |
 
-`steady` はすべて 40ms 以内。初回コストはワーカーごとに 1 回だけかかる。
+**初回コスト**: 雲を多く使うカットは、最初のフレームでキャッシュ生成に 0.5〜2.5 秒かかる。動画書き出しではワーカーごとに 1 回だけ。
 
-**注意:** スプライト生成のパラメータ（色・光の向き・サイズ・haze など）は毎フレーム変えないこと。値ごとに新しいスプライトが作られ、重くなるうえメモリも増える。動かしてよいのは位置・`t`・`alpha`・`scale` だけ。
+---
+
+## 処理コスト（ヘッドレス Chromium、単一プロセス、ラスタライズ込み）
+
+`steady` は 2 フレーム目以降（目安 40ms 以内）。`first` はキャッシュ生成込みの初回。
+
+| 関数 | steady | first |
+|---|---|---|
+| skyDome | 1.0ms | 44ms |
+| clouds ×6 | 6.4ms | 0.9s |
+| cumulonimbus 1180×720 | 0.5ms | 0.8s |
+| ＋anvil | 0.4ms | 0.19s |
+| cloudBand cirrus | 2.5ms | 0.13s |
+| cloudBand mackerel | 4.0ms | 0.47s |
+| mackerel `morph:1` | 7.9ms | 1.0s |
+| stormClouds | 17.5ms | 1.2s |
+| stormClouds 雷光中 | 29.5ms | — |
+| rainCurtain ×7 | 10.8ms | 33ms |
+| rain 700 本 | 4.8ms | 6ms |
+| lightning | 14.1ms | 17ms |
+| sea（夏） | 16.8ms | 0.13s |
+| sea（嵐） | 6.9ms | 73ms |
+| nightWater | 10.3ms | 92ms |
+| bridge（夜） | 1.1ms | 3ms |
+| skyline | 0.4ms | 42ms |
+| ferrisWheel（夜） | 2.7ms | 4ms |
+| stars 260 | 1.3ms | 2ms |
+| moon | 3.4ms | 4ms |
+| godRays | 12.1ms | 14ms |
+| komorebi（地面） | 21.9ms | 64ms |
+| komorebi（壁） | 19.8ms | 49ms |
+| canopy | 11.1ms | 78ms |
+| foliage | 22.5ms | 32ms |
+| foliage `blur` | 16.1ms | 19ms |
+| hospitalView | 22.5ms | 0.55s |
+| sunset | 19.4ms | 0.55s |
+| flare / bokeh 40 / dust 90 / petals 40 / haze / wires | 0.4〜2ms | — |
+
+**ショーケース 1 カット全体**（steady、ポスト処理は除く）
+
+| カット | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
+|---|---|---|---|---|---|---|---|---|
+| ms | 10 | 23 | 56 | 66 | 31 | 68 | 14 | 39 |
+
+いずれもカットの目安 80ms 以内。
 
 ---
 
@@ -72,515 +119,441 @@
 ### `L.sky(ctx, stops, y0=0, y1=H)`（旧）
 縦グラデーションで全画面を塗る。`stops` は `[[pos,'#hex'],...]`。
 
-### `L.skyDome(ctx, t, o)` ★新
+### `L.skyDome(ctx, t, o)`
 描き込まれた空。天頂→地平線のグラデーション、ごく低周波の色むら（絵の具の揺らぎ）、地平線の霞、太陽の順に描く。
-LRU キャッシュするので、静止した空なら 1 フレーム約 1ms。
-
-| オプション | 内容 |
-|---|---|
-| `preset` | `'spring'` `'summer'` `'autumn'` `'sunset'` `'dusk'` `'dawn'` `'night'` `'city'`（街明かりで赤紫に濁る夜）`'storm'` `'overcast'` |
-| `stops` | 独自のグラデーション（0=上端、1=地平線） |
-| `horizon` | 地平線の y（既定 0.7H）。これより下は霞の色で塗る |
-| `top`, `x0`, `x1`, `y1` | 塗る範囲 |
-| `haze` | 地平線の霞の強さ 0..1（プリセット既定あり） |
-| `hazeColor`, `hazeH` | 霞の色と高さ |
-| `sun` | `{x, y, scale, intensity, rays, halo, color, glow}` |
-| `texture` | `false` で色むらなし |
-| `textureAmt`, `seed` | 色むらの量とシード |
-| `cache` | `false` で毎フレーム直描き |
-
-太陽を毎フレーム動かすなら、`sun` は渡さずに `L.sun` を別に呼ぶこと（LRU を汚さないため）。
-
-### `L.sun(ctx, x, y, o)` ★新
-太陽。広い散乱光 → コロナ → 光輪（22°ハロー風の淡い虹色リング）→ 細い光芒（ゆっくり回転）→ 白飛びした円盤、の順に描く。
 
 | オプション | 既定・内容 |
 |---|---|
-| `scale` | 1（円盤の半径は約 44px） |
-| `intensity` | 1 |
-| `color`, `glow` | 色 |
-| `halo` | true |
-| `haloR` | 330 |
-| `haloAmt` | — |
-| `rays` | 0..1、既定 0.55 |
-| `t` | 光芒の回転に使う |
-| `disc` | true |
+| `preset` | `'spring'`（既定）`'summer'` `'autumn'` `'sunset'` `'dusk'` `'dawn'` `'night'` `'city'`（街明かりで赤紫に濁る夜）`'storm'` `'overcast'` |
+| `stops` | 独自のグラデーション（0=上端、1=地平線） |
+| `horizon` | 地平線の y、既定 0.7H。これより下は霞の色で塗る |
+| `top`, `x0`, `x1`, `y1` | 塗る範囲 |
+| `haze`, `hazeColor`, `hazeH` | 地平線の霞（強さ 0..1、色、高さ） |
+| `sun` | `{x, y, scale, intensity, rays, halo, color, glow}`（`L.sun` と同じ） |
+| `texture`, `textureAmt`, `seed` | 色むら |
+| `cache` | `false` で毎フレーム直描き |
 
-画面外（y が負）に置くと「上から差す強い日差し」になる。
+### `L.sun(ctx, x, y, o)`
+太陽。描く順は次のとおり。
+1. 広い散乱光
+2. コロナ
+3. 光輪（淡い虹色のリング）
+4. ゆっくり回る細い光芒
+5. 白飛びした円盤
 
-### `L.moon(ctx, o)` ★新
+オプション: `scale`(1) `intensity`(1) `color` `glow` `halo`(true) `haloR`(330) `haloAmt` `rays`(0.55) `t` `disc`(true) `seed`
+
+y を負（画面外）に置くと「上から差す強い日差し」になる。
+
+### `L.moon(ctx, o)`
 月。既定は三日月。
 
 | オプション | 既定・内容 |
 |---|---|
-| `x`, `y` | 位置 |
-| `r` | 44（推奨 40〜70） |
+| `x`, `y`, `r` | 1440, 230, 44（推奨 40〜70） |
 | `phase` | 照らされた割合。0.18=三日月、0.5=半月、1=満月 |
-| `tilt` | 輝いている縁が向く角度 |
-| `color`, `glow` | 色 |
-| `intensity` | — |
-| `earthshine` | 地球照で暗部がうっすら見える。既定 0.12 |
-| `halo` | 月暈。0..1 |
-| `texture` | 海（暗い模様）を入れる |
+| `tilt` | 光る縁の向き。既定 -0.55 |
+| `earthshine` | 暗部の見え方。既定 0.05（ほぼ見えない。惑星のように見えないため） |
+| `halo` | 月暈 0..1 |
+| その他 | `color` `glow` `intensity` `texture` |
 
 ---
 
 ## 雲
 
-### `L.cloudSprite(key, o)`（旧＋拡張）→ canvas
-返すのは `(w+120)×(h+120)` のスプライト（周囲 60px は透明）。雲底は y=60+h。
+### `L.cloudSprite(key, o)` → canvas
+`(w+120)×(h+120)` のスプライトを返す（周囲 60px は透明）。雲底は y=60+h。
 
-**作り方**
-- フラクタルな「もこもこ」球群を作る。塔 → 側面の膨らみ → 子 → 孫 → 曾孫の順に細かくなる。
-- それらを soft-union で高さ場・法線場にまとめる。
-- その上で次の陰影を付ける。
-  - 大形状と細部の二重法線
-  - 光に向かってのレイマーチによる落ち影（もこもこの下に、くっきりした影ができる）
-  - 谷間の AO
-  - 雲底の暗化
-  - 雲底の反射光（bounce）
-  - 逆光時の銀の縁（rim）
-  - 平らな雲底
-  - 大気遠近（haze）
+**形の作り方**: フラクタルな「もこもこ」球群を、高さ場・法線場に統合する。
 
-細かいもこもこは輪郭側に集めてある。光の当たる面は静かにし、カリフラワー状の凹凸はシルエットに出る。
+**塗り方（アニメ背景の塗り）**: 光・半陰・陰の 3 つの面を、筆でゆらいだ細い境界で塗り分ける。
+- もこもこの陰側は、くっきりした三日月形の影になる。
+- 谷はスカラップ（波形）の線になる。
+- 光の面は静かに保ち、白〜わずかに暖色にする。
+- 影は空を映した澄んだ青、谷は群青。
+- 陰側の輪郭は空の色を帯びて薄くなる（空気に溶ける）。
+- 逆光では大きな形の陰影が優先され、薄い縁だけが銀色に光る。
 
 | オプション | 内容 |
 |---|---|
-| `w`, `h`, `seed` | サイズとシード |
-| `type` | 下の表を参照 |
+| `w`, `h`, `seed` | サイズ（既定 600×260）とシード |
+| `type` | `'cumulus'` 春の積雲 / `'tower'` 入道雲 / `'puff'` 小さな綿雲 / `'flat'` 層積雲 / `'storm'` ちぎれた暗雲 |
 | `palette` | `'day'` `'spring'` `'summer'` `'autumn'` `'sunset'` `'sunsetHigh'` `'dusk'` `'storm'` `'night'` `'overcast'`（`L.CLOUD_PAL`） |
-| 個別色 | `lit` `mid` `shadow` `rim` `hi` `deep` `bounce` `hazeColor`（旧 `colors{lit,mid,shadow,rim}` もそのまま使える） |
+| 個別色 | `lit` `mid` `shadow` `hi` `deep` `bounce` `rim` `hazeColor` `sky`。旧 `colors{lit,mid,shadow,rim}` もそのまま使える |
 | `light` | 光の来る 2D 方向。既定 -2.2（左上） |
-| `lightZ` | 正なら手前から当たる（順光）、負なら逆光。既定 0.5 |
-| `haze` | 0..1 |
+| `lightZ` | 正 = 順光、負 = 逆光。既定 0.5 |
+| `haze` | 大気遠近 0..1 |
 | `fade` | 下側のこの割合が地平の霞に溶ける |
-| 微調整 | `cast`（落ち影 0.45）`ao` `sharp`（明暗境界の締まり）`macro` `levels` `soft` `ragged` `baseDark` `lift` |
+| 塗りの調整 | `paint`（0..1。0 で旧来の滑らかな 3D 陰影）`th1` `th2`（陰/半陰、半陰/光の境界）`edgeSoft`（境界の幅）`air` |
+| 形・陰の調整 | `cast` `ao` `sharp` `macro` `levels` `soft` `ragged` `baseDark` `lift` |
 
-| `type` | 見た目 |
-|---|---|
-| `'cumulus'` | 春の積雲 |
-| `'tower'` | 入道雲 |
-| `'puff'` | 小さな綿雲 |
-| `'flat'` | 層積雲 |
-| `'storm'` | ちぎれた暗雲 |
-
-### `L.clouds(ctx, t, o)`（旧＋拡張）
+### `L.clouds(ctx, t, o)`
 流れる雲の群れ。小さい雲（遠い雲）から順に描く。
 
 | オプション | 内容 |
 |---|---|
-| 旧オプション | `seed` `count` `y0` `y1`（スプライト上端の範囲）`minW` `maxW` `speed` `alpha` `colors` `scale` |
+| 旧オプション | `seed`(7) `count`(6) `y0`(80) `y1`(500)（スプライト上端の範囲）`minW`(300) `maxW`(900) `speed`(6) `alpha` `colors` `scale` |
 | `type`, `palette`, `light`, `lightZ` | `cloudSprite` と同じ |
 | `aspect` | `[min,max]`（h/w） |
-| `sun` | `{x,y}` を渡すと、雲ごとに太陽の方向から照らす。太陽に近い雲は自動で逆光になる。`lightZ` を渡せば固定できる |
-| `horizon` | 地平線に近い雲ほど霞む |
-| `hazeK` | その霞の強さ |
-| `x0`, `x1` | 水平範囲を制限する（その範囲内で流れて折り返す） |
+| `sun` | `{x,y}` を渡すと、雲ごとに太陽の方向から照らす。太陽に近い雲は自動で逆光になる |
+| `horizon`, `hazeK` | 地平線に近い雲ほど霞む |
+| `x0`, `x1` | この範囲の中で流れて折り返す |
 
-推奨サイズ: 近景の積雲は w 500〜1000、遠景は 160〜360（`type:'puff'`）。
+推奨サイズ: 近景の積雲は w 500〜1000、遠景は 150〜360（`type:'puff'`）。
 
-### `L.cumulonimbus(ctx, t, o)` ★新
+### `L.cumulonimbus(ctx, t, o)`
 入道雲。水平線に立つ巨大な塔。
 
 | オプション | 既定・内容 |
 |---|---|
-| `x` | 中心の x |
-| `base` | 雲底の y（水平線の少し下にすると霞に沈む） |
-| `w`, `h` | 1100×760（推奨 900〜1300 × 600〜800） |
+| `x`, `base` | 中心の x、雲底の y（水平線より少し下にすると霞に沈む） |
+| `w`, `h` | 1100×760。**頂部を画面に入れること**。base−h が 0 より下に来るように |
 | `seed`, `palette` | `palette` の既定は `'summer'` |
-| `light`, `lightZ` | 劇的にしたいなら -2.75 / 0.3 |
+| `light`, `lightZ` | -2.3 / 0.5（劇的にするなら -2.75 / 0.3） |
 | `haze`, `fade` | `fade` 既定 0.3 |
 | `drift` | px/s |
+| `anvil` | 0..1。成熟した雷雲のかなとこ雲（平らに広がる頂部の棚）。遠景に 0.8〜1 を置くと夏の不穏さが出る |
+| `anvilDir` | かなとこが伸びる方向。1 で右 |
 | その他 | `scale` `alpha` `type`（`'cumulus'` にすると横長の雲塊） |
 
-### `L.cloudBand(ctx, t, o)` ★新
-ノイズで描く雲の帯。矩形 `x,y,w,h` に描き、x 方向に流れて継ぎ目なくループする。
+### `L.cloudBand(ctx, t, o)`
+ノイズで描く雲の帯。矩形 `x,y,w,h` に描き、x 方向に継ぎ目なく流れる。
 
 | `kind` | 見た目 |
 |---|---|
 | `'streak'` | 層状の雲の筋。夕焼けでは `light:Math.PI/2` で下から照らす |
-| `'cirrus'` | 繊維状の巻雲 |
+| `'cirrus'` | 刷毛で掃いた羽毛状の巻雲（斑＋櫛でといた繊維） |
 | `'deck'` | 上が厚い層雲 |
-| `'mackerel'` | うろこ雲（遠近つき、静止画を平行移動するだけ） |
+| `'mackerel'` | うろこ雲 / ひつじ雲。日の当たる上面と青灰の下面を持つ小さな雲片が、遠近つきの波打つ列に並ぶ |
 
 | オプション | 内容 |
 |---|---|
-| `seed` | シード |
-| `coverage` | 量 0..1 |
-| `softness` | 縁の柔らかさ |
-| `scaleX`, `scaleY` | 模様の大きさ |
-| `palette`, 色 | 雲の色 |
-| `light` | 光の方向 |
-| `gain` | 縁の明暗差。既定 1.5 |
-| `base` | 基準の明るさ。既定 0.6 |
-| `thick` | 厚い所の暗さ |
-| `res` | 解像度。既定 0.5 |
-| `speed`, `alpha`, `mode` | 流れる速さ、不透明度、合成モード |
-| `cell`, `perspective` | mackerel 用 |
+| 共通 | `seed` `coverage`(0.5) `softness` `scaleX` `scaleY` `palette`/色 `light` `gain`(1.5) `base`(0.6) `thick` `res` `speed`(4) `alpha` `mode` |
+| mackerel 用 | `cell`(26) `perspective`(0.78) `alphaK`(0.92) `res`(0.7) |
+| mackerel の `morph` | 雲片がゆっくり形を変える（2 状態のクロスフェード）。初回 +0.5 秒 |
 
-### `L.stormClouds(ctx, t, o)` ★新
-嵐の暗雲天井。横方向に継ぎ目なくループし、流れる。
+### `L.stormClouds(ctx, t, o)`
+嵐の空。2 つの層でできている。
+- **遠い天井**: ノイズで描いた霞んだ雲の天井。
+- **嵐のセル**: その下に並ぶ暗い雲の塊。積雲と同じ塗りなので、本物のカリフラワーの量感がある。セルは天井の下から湧き出して見え、パララックスで流れる。
+
+雷光（`flash`）を渡すと、同じ形の「内側から照らされた版」を閃光点の周りだけクロスフェードする。
 
 | オプション | 既定・内容 |
 |---|---|
-| `y`, `h` | 640（雲底のちぎれた部分を含む高さ） |
-| `base` | 雲底の平均位置 0..1、既定 0.78 |
-| `seed`, `speed` | `speed` 既定 14px/s |
+| `y`, `h` | 0, 640 |
+| `base` | セルの雲底の位置 0..1、既定 0.78 |
+| `cells` | 4 |
+| `seed` | — |
+| `speed` | 14px/s（セル。天井はその 35%） |
 | `scud` | true（低く速く流れるちぎれ雲） |
-| `flash` | 0..1。雷光で内側から照らされた版を、`flashX` `flashY` `flashR` を中心に放射状にクロスフェードする |
-| `colors` | `{top,dark,mid,light,edge,fl,flMid,flDark}` |
+| `flash` | 0..1。`L.flashCurve` の値を渡す |
+| `flashX`, `flashY`, `flashR` | 閃光の中心と半径。R の既定は 760 |
+| `colors` | `{top,dark,mid,light,edge,haze,fl,flMid,flDark}` |
 | `alpha` | — |
 
-`L.flashCurve` と組み合わせて使う。
-
 ### `L.haze(ctx, t, o)`（旧）
-薄い霞の筋。柔らかいスプライトになり、輪郭が硬くなくなった。
+薄い霞の筋。
 
 ---
 
 ## 光
 
-### `L.glow(ctx, x, y, r, color, a, mode)`（旧）
-放射状の発光。
-
-### `L.godRays(ctx, t, o)`（旧＋高速化）
-光芒。1/4 解像度で描き、そこでぼかしてから拡大するので輪郭が自然に柔らかい（約 13ms）。
-
-- 旧オプション: `x` `y` `angle` `spread` `count` `length` `width` `flare` `color` `alpha` `seed` `jitter` `flicker` `mode`
-- 新: `blur`
-
-### `L.dust(ctx, t, o)`（旧）
-光の中の塵。スプライト化して高速になった。`mask(x,y)` で範囲を限定できる。
-
-### `L.bokeh(ctx, t, o)`（旧）
-縁が少し明るいボケ円盤。夜景のボケには次の設定を推奨。
-- `mode:'lighter'`
-- 彩度の高い暗めの色（`'#c8701c'` `'#c2456e'` `'#d0a246'` `'#5a86c8'`）
-- `alpha` 0.4
-
-### `L.flare(ctx, x, y, k, color)`（旧）
-レンズフレア。アナモルフィックの横筋、ゴースト 7 個、虹色のリングゴースト。
+| 関数 | 内容 |
+|---|---|
+| `L.glow(ctx, x, y, r, color, a, mode)` | 放射状の発光（旧） |
+| `L.godRays(ctx, t, o)` | 光芒。1/4 解像度で描いてからぼかすので、輪郭が自然に柔らかい。オプション: `x` `y` `angle` `spread` `count` `length` `width` `flare` `color` `alpha` `seed` `jitter` `flicker` `mode` `blur` |
+| `L.dust(ctx, t, o)` | 光の中の塵。`mask(x,y)` で範囲を限定できる |
+| `L.bokeh(ctx, t, o)` | 縁が少し明るいボケ円盤。夜景のボケには `mode:'lighter'`、彩度の高い暗めの色（`'#c8701c'` `'#c2456e'` `'#d0a246'` `'#5a86c8'`）、`alpha` 0.3〜0.4。**前景のボケは画面下端・手前に置く**（空に浮かべると風船に見える） |
+| `L.flare(ctx, x, y, k, color)` | レンズフレア |
 
 ---
 
 ## 天候
 
-### `L.rain(ctx, t, o)`（旧）
-雨の筋。頭が明るく尾が淡い 2 段ストロークになった。
-
-### `L.rainCurtain(ctx, t, o)` ★新
-雨のカーテン。嵐の雲の下に垂れる半透明の雨の幕で、縦に流れ、横にドリフトする。
-
-| オプション | 既定 |
+| 関数 | 内容 |
 |---|---|
-| `x0`, `x1`, `y0`, `y1` | 範囲 |
-| `count` | 5 |
-| `angle` | 0.12 |
-| `speed` | 900 |
-| `drift` | 18 |
-| `color` | — |
-| `alpha` | 0.35 |
-| `seed` | — |
+| `L.rain(ctx, t, o)` | 雨の筋（旧） |
+| `L.rainCurtain(ctx, t, o)` | 嵐の雲の下に垂れる雨の幕。オプション: `x0` `x1` `y0` `y1` `count`(5) `angle`(0.12) `speed`(900) `drift`(18) `color` `alpha`(0.35) `seed` |
+| `L.splashes(ctx, t, o)` | 着水・着地。遠近で大きさが変わる細いリング＋最初の一瞬だけ立つ小さな水柱。オプション: `x0` `x1` `y0` `y1` `count` `color` `alpha`(0.55) |
+| `L.lightningPath(seed, x0, y0, x1, y1, rough, depth)` / `L.lightning(ctx, segs, strength, color)` | 稲妻。**雲の底から**落とす（始点の y を雲底に置く） |
+| `L.flashCurve(t, strikes, o)` → 0..1 | 雷光の強さ。主放電 → 再発光 → 余韻の 3 段フリッカー。`o.decay` 既定 0.45 |
+| `L.petals(ctx, t, o)` | 桜の花びら（旧） |
 
-雷光と同期させるなら `alpha` を `0.5 + 0.3*flash` のように上げる。
-
-### `L.splashes(ctx, t, o)`（旧）
-跳ね返り。王冠状の小さな飛沫を追加した。
-
-### `L.lightningPath(seed, x0, y0, x1, y1, rough, depth)` / `L.lightning(ctx, segs, strength, color)`（旧）
-稲妻。発光は低解像度でぼかし、芯は 3 段の線で描く。
-
-### `L.flashCurve(t, strikes, o)` ★新 → 0..1
-雷光の強さ。`strikes` は落雷時刻の配列。主放電 → 0.09 秒後の再発光 → 0.2 秒後の余韻、の 3 段フリッカー。`o.decay` 既定 0.45。
-
-**使い方の例（dev_bg_4）**
+**雷光の組み方（dev_bg_4）**
 1. `fl = L.flashCurve(t,[0.9,4.0])` で強さを求める。
-2. `L.stormClouds({flash:fl})` で雲を照らす。
-3. `L.lightning(segs, flashCurve(t,[s],{decay:0.25}))` で稲妻を描く。
-4. 橋に `rim` と `rimAmt:fl` を渡す。
-5. 最後に全画面へ `rgba(220,232,255,0.28*fl)` を重ねて白飛びさせる。
-
-### `L.petals(ctx, t, o)`（旧）
-桜の花びら。先端の切れ込み、2 色グラデーション、回転と裏返り。
+2. `L.stormClouds({flash:fl, flashX, flashY})` で雲を照らす。
+3. `L.lightning(segs, L.flashCurve(t,[s],{decay:0.25}))` で稲妻を描く。
+4. `L.rainCurtain({alpha:0.5+0.3*fl})` で雨の幕を明るくする。
+5. 橋には `{night:true, flash:fl, rim:'#cfdcff', rimAmt:fl}` を渡す。
+6. 最後に全画面へ `rgba(220,232,255,0.28*fl)` を重ねる。
 
 ---
 
 ## 海と水面
 
-### `L.sea(ctx, t, o)`（旧＋拡張）
-海。次の要素を重ねる。
-- キャッシュした下地: グラデーション、風紋の濃淡、遠くは細く近くは太い「描いた」さざ波、水平線の明るい線
-- 下地を行ごとに揺らす描画（水面のゆらぎ）
-- 生まれては消える反射のきらめき
-- 太陽の下の光の道（グロー）と、無数の微小なグリント（強いものは十字の星）
+### `L.sea(ctx, t, o)`
+海。水面は規定の高さで一度だけ描き、任意の水平線・高さに写像する（**ティルトしても描き直さない**）。
+
+**重ねるもの**
+- 描いた波: 暗い谷のレンズ形と、空を映す明るい縁。風の当たる面と凪の面がある。遠くほど密になる。
+- 水平線近くの細い反射
+- 行ごとの揺らぎ
+- 生まれては消えるきらめき
+- 光の道: 太陽の下のグロー＋数千の横きらめきを 2 層に分け、行ごとに瞬かせる
+- 強い星形グリント
+- 近景の白波（巻いた白い唇と泡）
 - 手前のうねり
 
 | オプション | 内容 |
 |---|---|
-| 旧オプション | `horizonY` `y1` `stops` `seed` `sparkle` `sunX` `sparkles`（既定 1200）`sparkleAlpha` `sparkleColor` |
+| 旧オプション | `horizonY`(560) `y1` `stops` `seed` `sparkle` `sunX` `sparkles`(260) `sparkleAlpha` `sparkleColor` |
 | `palette` | `'summer'` `'spring'` `'autumn'` `'sunset'` `'night'` `'storm'`（`L.SEA_PAL`） |
-| `sunY` | 太陽が低いほど光の道が強く細くなる |
-| `road` | 光の道の強さ 0..1 |
-| `roadWidth` | 光の道の幅 |
-| `shimmer` | きらめき |
-| `wobble` | 揺らぎの量 |
-| `chop` | 波の細かさ・量 |
-| `swell` | 手前のうねり 0..1 |
+| `sunY` | 太陽が低いほど光の道が強く、細くなる |
+| `road`, `roadWidth` | 光の道の強さ（0.55）と幅 |
+| `shimmer`, `wobble`, `chop`, `swell` | きらめき、揺らぎ、波の量、手前のうねり |
+| `crests` | 白波 0..1（パレット既定） |
+| `horizonLine` | 水平線の明るい線 0..1 |
 
-### `L.nightWater(ctx, t, o)` ★新
-夜の水面。対岸の灯りが縦に伸び、ちぎれた横棒の連なりになって揺れる。
+### `L.nightWater(ctx, t, o)`
+夜の水面。対岸の灯りが縦に伸び、ちぎれた横棒の連なりになって揺れる。灯りごとにキャッシュした柱を毎フレーム並べるので、**パンしても描き直さない**。
 
 | オプション | 既定・内容 |
 |---|---|
-| `horizonY` | 岸線の y |
-| `y1` | 下端 |
-| `lights` | `[{x, w, c:'#hex', a}]`。普通は `L.skyline(...)` と `L.bridge({night:true})` の戻り値を `concat` して渡す。省略時は seed から生成 |
-| `len` | 映り込みの長さ（水面の高さに対する割合）、既定 0.85 |
+| `horizonY`, `y1` | 岸線の y と下端 |
+| `lights` | `[{x, w, c:'#hex', a}]`。普通は `L.skyline(...)`・`L.bridge({night:true})`・`L.ferrisWheel({night:true})` の戻り値を `concat` して渡す |
+| `len` | 映り込みの長さ（水面の高さに対する割合）。0.85 |
 | `wobble` | 1 |
-| `glow` | 街明かりの照り返し、既定 0.5 |
+| `glow` | 街明かりの照り返し。0.5 |
+| `dx` | 全灯を x 方向にずらす（カメラのパン） |
 | `seed` | — |
 
 ---
 
 ## 構造物
 
-### `L.bridge(ctx, o)`（旧＋拡張）→ 灯りの配列
+### `L.bridge(ctx, o)` → 灯りの配列
 白い斜張橋の側面図。
 
 **各部の描き方**
-- 桁: 上面ハイライト、側面、下面の影、欄干の線
-- 主塔: 光の側と影の側で塗り分け、`style:'H'` なら二本脚の間に隙間が見える。塔頂の帽子と梁もある
-- ケーブル: ファン状
-- 橋脚: 主塔の下に加えて、取り付け部の小橋脚も描く
+- 桁: 上面ハイライト、側面、下面の影、下縁の線。白い桁が白い霞から分離して見える。
+- 主塔: テーパー付き。光の側と影の側で塗り分ける。
+- その他: ファン状のケーブル、主塔の下の橋脚と取り付け部の小橋脚。
 
 **夜（`night:true`）**
-- 主塔の下からのライトアップ（`uplight` 既定 0.26）
-- 赤い航空障害灯（`t` でゆっくり点滅）
-- 桁の街灯（`lamps` 個、`lampColor`）
-
-**オプション**
+- 主塔のライトアップ（`uplight` 0.26）
+- 赤い航空障害灯（`t` で点滅）
+- 桁の街灯（`lamps`、`lampColor`）
 
 | オプション | 内容 |
 |---|---|
-| 旧オプション | `x0` `x1` `y`（桁）`towerH` `color` `lw` `alpha` `towers` `pierH` `cables` |
-| `night`, `t` | 夜景モード、点滅用の時刻 |
-| `shadow` | 影側の色 |
-| `light` | `'left'`/`'right'` |
+| 旧オプション | `x0` `x1` `y`（桁）`towerH`(160) `color` `lw`(3) `alpha` `towers` `pierH`(40) `cables`(9) |
+| `style` | `'I'`（既定、側面図の 1 本柱）`'H'`（二本脚、斜めから見た形）`'Y'`（逆 Y 字） |
+| `shadow`, `light` | 影側の色、光の向き `'left'`/`'right'` |
 | `haze`, `hazeColor` | 遠景の霞 |
 | `span` | ケーブルの広がり |
-| `lamps`, `lampColor`, `uplight` | 夜の灯り |
-| `flash` | 雷光 |
-| `rim`, `rimAmt` | 光の側の縁だけ光らせる（雷光・夕日の逆光用） |
-| `style` | `'H'` / `'I'` |
+| `flash` | 雷光（ケーブルが光る） |
+| `rim`, `rimAmt` | 光の側の縁だけ光らせる（夕日・雷光の逆光） |
 
 **推奨値**
-- 遠景: `lw` 1.5〜2.5、`towerH` 70〜120、`haze` 0.15〜0.3
-- 中景: `lw` 3〜4.5、`towerH` 150〜230
-- 嵐の近景: `lw` 8、`towerH` 420
+- 遠景: `lw` 2〜2.5、`towerH` 100〜120、`haze` ≤ 0.1。白い橋はモチーフなので霞に溶かしすぎない。
+- 中景: `lw` 3.5〜4.5、`towerH` 200〜230。
+- 嵐の近景: `lw` 8、`towerH` 420。
 
-### `L.skyline(ctx, o)`（旧＋拡張、キャッシュ）→ 灯りの配列
+**構図の注意**: 桁の端を水の上で途切れさせない。画面外まで伸ばすか、ビルや観覧車の後ろに隠す。
+
+### `L.skyline(ctx, o)`（キャッシュ）→ 灯りの配列
 ビル群のシルエット。
 
-**窓明かり**
-- フロア単位の帯（オフィスの階がまとめて点灯・消灯）
-- 住宅のように点々と灯るビル
-- ほぼ消灯のビル
-
-**その他の描き込み**
-- 屋上の段差、塔屋、アンテナ
-- 航空障害灯（`t` で点滅）
-- 低層部への街灯の照り返し
-- 窓明かりの滲み（`glow`）
+**建物の描き込み**
+- セットバック、斜めの頂部、塔屋、アンテナ
+- ファサードの明暗（空側の明るい縁と、暗い側面）
+- 窓明かり: フロア単位の帯、点々と灯る住宅、全点灯のタワー
+- 高層ビル頂部の照明帯（`crowns`）
+- 足元の遠い街灯の光の帯（`carpet`）
+- 航空障害灯
 - `style:'town'` で切妻屋根の住宅街になる
 
-**オプション**
+キャッシュに y を含めないので、**y を動かしても描き直さない**。
 
 | オプション | 内容 |
 |---|---|
-| 旧オプション | `seed` `y`（地面）`hMin` `hMax` `color` `windowColor` `lit` `x0` `x1` `wMin` `wMax` |
-| `windowColors[]` | 窓の色の候補 |
-| `win` | `[w,h,gapX,gapY]`（既定 `[3,4,8,9]`） |
-| `glow` | 窓明かりの滲み |
-| `rim` | 縁の光 |
-| `skyGlow` | 背後の街明かり |
-| `haze`, `hazeColor` | 遠景の霞 |
-| `gap` | ビル同士の隙間 |
-| `style:'town'` | 住宅街 |
-| `beacons` | 航空障害灯 |
-| `t` | 点滅用の時刻 |
+| 旧オプション | `seed` `y` `hMin` `hMax` `color` `windowColor` `lit` `x0` `x1` `wMin` `wMax` |
+| 窓 | `windowColors[]`、`win:[w,h,gapX,gapY]`（既定 `[3,4,8,9]`） |
+| 光 | `glow`（窓の滲み）`rim` `skyGlow`（背後の街明かり） |
+| 霞 | `haze`, `hazeColor` |
+| その他 | `gap` `style` `carpet` `crowns` `beacons` `t` |
 
-昼の遠景に使うときは `lit` を省き、霞色にする（dev_bg_1・病室の遠景を参照）。
+昼の遠景に使うときは `lit` を省き、霞色にする（dev_bg_1、病室の遠景）。
 
-### `L.stars(ctx, t, o)`（旧）
-星。等級差、色温度、またたき、明るい星の十字の光芒。
+### `L.ferrisWheel(ctx, t, o)` → 灯りの配列
+観覧車。臨海公園のランドマーク。
+- 昼: 白い鉄骨のシルエット（A 字の脚、外輪、スポーク、吊られたゴンドラ）。
+- 夜（`night:true`）: 電飾の外輪とスポーク。色のパターンがゆっくり流れ、ゴンドラの窓が灯る。
 
-- 旧オプション: `seed` `count` `yMax` `alpha`
-- 新: `x0` `x1` `y0`
-
-### `L.wires(ctx, o)` ★新
-電柱と電線のシルエット（日本の住宅街）。
-
-| オプション | 既定 |
+| オプション | 既定・内容 |
 |---|---|
-| `poles` | `[x...]` |
-| `y` | 腕木の高さ |
-| `h` | — |
-| `color` | — |
-| `lw` | 3 |
-| `lines` | 4 |
-| `sag` | 60 |
+| `x`, `y` | ハブの位置 |
+| `r` | 半径 220 |
+| `legH` | 脚の長さ |
+| `night`, `t` | 夜の電飾、時刻 |
+| `pattern` | `'rainbow'`（既定）`'warm'` `'cool'` |
+| `speed` | 回転 0.01rad/s |
+| `spokes`, `gondolas` | 32, 32 |
+| `color`, `haze`, `hazeColor`, `alpha`, `glow` | — |
+
+**夜の臨海公園の組み方（dev_bg_3）**
+遠いビル群 → 橋（桁の端は観覧車とビルの後ろ）→ 観覧車 → 近いビル群 → `nightWater`（`lights` に全部の戻り値を `concat`）→ 手前の柵 → 手前のボケ。
+
+### `L.stars(ctx, t, o)`
+星。オプション: `seed` `count` `yMax` `alpha` `x0` `x1` `y0`
+
+### `L.wires(ctx, o)`
+電柱と電線のシルエット。オプション: `poles` `y` `h` `color` `lw` `lines` `sag`
 
 ---
 
 ## 植物と木漏れ日
 
-### `L.foliage(ctx, t, o)` ★新
+### `L.foliage(ctx, t, o)`
 揺れる枝葉。
-- 枝: 3 分割でゆるく曲がり、先細りする。途中の節から側枝が出る。
-- 葉: 卵形で、葉脈の左右を 2 トーンに塗る。枝に沿って互生し、枝先には房になる。
-- 動き: 重力で垂れ、風で揺れ、葉は 1 枚ずつそよぐ。
+- 枝: 先細りで、ゆるく曲がる。
+- 葉: 卵形・披針形・丸形の 3 種。2 トーンで、葉脈がある。スプライトとして描く。
+- 動き: 重力で垂れ、風で揺れる。
 
 | オプション | 既定・内容 |
 |---|---|
-| `x`, `y` | 根元 |
-| `angle` | 伸びる方向 |
-| `length` | 420 |
-| `width` | 14 |
-| `depth` | 5 |
-| `density` | 1 |
-| `leaf` | 葉の大きさ 22px |
-| `cluster` | 枝先の房の量 |
-| `droop` | 垂れ具合 0.1 |
-| `colors[]` | 葉の色 |
-| `branchColor` | 枝の色 |
+| `x`, `y`, `angle` | 根元と伸びる方向 |
+| `length`, `width`, `depth` | 420, 14, 5 |
+| `density`, `leaf`, `cluster`, `droop` | 葉の量（1）、葉の大きさ（22）、枝先の房の量、垂れ具合（0.1） |
+| `colors[]`, `branchColor` | 葉の色、枝の色 |
 | `back` | 逆光で透ける量 |
-| `shade` | 影に沈める量 |
-| `shadeColor`, `backColor` | 影の色、透けた時の色 |
-| `wind` | 1 |
-| `blur` | 手前ボケ用 |
-| `seed` | — |
+| `shade`, `shadeColor`, `backColor` | 影に沈める量、影の色、透けた時の色 |
+| `wind`, `seed` | — |
+| `blur` | 手前のピンぼけ。1〜2 で軽く、4 以上で強く |
 
-### `L.canopy(ctx, t, o)` ★新
-見上げた木々の天蓋。画面上部を葉の天井で覆う。
-- 奥の葉: 暗い塊になる。
+**枝 1 本の葉は 600 枚程度まで**が目安（多いと 20ms を超える）。葉を大きく、`density` を低めにする方がアニメ背景らしい。
+
+### `L.canopy(ctx, t, o)`
+見上げた木々の天蓋。葉房はテンプレートとして一度だけ塗り、層ごとのシートに焼き込む。シート単位で揺れるので、1 フレーム約 11ms。
+- 奥の葉: 暗い塊。
 - 太陽の近くの手前の葉: 黄緑に透ける。
 - 隙間: 空と太陽がのぞき、きらきらとまたたく。
 
 | オプション | 既定・内容 |
 |---|---|
-| `x0`, `x1`, `y0` | 範囲 |
-| `y1` | 下端の平均 |
-| `rag` | 下端のギザギザ、150 |
-| `density` | 1〜2 |
-| `leaf` | 26〜30 |
-| `sun` | `{x,y}` |
-| `sunR` | 700 |
+| `x0`, `x1`, `y0`, `y1` | 範囲（y1 は下端の平均） |
+| `rag` | 下端のギザギザ、160 |
+| `density` | 1〜2.2 |
+| `leaf` | 24〜30 |
+| `sun`, `sunR` | 逆光の中心と半径（700） |
 | `glints` | true |
-| `wind` | — |
-| `seed` | — |
+| `wind`, `seed` | — |
 | `colors` | `{dark,mid,lit,glow}` |
 
 `L.sun` を先に描き、その上に `canopy` を重ねること。
 
-### `L.komorebi(ctx, t, o)` ★新
-木漏れ日。光を受ける物（地面・ベンチ・人物・壁）を描いた後に重ねる。
+### `L.komorebi(ctx, t, o)`
+木漏れ日。光を受ける物（地面・ベンチ・人物・壁）を描いた**後に**重ねる。
 
 **仕組み**
-1. 冷たい青灰の木陰を multiply で落とす。
-2. 光の模様を作る。暖色のくっきりした太陽像（ピンホール像）が房状に集まった、タイル状の模様。
-3. それを地面の遠近に合わせた帯（mode-7 方式）で投影する。
-4. 低周波の「梢の隙間」マスクで、光がまだらに当たるようにする。
-5. 2 層の模様のずれでチラチラさせ、数十個の単独のきらめきを加える。
+1. 冷たい青灰の木陰を落とす。
+2. 光の模様を作る。くっきりした暖色の日だまり（楕円の太陽像が重なった不規則な形）と、その周りのピンホールの小斑。
+3. それを地面の遠近に一度だけ投影してキャッシュする（1px ごとの投影なので継ぎ目がない）。
+4. 毎フレーム、投影を風でずらす。
+5. 梢の隙間マスクで、光がまだらに当たるようにする。
+6. 単独の斑をまたたかせる。
 
 | オプション | 既定・内容 |
 |---|---|
 | `x0`, `y0`, `x1`, `y1` | 範囲 |
-| `perspective` | 0=壁/真上、1=強い地面遠近。既定 0.7 |
+| `perspective` | 0=壁/真上 … 1=強い地面遠近。既定 0.7 |
 | `scale` | 模様の大きさ |
 | `density` | 0.6 |
 | `coverage` | 光の当たる割合 0.6 |
-| `color` | `'#ffd583'` |
-| `strength` | — |
-| `shade` | 0.75 |
-| `shadeColor` | — |
-| `count` | 単独のきらめき 60 |
-| `spot` | — |
-| `wind` | — |
-| `seed` | — |
+| `color` | `'#ffdf9a'` |
+| `strength` | 1 |
+| `shade`, `shadeColor` | 0.82, `'#7e88ab'` |
+| `count`, `spot` | 単独の斑の数（40）と大きさ（24） |
+| `wind`, `seed` | — |
 | `flat` | 壁での縦横比 0.72 |
+| `res` | 1。0.5 にすると軽いが、斑の縁が粗くなる |
 
-### `L.hospitalView(ctx, t, o)` ★新
-病室の窓から見る外の景色。矩形 `x,y,w,h` にクリップし、cover で合わせて描く。
+---
+
+## 完成背景
+
+### `L.hospitalView(ctx, t, o)`
+病室の窓から見る外。矩形 `x,y,w,h` にクリップし、cover で合わせて描く。
 
 **内容**
-- 秋の高い青空と、遠近のついたうろこ雲（ゆっくり流れる）
+- 秋の高い青空とうろこ雲（ゆっくり流れる。`morph` で変形もする）
 - 巻雲
 - 霞んだ山並みと街
-- 湾と、遠くの白い大橋
-- 窓辺に掛かる、黄葉しかけた枝（揺れる）
+- 湾
+- **霞の手前に立つ白い大橋**
+- 窓辺の黄葉しかけた枝（軽いピンぼけ）
 
 | オプション | 既定・内容 |
 |---|---|
 | `x`, `y`, `w`, `h` | 描く矩形 |
 | `seed` | — |
-| `branches` | true |
-| `wind` | — |
-| `leafBlur` | 手前の枝をボカす px |
+| `branches`, `wind`, `leafBlur` | 枝の有無、風、ピンぼけ（≈1.2） |
 | `alignX`, `alignY` | 合わせ位置 |
-| `bridge` | true |
-| `bridgeX` | 0.36 |
+| `bridge`, `bridgeX` | true, 0.36 |
+| `mackerel` | うろこ雲の量 0.38 |
+| `morph` | 0 |
 
-窓枠・カーテン・室内の壁は呼び出し側で描く（dev_bg_5 に例がある）。
+窓枠・カーテン・室内の壁は呼び出し側で描く（dev_bg_5）。
 
-### `L.sunset(ctx, t, o)` ★新
+### `L.sunset(ctx, t, o)`
 夕焼け空の完成形。
-
-**内容**
-- 天頂は群青、そこから紫・桃・橙・金へのグラデーション
+- 天頂は群青。藍→藤→くすんだ薔薇→橙→金と下りる。
 - 低い太陽
-- 下から照らされた高層の筋雲（`sunsetHigh`）
+- 下から照らされた高層の筋雲
 - 夕日色の積雲（胴は紫、太陽側の縁が金）
 - 水平線近くの暗い筋雲
 - 薄明光線
 
-| オプション | 既定 |
-|---|---|
-| `horizon` | 0.66H |
-| `sunX`, `sunY` | — |
-| `seed` | — |
-| `preset` | `'sunset'`/`'dusk'` |
-| `cumulus` | — |
-| `rays` | — |
+オプション: `horizon`(0.66H) `sunX` `sunY` `seed` `preset`（`'sunset'`/`'dusk'`）`cumulus` `rays`
 
-海と組み合わせるなら `L.sea({palette:'sunset', sunX, sunY, road:0.9})` を使う。
+海と組み合わせるなら `L.sea({palette:'sunset', sunX, sunY, road:0.9})`。橋は暗い `color` ＋ `rim:'#ffb977'` ＋ `light:'right'`（太陽の側）。
 
 ---
 
 ## その他（旧）
-
 - `L.noteShape(ctx, s, kind)`, `L.noteStorm(ctx, t, o)`: 音符の嵐
 - `L.paper(ctx, alpha, seed)`: 紙の質感のオーバーレイ
 - `L.blurred(ctx, px, fn, key)`: 被写界深度風のぼかし
 
 ## 定数
-
-- `L.SKY`: 空のプリセット
-- `L.CLOUD_PAL`: 雲のパレット
-- `L.SEA_PAL`: 海のパレット
-
-色を作るときの参照用。
+`L.SKY`（空）、`L.CLOUD_PAL`（雲）、`L.SEA_PAL`（海）のプリセット。色を作るときの参照用。
 
 ---
 
-## 残っている弱点
+## シーン別レシピ（色彩設計との対応）
 
-- **雲の質感**: 雲はピクセル単位の 3D 陰影なので、手描き背景と比べると「CG らしい滑らかさ」がわずかに残る。筆致のかすれや、輪郭線の意図的な強弱はない。落ち影の縁が硬い所も一部残る。
-- **入道雲の頂部**: 画面上端で切れる構図だと頂部の形が見えない。かなとこ雲の表現はない。
-- **嵐の雲**: 暗い時は煙のように見える部分がある。塊感が出るのは雷光の時の方。
-- **komorebi の模様**: やや均一で、光の斑の形がすべて円形。葉の形の影や、斑の縁の色にじみ（色収差のようなもの）はない。
-- **海**: 近景の波頭（白波・砕ける波）はない。うねりは淡い帯で表しているだけ。
-- **foliage / canopy の葉**: 葉の形が 1 種類で、近づくと切り絵のように見える。被写界深度が必要なら `blur` か `L.blurred` を併用する。
-- **mackerel（うろこ雲）**: 静止テクスチャを平行移動しているだけで、雲片そのものは変形しない。
-- **skyline**: 箱型ビルが中心。観覧車やランドマーク的な形はない。
-- **初回の重さ**: 雲を多く使うカットは、初回フレームが約 1〜2 秒（キャッシュ生成）かかる。動画ではワーカーごとに 1 回だけ。
+| 場面 | 組み方 |
+|---|---|
+| 春の音楽室の窓外・中庭の青空 | `skyDome{preset:'spring'}`, `clouds{palette:'spring', sun, horizon}`, `cloudBand{kind:'cirrus'}`, `petals`。中庭は dev_bg_6 の順（建物 → 地面 → `komorebi` 地面と壁 → `sun` → `canopy` → `dust`） |
+| 雨の音楽室（窓の外） | `skyDome{preset:'overcast'}`, `cloudBand{kind:'deck', palette:'overcast'}`, `rain`, `rainCurtain`, 遠景は `skyline`（`lit` 少なめ、霞色） |
+| 夏の海 | dev_bg_2。`skyDome{preset:'summer', sun:{y:-70}}`, `cumulonimbus`（主役は頂部まで画面に入れる。遠景に `anvil`）, `sea{palette:'summer', sunY:-70}`, `bridge` |
+| 夜の臨海公園 | dev_bg_3。上の「夜の臨海公園の組み方」を参照 |
+| 病室 | dev_bg_5。`hospitalView` を窓の矩形に描き、窓枠・カーテン・壁を重ねる |
+| 嵐の橋 | dev_bg_4。上の「雷光の組み方」を参照 |
+| 三日月の夜 | dev_bg_7。`skyDome{preset:'night'}`, `stars`, `moon{phase:0.2}`, `cloudBand{kind:'streak', palette:'night'}`, `skyline`（町並み `style:'town'`）, `wires` |
+| 夕焼け | dev_bg_8。`sunset` ＋ `sea{palette:'sunset'}` ＋ 逆光の `bridge` |
+| 沈黙の日々（曇り） | `skyDome{preset:'overcast'}`, `cloudBand{kind:'deck', palette:'overcast', coverage:0.7}`。光源は雲の切れ間の `glow` 1 つだけにする |
+| 音が戻る夏 | `skyDome{preset:'summer'}`, `sun`, `cumulonimbus{lightZ:-0.3}`（逆光の銀の縁）, `godRays`, `flare` |
+
+---
+
+## 残っている弱点（美術監督の判断）
+
+- **雲の塗り**: 3 面の塗り分けと筆のゆらぎで「描いた雲」になった。ただし筆致のかすれや、輪郭のハッチングはない。至近距離（画面の半分を雲が占める寄り）では、まだ形の生成ロジックが見える。
+- **入道雲**: 光の面のディテールは良いが、塔の陰影は「一枚の大きな形」として少し単調。かなとこは横に長い帯で、内部の巻き込み構造はない。
+- **嵐**: 暗い時の塊の量感は出た。雷光の瞬間はセルごとに照らされるが、セル同士の奥行きの差（遠いセルほど霞む）は 2 段階しかない。
+- **木漏れ日**: 日だまりの形は不規則になった。ただし時間変化は「模様が風でずれる」だけで、斑が開いたり閉じたりはしない。
+- **海**: 近景の白波は小さな記号的表現。砕ける波、岸の波打ち際はない（必要ならカット側で描く）。
+- **葉**: 3 種の形にしたが、近接（画面の 1/3 を占める枝）では、まだ切り絵の印象が残る。被写界深度で逃がすこと。
+- **夜景**: 窓の格子は規則的。遠景・中景では良いが、近景の大きなビルには向かない。

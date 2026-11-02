@@ -49,6 +49,8 @@ def main():
             t['style'] = {'vertical_right': 'vertical_right', 'vertical_left': 'vertical_left', 'center': 'center', 'bottom': 'bottom'}.get(st, st)
             if t.get('type') == 'monologue' and 'reveal' not in t:
                 t['reveal'] = min(2.2, 0.09 * len(t.get('text', '')))
+            if t.get('type') == 'credit' and ed.get('credit_text'):
+                t['text'] = ed['credit_text']; t.pop('html', None)
             if t.get('type') == 'copy' and 'reveal' not in t:
                 t['reveal'] = min(1.6, 0.08 * len(t.get('text', '')))
             texts.append(t)
@@ -64,8 +66,18 @@ def main():
         o['dur'] = d
         voice.append(o)
         if o.get('subtitle', True):
+            # subtitle slot follows the storyboard (max_dur), so swapping the TTS engine never needs a video re-render
+            slot = max(o.get('max_dur', d), min(d, o.get('max_dur', d) + 0.6))
             texts.append({'type': 'subtitle', 'text': o.get('subtitle_text', o['text']), 'start': round(o['start'] + 0.05, 3),
-                          'end': round(o['start'] + d + o.get('sub_hold', 0.35), 3), 'speaker': o['speaker']})
+                          'end': round(o['start'] + slot + o.get('sub_hold', 0.3), 3), 'speaker': o['speaker']})
+    subs = sorted([t for t in texts if t['type'] == 'subtitle'], key=lambda t: t['start'])
+    for t in subs:  # never run more than 0.15 s into the next shot
+        sh = next((x for x in shots_out if x['start'] <= t['start'] < x['end']), None)
+        if sh and t['end'] > sh['end'] + 0.15:
+            t['end'] = round(sh['end'] + 0.15, 3)
+    for a, b in zip(subs, subs[1:]):
+        if a['end'] > b['start'] - 0.08:
+            a['end'] = round(b['start'] - 0.08, 3)
     duration = sb.get('duration', shots_out[-1]['end'])
     tl = {'fps': sb.get('fps', 24), 'duration': duration, 'post': ed.get('post', {}), 'shots': shots_out, 'texts': texts}
     with open(os.path.join(ROOT, 'pv', 'timeline.js'), 'w', encoding='utf-8') as f:

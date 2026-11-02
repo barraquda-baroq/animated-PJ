@@ -3,12 +3,15 @@
  * 『キミの右手のアイロニー』PV.   Namespace: PV.lib (L).   Deterministic in (t, seed).
  *
  * Look target: theatrical-anime background painting — light and air.
- *   clouds : cauliflower billows, warm-white lit tops, blue-violet shadows, crevice
- *            occlusion, bounce light on the base, silver rim when backlit.
- *   sky    : zenith→horizon gradients, horizon haze, sun corona + halo, moon.
- *   sea    : painted perspective ripples, glitter road, night reflections.
- * Heavy static art is painted per-pixel ONCE and memoised (PV.cached); per-frame
- * work is drawImage + a few hundred small strokes.
+ *   clouds : cauliflower billows painted in three tone planes (sun-struck white / half / clean sky-blue
+ *            shade) with brush-wobbled borders, crevice scallops, airy shade-side silhouettes, silver
+ *            rim when backlit, anvil tops for thunderheads; storm cells lit from inside by lightning.
+ *   sky    : zenith→horizon gradients, horizon haze, sun corona + halo, moon, brushed cirrus, うろこ雲.
+ *   sea    : painted wave lenses in perspective, twinkling glitter road, whitecaps, night reflections.
+ *   land   : skyline (floors of light, crowns, light carpet), Ferris wheel, white bridge, foliage, 木漏れ日.
+ * Heavy static art is painted per-pixel ONCE and memoised (PV.cached / bounded caches); per-frame work
+ * is drawImage + a few hundred small strokes.  Parameters that may animate (positions, horizon, y, t,
+ * light colours) never mint new cache entries; see bg_API.md for which ones may not.
  * Full API reference: analysis/art_review/bg_API.md
  * ========================================================================== */
 (function () {
@@ -266,7 +269,7 @@
     const p = Object.assign({}, CLOUD_PAL[o.palette] || (o.type === 'storm' ? CLOUD_PAL.storm : CLOUD_PAL.day));
     // legacy colours {lit,mid,shadow,rim}: derive the extra tones FROM the given colours so a dark
     // (storm) set stays dark — the highlight is only a little above `lit`, the rim near `lit`.
-    if (o.lit) { const lk = lum(o.lit); p.lit = o.lit; if (!o.hi) p.hi = tone(o.lit, lk > 0.85 ? 0.45 : lk > 0.6 ? 0.25 : 0.1); if (!o.rim && lk < 0.7) p.rim = tone(o.lit, 0.28); if (lk < 0.6) p.sky = tone(o.shadow || o.lit, -0.2); }
+    if (o.lit) { const lk = lum(o.lit); p.lit = o.lit; if (!o.hi) p.hi = tone(o.lit, lk > 0.85 ? 0.45 : lk > 0.6 ? 0.25 : lk > 0.45 ? 0.1 : 0.04); if (!o.rim && lk < 0.7) p.rim = tone(o.lit, lk < 0.45 ? 0.12 : 0.28); if (lk < 0.6) p.sky = tone(o.shadow || o.lit, -0.2); if (lk < 0.45) p.dark = true; }
     if (o.mid) p.mid = o.mid;
     if (o.shadow) { p.shadow = o.shadow; if (!o.deep) p.deep = tone(o.shadow, -0.32); if (!o.bounce) p.bounce = mixHex(o.shadow, p.mid, 0.4); }
     for (const k of ['hi', 'deep', 'bounce', 'rim', 'sky']) if (typeof o[k] === 'string') p[k] = o[k];
@@ -404,8 +407,8 @@
     const cHi = rgb(pal.hi), cLit = rgb(pal.lit), cMid = rgb(pal.mid), cSh = rgb(pal.shadow), cDp = rgb(pal.deep), cBn = rgb(pal.bounce), cRim = rgb(pal.rim), cHz = rgb(pal.haze), cSky = rgb(pal.sky || pal.haze);
     const macroW = def(o.macro, lerp(T.macro, 0.97, clamp(back * 2.5))), sharp = def(o.sharp, T.sharp), bounceK = def(o.bounceAmt, 0.32), rimK = def(o.rimAmt, 0.35 + 0.65 * back);
     const hazeAll = def(o.haze, 0), fade = def(o.fade, 0), fadeA = def(o.fadeAlpha, fade > 0 ? 0.55 : 0), ragged = def(o.ragged, T.ragged || 0);
-    const ceil = !!o.ceiling, aoK = 1 / Math.max(1, h * 0.03), baseDark = ceil ? 0 : def(o.baseDark, 0.3) * (1 - back * 0.6), sOff = def(o.seed, 1) * 3.17;
-    const lift = def(o.lift, 0), aoAmt = def(o.ao, def(T.ao, 0.3));
+    const ceil = !!o.ceiling, aoK = 1 / Math.max(1, h * 0.03), baseDark = ceil ? 0 : def(o.baseDark, pal.dark ? 0.45 : 0.3) * (1 - back * 0.6), sOff = def(o.seed, 1) * 3.17;
+    const lift = def(o.lift, pal.dark ? -0.1 : 0), aoAmt = def(o.ao, def(T.ao, 0.3));
     // painted ramp (anime BG): three flat-ish tone planes — shade | half | light — separated by narrow,
     // brush-wobbled borders. Each billow's shadow side becomes a crisp crescent, crevices become scallop
     // lines, the lit faces stay calm. paint 0 = the old smooth "3D" ramp.
@@ -473,9 +476,11 @@
 
   /* L.cloudSprite(key, o) → cached canvas (w+120)×(h+120); cloud base at y = 60+h.
    * o: w,h,seed, type ('cumulus'|'tower'|'puff'|'flat'|'storm'), palette (see L.CLOUD_PAL) or colours
-   *    lit/mid/shadow/rim/hi/deep/bounce/haze, light (2D angle toward the light, -PI/2 = above),
+   *    lit/mid/shadow/rim/hi/deep/bounce/haze/sky, light (2D angle toward the light, -PI/2 = above),
    *    lightZ (+ = lit from the front, - = backlit), haze (0..1), fade (bottom fraction fading into
-   *    haze — use for clouds standing on the horizon), levels, soft, sharp, macro, ragged */
+   *    haze — use for clouds standing on the horizon), levels, soft, sharp, macro, ragged, cast, ao,
+   *    painted ramp: paint (0..1; 0 = old smooth 3D ramp), th1/th2 (shade|half, half|light borders),
+   *    edgeSoft (border half-width), air (shade-side silhouette thinning into the sky colour), lift, baseDark */
   L.cloudSprite = function (key, o = {}) {
     const w = Math.round(o.w || 600), h = Math.round(o.h || 260);
     return PV.cached('cloud:' + key + ':' + okey(o), w + PAD * 2, h + PAD * 2, (c, CW, CH) => {
@@ -495,7 +500,8 @@
       items.push({ i, w, h, y: lerp(def(o.y0, 80), def(o.y1, 500), r()), xr: r(), vr: 0.6 + 0.8 * r(), ar: 0.94 + 0.06 * r() });
     }
     items.sort((a, b) => a.w - b.w);
-    const s = def(o.scale, 1), sp = def(o.speed, 6), ranged = o.x0 !== undefined || o.x1 !== undefined;
+    const s = def(o.scale, 1), sp = def(o.speed, 6), ranged = o.x0 !== undefined || o.x1 !== undefined, A0 = ctx.globalAlpha; // respect the caller's alpha
+    ctx.save();
     for (const c of items) {
       let haze = def(o.haze, 0);
       if (o.horizon !== undefined) { const gap = o.horizon - (c.y + (PAD + c.h) * s); haze = clamp(haze + def(o.hazeK, 0.5) * Math.pow(clamp(1 - gap / (o.horizon * 0.75)), 2)); }
@@ -514,10 +520,10 @@
       }
       const so = Object.assign({ w: c.w, h: c.h, seed: seed * 100 + c.i, type: o.type, palette: o.palette, light, lightZ, haze: Math.round(haze * 20) / 20 }, o.colors || {});
       const spr = L.cloudSprite('f' + seed + '-' + c.i, so);
-      ctx.globalAlpha = def(o.alpha, 1) * c.ar;
+      ctx.globalAlpha = A0 * def(o.alpha, 1) * c.ar;
       ctx.drawImage(spr, x, c.y, spr.width * s, spr.height * s);
     }
-    ctx.globalAlpha = 1;
+    ctx.restore();
   };
 
   // anvil (かなとこ雲) of a mature cumulonimbus: a flat fibrous shelf spreading downwind from the summit,
@@ -622,12 +628,12 @@
   function mackerelSprite(o, phase) {
     const w = Math.round(def(o.w, W)), h = Math.round(def(o.h, 520)), res = def(o.res, 0.7);
     const sw = Math.round(w * res), sh = Math.round(h * res);
-    return PV.cached('mack2:' + okey(o) + ':' + (phase || 0), sw, sh, (c) => {
+    return PV.cached('mack3:' + okey(o) + ':' + (phase || 0), sw, sh, (c) => {
       // うろこ雲/ひつじ雲: rows of small rounded cloudlets in perspective. Each cloudlet is a tiny painted
       // cumulus — sunlit cap, a crisp blue-grey underside — with a lumpy rim; rows wave and merge.
       const pal = cloudPalette(Object.assign({}, o, { palette: o.palette || 'autumn' })), seed = def(o.seed, 1);
       const cell = def(o.cell, 26) * res, persp = def(o.perspective, 0.78), cov = def(o.coverage, 0.55), ph = (phase || 0) * 0.35;
-      const la = def(o.light, -2.5), l2x = Math.cos(la), l2y = Math.sin(la), Lx = l2x * 0.62, Ly = l2y * 0.62, Lz = 0.78;
+      const la = def(o.light, -2.5), l2x = Math.cos(la), l2y = Math.sin(la), Lx = l2x * 0.85, Ly = l2y * 0.85, Lz = 0.5;
       const img = c.createImageData(sw, sh), P = img.data, aK = def(o.alphaK, 0.92);
       const cHi = rgb(pal.hi), cLit = rgb(pal.lit), cMid = rgb(pal.mid), cSh = rgb(pal.shadow), cSky = rgb(pal.sky || pal.haze);
       const hs = (i, j, s) => PV.rand1((i * 7919 + j * 104729 + s * 31) | 0, seed);
@@ -654,7 +660,7 @@
           }
           if (best <= 0) continue;
           let s = bx * Lx + by * Ly + bz * Lz;                       // light on the little dome
-          s = s * 0.5 + 0.5 - (by > 0 ? by * 0.32 : 0) + N2(x * 0.05, y * 0.05) * 0.04;
+          s = s * 0.5 + 0.5 - (by > 0 ? by * 0.45 : 0) + N2(x * 0.05, y * 0.05) * 0.04;
           const k1 = sstep(0.46, 0.52, s), k2 = sstep(0.6, 0.66, s);
           let R_ = cSh[0] + (cMid[0] - cSh[0]) * k1, G_ = cSh[1] + (cMid[1] - cSh[1]) * k1, B_ = cSh[2] + (cMid[2] - cSh[2]) * k1;
           const kl = clamp((s - 0.62) / 0.25), lR = cLit[0] + (cHi[0] - cLit[0]) * kl, lG = cLit[1] + (cHi[1] - cLit[1]) * kl, lB = cLit[2] + (cHi[2] - cLit[2]) * kl;
@@ -669,10 +675,12 @@
     });
   }
   /* L.cloudBand(ctx, t, o) — noise-painted cloud band drawn into the rect (x,y,w,h), drifting & tiling in x.
-   * o.kind: 'streak' (stratocumulus/altostratus streaks), 'cirrus' (brushed filaments), 'deck' (overcast
-   *   layer, dense at the top), 'mackerel' (うろこ雲 in perspective; static, slow translate)
+   * o.kind: 'streak' (stratocumulus/altostratus streaks), 'cirrus' (brushed, combed wisps), 'deck' (overcast
+   *   layer, dense at the top), 'mackerel' (うろこ雲: rows of small shaded cloudlets in perspective)
    * o: seed, coverage(0..1), softness, scaleX, scaleY (feature size px), palette/colours, light (angle toward
-   *   the light: -PI/2 above, PI/2 below = sunset under-lighting), gain, thick, res(0.5), speed(px/s), alpha, mode */
+   *   the light: -PI/2 above, PI/2 below = sunset under-lighting), gain, thick, res(0.5; mackerel 0.7),
+   *   speed(px/s), alpha, mode;  mackerel: cell (26 px), perspective (0.78), alphaK (0.92),
+   *   morph (0: rate of a slow cross-fade between two states of the field — the cloudlets evolve) */
   L.cloudBand = function (ctx, t, o = {}) {
     const x = def(o.x, 0), y = def(o.y, 0), w = def(o.w, W), h = def(o.h, 360), sp = def(o.speed, 4);
     ctx.save(); ctx.globalAlpha = def(o.alpha, 1); if (o.mode) ctx.globalCompositeOperation = o.mode;
@@ -692,11 +700,11 @@
     ctx.restore();
   };
 
-  /* ---- storm deck (嵐の暗雲): a far, hazy noise ceiling + rows of heavy hanging cloud masses.
-   * The hanging rows are painted with the same sphere-union cloud painter as the cumulus, upside down: a
-   * solid top, cauliflower lumps bulging downward, lit from below by the faint horizon glow — so the
-   * storm has mass instead of smoke.  Every row tiles horizontally (wrap-painted) and drifts at its own
-   * speed (parallax).  A lightning-lit variant of each layer is cross-faded in around the flash point. */
+  /* ---- storm deck (嵐の暗雲): a far, hazy noise ceiling + a band of heavy storm cells under it.
+   * The cells are painted by the same sphere-union cloud painter as the cumulus (real cauliflower relief,
+   * so the storm has mass instead of smoke) in a night-storm palette; each has a lightning-lit twin of
+   * identical geometry, cross-faded in around the flash point.  The ceiling's lower edge is laid over the
+   * cells' tops so they seem to hang from it.  Layers drift at different speeds (parallax), tiling in x. */
   const stormCache = {}; let stormKeys = [];
   function stormDeck(o) {
     const h = Math.round(def(o.h, 640)), res = def(o.res, 0.5), sw = Math.round(W * res), sh = Math.round(h * res);
@@ -1004,7 +1012,7 @@
     for (let i = 0; i < (o.count || 40); i++) {
       const sz = (o.size || 14) * (0.5 + r()); const sp = (o.fall || 60) * (0.6 + r() * 0.8); const wind = (o.wind || 80) * (0.5 + r());
       const spanY = H + 200, spanX = W + 400; const ph = r();
-      const y = ((ph * spanY + t * sp) % spanY) - 100; const x = ((r() * spanX + t * wind + Math.sin(t * 1.3 + i) * 40) % spanX) - 200;
+      const y = ((((ph * spanY + t * sp) % spanY) + spanY) % spanY) - 100; const x = ((((r() * spanX + t * wind + Math.sin(t * 1.3 + i) * 40) % spanX) + spanX) % spanX) - 200; // t<0 safe
       const rot = t * (1 + r() * 2) + i, flip = Math.cos(t * (1.5 + r() * 2) + i * 0.7);
       ctx.save(); ctx.translate(x, y); ctx.rotate(rot); ctx.scale(flip, 1);
       const al = (o.alpha || 0.9) * (0.6 + 0.4 * Math.abs(flip));
@@ -1244,14 +1252,17 @@
    * legacy o: x0,x1 (deck ends), y (deck), towerH(160), color, lw(3), alpha, towers[x...], pierH(40), cables(9)
    * new o: night (lamps, tower uplights, red beacons), t (beacon blink), shadow (shadow-side colour),
    *        light ('left'|'right'), haze (0..1) + hazeColor, span (cable fan half-width), lamps (count),
-   *        flash (0..1: lightning lights the bridge up), style ('H' two legs | 'I' single column) */
+   *        flash (0..1: lightning lights the bridge up), rim + rimAmt (edge light), uplight, lampColor,
+   *        style ('I' single column = true side view, default | 'H' two legs, 3/4 view | 'Y' inverted Y) */
   L.bridge = function (ctx, o) {
     const x0 = o.x0, x1 = o.x1, y = o.y, th = o.towerH || 160, lw = o.lw || 3, night = !!o.night, t = def(o.t, 0);
     const hz = def(o.haze, 0), hzc = o.hazeColor || (night ? '#1d2b55' : '#dfeaf5');
     const hzm = (c) => (hz > 0 ? mixHex(c, hzc, hz) : c);
-    const col = hzm(o.color || (night ? '#141b33' : '#f6f8fb')), shd = hzm(o.shadow || (night ? '#0c1124' : mixHex(o.color || '#f6f8fb', '#7d92bd', 0.5)));
+    // a dark legacy colour (silhouette bridge) must stay a silhouette: its shadow side is darker, never bluer/lighter
+    const dkC = !night && o.color && lum(o.color) < 0.35;
+    const col = hzm(o.color || (night ? '#141b33' : '#f6f8fb')), shd = hzm(o.shadow || (night ? '#0c1124' : dkC ? tone(o.color, -0.4) : mixHex(o.color || '#f6f8fb', '#7d92bd', 0.5)));
     const lightL = o.light !== 'right', towers = o.towers || [x0 + (x1 - x0) * 0.3, x0 + (x1 - x0) * 0.7];
-    const span = def(o.span, (x1 - x0) * 0.19), pierH = def(o.pierH, 40), nC = o.cables || 9, dk = lw * 3, style = o.style || (lw >= 2.5 ? 'H' : 'I');
+    const span = def(o.span, (x1 - x0) * 0.19), pierH = def(o.pierH, 40), nC = o.cables || 9, dk = lw * 3, style = o.style || 'I'; // side view: the tower's legs overlap → one column
     const fl = def(o.flash, 0), lights = [];
     ctx.save(); ctx.globalAlpha = def(o.alpha, 1);
     // approach piers
@@ -1260,10 +1271,10 @@
     for (let x = x0 + step * 0.5; x < x1; x += step) { if (towers.some((tx) => Math.abs(tx - x) < span * 0.9)) continue; ctx.fillRect(x - pw / 2, y, pw, pierH * 0.8); }
     // deck girder
     let g = ctx.createLinearGradient(0, y - dk / 2, 0, y + dk / 2);
-    g.addColorStop(0, night ? mixHex(col, '#5a6890', 0.35 + fl * 0.5) : tone(col, 0.5)); g.addColorStop(0.28, col); g.addColorStop(0.5, col); g.addColorStop(0.58, shd); g.addColorStop(1, night ? shd : tone(shd, -0.12));
+    g.addColorStop(0, night ? mixHex(col, '#5a6890', 0.35 + fl * 0.5) : tone(col, dkC ? 0.1 : 0.5)); g.addColorStop(0.28, col); g.addColorStop(0.5, col); g.addColorStop(0.58, shd); g.addColorStop(1, night ? shd : tone(shd, -0.12));
     ctx.fillStyle = g; ctx.fillRect(x0, y - dk / 2, x1 - x0, dk);
     if (!night) { ctx.fillStyle = PV.rgba(tone(shd, -0.25), 0.55); ctx.fillRect(x0, y + dk / 2 - Math.max(0.6, lw * 0.3), x1 - x0, Math.max(0.6, lw * 0.3)); } // underside edge: separates the white deck from bright haze
-    ctx.fillStyle = night ? 'rgba(160,180,230,0.25)' : PV.rgba(tone(col, 0.6), 0.9); ctx.fillRect(x0, y - dk / 2 - Math.max(0.6, lw * 0.25), x1 - x0, Math.max(0.6, lw * 0.25));
+    ctx.fillStyle = night ? 'rgba(160,180,230,0.25)' : PV.rgba(tone(col, dkC ? 0.12 : 0.6), 0.9); ctx.fillRect(x0, y - dk / 2 - Math.max(0.6, lw * 0.25), x1 - x0, Math.max(0.6, lw * 0.25));
     // towers
     for (const tx of towers) {
       const top = y - th, bot = y + pierH, wb = lw * 3.5, wt = lw * 1.4;
@@ -1278,7 +1289,7 @@
       const cl = lightL ? col : shd, cr = lightL ? shd : col;
       g.addColorStop(0, cl); g.addColorStop(0.47, cl); g.addColorStop(0.53, cr); g.addColorStop(1, cr);
       ctx.fillStyle = g; leg(-1); ctx.fill(); if (style !== 'I') { leg(1); ctx.fill(); }
-      if (!night && style === 'H') { ctx.fillStyle = PV.rgba(tone(shd, -0.2), 0.6); ctx.fillRect(tx - lw * 0.45, top + th * 0.06, lw * 0.9, bot - top - th * 0.06); } // the slit between the two legs reads as a dark seam
+      if (style === 'H') { ctx.fillStyle = night ? shd : tone(shd, -0.15); ctx.fillRect(tx - lw * 0.62, top + th * 0.04, lw * 1.24, bot - top - th * 0.04); } // the far leg seen through the slit (never sky)
       if (o.rim && def(o.rimAmt, 1) > 0) { // thin light edge (e.g. lightning flash behind)
         ctx.save(); ctx.globalAlpha = def(o.rimAmt, 1); ctx.strokeStyle = o.rim; ctx.lineWidth = Math.max(1, lw * 0.35);
         const sd = lightL ? -1 : 1; ctx.beginPath(); ctx.moveTo(tx + sd * wb, bot); ctx.lineTo(tx + sd * wt, top); ctx.lineTo(tx, top - lw * 0.5); ctx.stroke();
@@ -1289,7 +1300,7 @@
       ctx.fillStyle = col; ctx.fillRect(tx - wt * 1.15, top - lw * 0.6, wt * 2.3, lw * 0.9);
       // cables (fan / semi-harp)
       ctx.lineWidth = Math.max(0.55, lw * 0.25);
-      ctx.strokeStyle = night ? PV.rgba('#9fb0dd', 0.22 + fl * 0.5) : PV.rgba(tone(col, 0.2), 0.85);
+      ctx.strokeStyle = night ? PV.rgba('#9fb0dd', 0.22 + fl * 0.26) : PV.rgba(tone(col, 0.2), 0.85);
       ctx.beginPath();
       for (let k = 1; k <= nC; k++) {
         const f = k / nC, ty = top + th * (0.04 + 0.36 * (1 - f));
@@ -1518,7 +1529,8 @@
    * in terminal clusters.  Used by hospitalView / komorebi showcases; fine for any foreground greenery.
    * o: x,y (root), angle (growth direction rad), length(420), width(14), depth(5), density(1), leaf(22 px),
    *    colors[], branchColor, back (0..1 backlit translucency), wind (1), seed, shade (0..1 darken toward
-   *    shadeColor), blur(px) */
+   *    shadeColor), cluster, droop, blur (px: soft focus — painted at reduced resolution over the branch's
+   *    bounding box; > 4 adds a real blur).  Leaves come in three shapes with a midrib (cached sprites). */
   L.foliage = function (ctx, t, o = {}) {
     const G = folGeom({ seed: o.seed, length: o.length, depth: o.depth, density: o.density, leaf: o.leaf, colors: o.colors, width: o.width, shadeColor: o.shadeColor, backColor: o.backColor, cluster: o.cluster });
     const wind = def(o.wind, 1), back = def(o.back, 0.5), shade = def(o.shade, 0), bcol = o.branchColor || '#4a3a30', droop = def(o.droop, 0.1);
@@ -1565,7 +1577,8 @@
     }
     ctx.setTransform(B);
     ctx.restore();
-    if (bufC) { out.save(); out.setTransform(1, 0, 0, 1, 0, 0); out.drawImage(bufC.canvas, bb[0] * fr, bb[1] * fr, bb[2] * fr, bb[3] * fr, bb[0], bb[1], bb[2], bb[3]); out.restore(); }
+    if (bufC) { out.save(); out.setTransform(1, 0, 0, 1, 0, 0); if (o.blur > 4) out.filter = `blur(${(o.blur - 3).toFixed(1)}px)`; // strong DOF: extra blur on the bbox only
+      out.drawImage(bufC.canvas, bb[0] * fr, bb[1] * fr, bb[2] * fr, bb[3] * fr, bb[0], bb[1], bb[2], bb[3]); out.restore(); }
   };
 
   /* L.canopy(ctx, t, o) — 木々の天蓋: a ceiling of leaves at the top of frame (looking up / courtyard framing).
@@ -1577,7 +1590,7 @@
   const canCache = bounded(6);
   L.canopy = function (ctx, t, o = {}) {
     const sun = o.sun || { x: W * 0.62, y: 40 }, sunR = def(o.sunR, 700), wind = def(o.wind, 1), lsz = def(o.leaf, 26);
-    const key = okey({ s: o.seed, x0: o.x0, x1: o.x1, y0: o.y0, y1: o.y1, rag: o.rag, d: o.density, l: o.leaf, c: o.colors, sx: Math.round(sun.x / 8), sy: Math.round(sun.y / 8), sr: Math.round(sunR / 8) });
+    const key = okey({ s: o.seed, x0: o.x0, x1: o.x1, y0: o.y0, y1: o.y1, rag: o.rag, d: o.density, l: o.leaf, c: o.colors, sx: Math.round(sun.x / 24), sy: Math.round(sun.y / 24), sr: Math.round(sunR / 24) });
     let C = canCache.get(key);
     if (!C) {
       const r = PV.rng(def(o.seed, 7)), x0 = def(o.x0, -80), x1 = def(o.x1, W + 80), y0 = def(o.y0, -60), y1 = def(o.y1, 280), rag = def(o.rag, 160), dens = def(o.density, 1);
@@ -1737,7 +1750,7 @@
    * over the bay, hazy town, and branches with yellowing leaves swaying close to the window.
    * Fills (and clips to) the rect x,y,w,h (default full frame) with "cover" fitting.
    * o: x,y,w,h, seed, branches(true), wind(1), leafBlur(px, default ≈1.2 — the near branch is slightly out of
-   *    focus), alignX/alignY(0.5), bridge(true), bridgeX(0.36), mackerel (cloud coverage 0.4), morph (0) */
+   *    focus), alignX/alignY(0.5), bridge(true), bridgeX(0.36), mackerel (cloud coverage 0.38), morph (0) */
   L.hospitalView = function (ctx, t, o = {}) {
     const x = def(o.x, 0), y = def(o.y, 0), w = def(o.w, W), h = def(o.h, H), seed = def(o.seed, 5);
     const hz = H * 0.78;
@@ -1750,8 +1763,9 @@
       L.skyline(c, { seed: seed + 11, y: hz + 6, hMin: 10, hMax: 46, wMin: 14, wMax: 46, color: '#9fb4cc', gap: 4 });
       // the bay
       L.sea(c, 0, { horizonY: hz + 4, y1: H, palette: 'autumn', sunX: 300, sparkles: 140, shimmer: 0.5, road: 0.25 });
-      if (o.bridge !== false) { const bx = def(o.bridgeX, 0.36) * W; L.bridge(c, { x0: bx - W * 0.3, x1: bx + W * 0.3, y: hz - 3, towerH: 108, lw: 2.1, cables: 9, haze: 0.18, hazeColor: '#e3edf5', pierH: 16, span: 150 }); }
-      const g = c.createLinearGradient(0, hz - 120, 0, H); g.addColorStop(0, 'rgba(232,240,246,0)'); g.addColorStop(0.35, 'rgba(232,240,246,0.35)'); g.addColorStop(1, 'rgba(232,240,246,0.15)'); c.fillStyle = g; c.fillRect(0, hz - 120, W, H);
+      const g = c.createLinearGradient(0, hz - 120, 0, H); g.addColorStop(0, 'rgba(232,240,246,0)'); g.addColorStop(0.35, 'rgba(232,240,246,0.3)'); g.addColorStop(1, 'rgba(232,240,246,0.12)'); c.fillStyle = g; c.fillRect(0, hz - 120, W, H);
+      // the white bridge — the room's one link to the world outside — sits in front of the haze veil
+      if (o.bridge !== false) { const bx = def(o.bridgeX, 0.36) * W; L.bridge(c, { x0: bx - W * 0.3, x1: bx + W * 0.3, y: hz - 3, towerH: 112, lw: 2.4, cables: 9, haze: 0.1, hazeColor: '#e3edf5', shadow: '#a7b8d4', pierH: 16, span: 150 }); }
     });
     ctx.save(); ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
     const sc = Math.max(w / W, h / H), ox = x + (w - W * sc) * def(o.alignX, 0.5), oy = y + (h - H * sc) * def(o.alignY, 0.5);

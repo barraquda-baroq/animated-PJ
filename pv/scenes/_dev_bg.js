@@ -45,9 +45,9 @@
     L.stars(ctx, t, { seed: 3, count: 120, yMax: hz * 0.6, alpha: 0.55 });
     L.cloudBand(ctx, t, { kind: 'streak', x: 0, y: 120, w: W, h: 300, seed: 9, coverage: 0.36, palette: 'night', light: Math.PI / 2, alpha: 0.35, speed: 4, gain: 2 });
     const far = L.skyline(ctx, { seed: 31, y: hz, hMin: 30, hMax: 130, wMin: 20, wMax: 70, color: '#2a2e58', lit: 0.3, win: [2, 3, 5, 6], glow: 0.5, haze: 0.25, hazeColor: '#3a3a6a', t });
+    const br = L.bridge(ctx, { x0: 1120, x1: 2500, y: hz - 30, towerH: 230, lw: 4.2, night: true, t, cables: 11, pierH: 30, span: 260, towers: [1700, 2240] });
     const fw = L.ferrisWheel(ctx, t, { x: 1330, y: hz - 185, r: 158, night: true, legH: 24, haze: 0.15 });
     const near = L.skyline(ctx, { seed: 32, x0: -20, x1: 1180, y: hz + 3, hMin: 40, hMax: 270, wMin: 34, wMax: 110, color: '#161b38', lit: 0.42, glow: 0.8, skyGlow: '#7a5a80', t });
-    const br = L.bridge(ctx, { x0: 1440, x1: 2500, y: hz - 30, towerH: 230, lw: 4.2, night: true, t, cables: 11, pierH: 30, span: 260, towers: [1700, 2240] });
     L.nightWater(ctx, t, { horizonY: hz + 3, lights: far.concat(near, br, fw), seed: 3 });
     // seaside-park railing in the foreground
     ctx.fillStyle = '#070a16'; ctx.fillRect(0, 900, W, 14); ctx.fillRect(0, 960, W, 8);

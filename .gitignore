@@ -12,3 +12,5 @@ node_modules/
 # large intermediate audio (regenerable)
 audio/out/cues/
 audio/out/stem_*.wav
+audio/out/*.wav
+!deliverables/**/*.jpg

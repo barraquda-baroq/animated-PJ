@@ -80,7 +80,7 @@ ev(110.1, 'thunder', -6, args={'dur': 3.0, 'seed': 29, 'crack': False, 'distance
 # --- C33-C36 the cage (muffled room, a clock)
 ev(123.8, 'room_tone', 4, args={'dur': 20.4}, lp=800)
 ev(123.8, 'rain', -14, args={'dur': 20.4, 'intensity': 0.4, 'seed': 21}, lp=800, fade=[1.0, 0.3])
-ev(123.8, 'tick', -5, args={'times': [float(k) for k in range(21)]})
+ev(124.0, 'tick', -5, args={'times': [float(k) for k in range(20)]})   # 124.0 ... 143.0; 134.0 coincides with the clip
 ev(125.0, 'tinnitus', -13, args={'dur': 5.0, 'f': 6100})
 ev(130.2, 'pen', -3, args={'dur': 1.4})
 ev(131.8, 'drip', -11, args={'seed': 11, 'f0': 700})
