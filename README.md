@@ -27,8 +27,10 @@
 
 ```bash
 tools/fetch_fonts.sh                      # OFLフォント（しっぽり明朝・Zen Old Mincho・Cormorant）を取得
+tools/start_voicevox.sh                   # VOICEVOX ENGINE を 127.0.0.1:50021 で起動
+python3 audio/voice_takes.py              # 台詞18本をフレーズ単位で合成 → audio/voice_out/
 python3 tools/make_timeline.py            # 絵コンテ → pv/timeline.js（テロップ・字幕込み）
-python3 audio/voice.py                    # （台詞の合成は audio/voice.py の render_all を使用）
+python3 tools/make_voice_env.py           # 台詞の口パク用エンベロープ → pv/engine/lib/anime_voice.js
 python3 audio/compose_pv.py               # 劇伴（21キュー）→ audio/out/score.wav
 python3 audio/make_sfx_plan.py            # 効果音プラン
 python3 audio/mix.py                      # 最終ミックス → audio/out/master.wav（-15 LUFS前後）
@@ -43,16 +45,17 @@ render/encode.sh frames audio/out/master.wav deliverables/kimi_no_migite_PV.mp4 
 
 ## 台詞の音声について
 
-現在の版の台詞は **Open JTalk（HTS音声）** で合成しています。
-公式の VOICEVOX ENGINE（Docker Hub `voicevox/voicevox_engine:cpu-latest`）を取得済みですが、外部から取得したプログラムの実行には利用者の許可が必要なため、許可が得られた時点で差し替えます。
-差し替え時のキャスト案：先輩＝冥鳴ひまり、彼＝玄野武宏（ノーマル／悲しみ）、叔母＝九州そら。
-（`tools/start_voicevox.sh` で起動 → `audio/voice.py` が自動で VOICEVOX を使用 → `make_timeline.py` → `mix.py` → 再エンコード）
+台詞は **VOICEVOX ENGINE 0.26.0**（公式 Docker イメージ `voicevox/voicevox_engine:cpu-latest` から取り出したエンジン）で合成しています。
+キャスト：先輩＝冥鳴ひまり、彼＝玄野武宏（ノーマル／悲しみ）、叔母＝九州そら。
+`audio/voice_takes.py` が台本の演技指示に合わせて台詞を「間」の位置でフレーズに分けて合成し、間の長さ・スタイル（悲しみ等）・抑揚・
+震え（モーラ単位のピッチの揺れ）・息まじり（LPCで作るささやき成分）をフレーズごとに指定してつないでいます。尺はすべて絵コンテの上限内です。
 
 ## クレジット・ライセンス
 
 - 原作：宮本有楽『キミの右手のアイロニー』
-- 音声合成：Open JTalk / HTS voice "Mei"（© Nagoya Institute of Technology, CC BY 3.0）, nitech_jp_atr503_m001（Modified BSD）
+- 音声合成：VOICEVOX:冥鳴ひまり、VOICEVOX:玄野武宏、VOICEVOX:九州そら（各キャラクターの利用規約に従いクレジットを表記。映像の最後にも表示）
 - 音源：MuseScore General soundfont（MIT）、FluidSynth（LGPL）
 - 引用曲：J.S.バッハ〈G線上のアリア〉冒頭（パブリックドメイン。旋律は Mutopia Project の楽譜データより）
+- 引用曲：F.ショパン〈練習曲 作品10-3（別れの曲）〉冒頭（パブリックドメイン。依頼主から提供された楽譜PDFより採譜：`audio/themes.py` の `OP10_3`）
 - フォント：しっぽり明朝、Zen Old Mincho、Cormorant Garamond（SIL Open Font License）
 - その他の劇伴（主題〈Session〉ほか）・効果音・映像はすべて本プロジェクトのオリジナル

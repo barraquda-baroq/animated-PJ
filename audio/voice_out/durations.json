@@ -2,127 +2,239 @@
  {
   "id": "V01",
   "speaker": "先輩",
-  "dur": 3.524,
-  "engine": "openjtalk",
-  "path": "voice_out/V01.wav"
+  "dur": 3.529,
+  "engine": "voicevox",
+  "voice": "冥鳴ひまり",
+  "speed_scale": 1.025,
+  "onsets": [
+   0.03,
+   0.941
+  ],
+  "path": "/home/user/animated-PJ/audio/voice_out/V01.wav"
  },
  {
   "id": "V02",
   "speaker": "彼",
-  "dur": 2.932,
-  "engine": "openjtalk",
-  "path": "voice_out/V02.wav"
+  "dur": 2.751,
+  "engine": "voicevox",
+  "voice": "玄野武宏",
+  "speed_scale": 1.0,
+  "onsets": [
+   0.03,
+   0.653
+  ],
+  "path": "/home/user/animated-PJ/audio/voice_out/V02.wav"
  },
  {
   "id": "V03",
   "speaker": "先輩",
-  "dur": 2.388,
-  "engine": "openjtalk",
-  "path": "voice_out/V03.wav"
+  "dur": 2.713,
+  "engine": "voicevox",
+  "voice": "冥鳴ひまり",
+  "speed_scale": 1.0,
+  "onsets": [
+   0.03,
+   0.898
+  ],
+  "path": "/home/user/animated-PJ/audio/voice_out/V03.wav"
  },
  {
   "id": "V04",
   "speaker": "彼",
-  "dur": 3.168,
-  "engine": "openjtalk",
-  "path": "voice_out/V04.wav"
+  "dur": 3.495,
+  "engine": "voicevox",
+  "voice": "玄野武宏",
+  "speed_scale": 1.0,
+  "onsets": [
+   0.03,
+   1.014,
+   2.567
+  ],
+  "path": "/home/user/animated-PJ/audio/voice_out/V04.wav"
  },
  {
   "id": "V05",
   "speaker": "先輩",
-  "dur": 4.435,
-  "engine": "openjtalk",
-  "path": "voice_out/V05.wav"
+  "dur": 3.964,
+  "engine": "voicevox",
+  "voice": "冥鳴ひまり",
+  "speed_scale": 1.0,
+  "onsets": [
+   0.03,
+   2.133,
+   2.694
+  ],
+  "path": "/home/user/animated-PJ/audio/voice_out/V05.wav"
  },
  {
   "id": "V06",
   "speaker": "彼",
-  "dur": 2.723,
-  "engine": "openjtalk",
-  "path": "voice_out/V06.wav"
+  "dur": 3.453,
+  "engine": "voicevox",
+  "voice": "玄野武宏",
+  "speed_scale": 1.119,
+  "onsets": [
+   0.03,
+   1.396
+  ],
+  "path": "/home/user/animated-PJ/audio/voice_out/V06.wav"
  },
  {
   "id": "V07",
   "speaker": "彼",
-  "dur": 2.159,
-  "engine": "openjtalk",
-  "path": "voice_out/V07.wav"
+  "dur": 1.62,
+  "engine": "voicevox",
+  "voice": "玄野武宏",
+  "speed_scale": 1.0,
+  "onsets": [
+   0.03
+  ],
+  "path": "/home/user/animated-PJ/audio/voice_out/V07.wav"
  },
  {
   "id": "V08",
   "speaker": "先輩",
-  "dur": 3.55,
-  "engine": "openjtalk",
-  "path": "voice_out/V08.wav"
+  "dur": 3.314,
+  "engine": "voicevox",
+  "voice": "冥鳴ひまり",
+  "speed_scale": 1.0,
+  "onsets": [
+   0.03,
+   1.455,
+   2.475
+  ],
+  "path": "/home/user/animated-PJ/audio/voice_out/V08.wav"
  },
  {
   "id": "V09",
   "speaker": "先輩",
-  "dur": 2.523,
-  "engine": "openjtalk",
-  "path": "voice_out/V09.wav"
+  "dur": 2.403,
+  "engine": "voicevox",
+  "voice": "冥鳴ひまり",
+  "speed_scale": 1.0,
+  "onsets": [
+   0.03,
+   0.978
+  ],
+  "path": "/home/user/animated-PJ/audio/voice_out/V09.wav"
  },
  {
   "id": "V10",
   "speaker": "彼",
-  "dur": 3.617,
-  "engine": "openjtalk",
-  "path": "voice_out/V10.wav"
+  "dur": 4.679,
+  "engine": "voicevox",
+  "voice": "玄野武宏",
+  "speed_scale": 1.0,
+  "onsets": [
+   0.03,
+   2.238
+  ],
+  "path": "/home/user/animated-PJ/audio/voice_out/V10.wav"
  },
  {
   "id": "V11",
   "speaker": "彼",
-  "dur": 4.128,
-  "engine": "openjtalk",
-  "path": "voice_out/V11.wav"
+  "dur": 4.343,
+  "engine": "voicevox",
+  "voice": "玄野武宏",
+  "speed_scale": 1.0,
+  "onsets": [
+   0.03,
+   1.681,
+   2.655
+  ],
+  "path": "/home/user/animated-PJ/audio/voice_out/V11.wav"
  },
  {
   "id": "V12",
   "speaker": "先輩",
-  "dur": 5.572,
-  "engine": "openjtalk",
-  "path": "voice_out/V12.wav"
+  "dur": 5.551,
+  "engine": "voicevox",
+  "voice": "冥鳴ひまり",
+  "speed_scale": 1.0,
+  "onsets": [
+   0.03,
+   0.855,
+   1.854
+  ],
+  "path": "/home/user/animated-PJ/audio/voice_out/V12.wav"
  },
  {
   "id": "V13",
   "speaker": "先輩",
-  "dur": 0.723,
-  "engine": "openjtalk",
-  "path": "voice_out/V13.wav"
+  "dur": 0.88,
+  "engine": "voicevox",
+  "voice": "冥鳴ひまり",
+  "speed_scale": 1.0,
+  "onsets": [
+   0.03
+  ],
+  "path": "/home/user/animated-PJ/audio/voice_out/V13.wav"
  },
  {
   "id": "V14",
   "speaker": "彼",
-  "dur": 2.437,
-  "engine": "openjtalk",
-  "path": "voice_out/V14.wav"
+  "dur": 2.294,
+  "engine": "voicevox",
+  "voice": "玄野武宏",
+  "speed_scale": 1.0,
+  "onsets": [
+   0.03,
+   1.152
+  ],
+  "path": "/home/user/animated-PJ/audio/voice_out/V14.wav"
  },
  {
   "id": "V15",
   "speaker": "叔母",
-  "dur": 2.831,
-  "engine": "openjtalk",
-  "path": "voice_out/V15.wav"
+  "dur": 2.977,
+  "engine": "voicevox",
+  "voice": "九州そら",
+  "speed_scale": 1.085,
+  "onsets": [
+   0.03
+  ],
+  "path": "/home/user/animated-PJ/audio/voice_out/V15.wav"
  },
  {
   "id": "V16",
   "speaker": "先輩",
-  "dur": 1.8,
-  "engine": "openjtalk",
-  "path": "voice_out/V16.wav"
+  "dur": 1.873,
+  "engine": "voicevox",
+  "voice": "冥鳴ひまり",
+  "speed_scale": 1.0,
+  "onsets": [
+   0.03,
+   1.211
+  ],
+  "path": "/home/user/animated-PJ/audio/voice_out/V16.wav"
  },
  {
   "id": "V17",
   "speaker": "彼",
-  "dur": 5.977,
-  "engine": "openjtalk",
-  "path": "voice_out/V17.wav"
+  "dur": 6.133,
+  "engine": "voicevox",
+  "voice": "玄野武宏",
+  "speed_scale": 1.0,
+  "onsets": [
+   0.03,
+   1.163,
+   2.229,
+   3.193,
+   4.963
+  ],
+  "path": "/home/user/animated-PJ/audio/voice_out/V17.wav"
  },
  {
   "id": "V18",
   "speaker": "先輩",
-  "dur": 1.916,
-  "engine": "openjtalk",
-  "path": "voice_out/V18.wav"
+  "dur": 1.828,
+  "engine": "voicevox",
+  "voice": "冥鳴ひまり",
+  "speed_scale": 1.0,
+  "onsets": [
+   0.03
+  ],
+  "path": "/home/user/animated-PJ/audio/voice_out/V18.wav"
  }
 ]

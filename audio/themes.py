@@ -233,6 +233,42 @@ def competition_etude(S, tn, beat, bars=8, vel=64):
     return b
 
 
+# ----------------------------------------------------------------- Chopin, Etude Op.10 No.3 (public domain)
+# Transcribed from the score PDF supplied for this production: Lento ma non troppo, eighth = 100, 2/4, E major.
+# Grid = sixteenths from the anacrusis (s=0). Ties are folded into the first note's length (tied notes are not re-struck).
+# voice: S soprano (melody, top fingers), A alto, I inner sixteenths (RH), B bass (LH 5th finger), L LH offbeat figure.
+OP10_3 = [
+    # pickup
+    (0, 2, 'B3', 'S'),
+    # bar 1 — I : melody E4 . D#4 E4 | F#4 (tied into bar 2) over D#4
+    (2, 2, 'E4', 'S'), (4, 1, 'D#4', 'S'), (5, 1, 'E4', 'S'), (6, 5, 'F#4', 'S'), (6, 6, 'D#4', 'A'),
+    (2, 1, 'G#3', 'I'), (3, 1, 'B3', 'I'), (4, 1, 'G#3', 'I'), (5, 1, 'B3', 'I'),
+    (6, 1, 'A3', 'I'), (7, 1, 'B3', 'I'), (8, 1, 'A3', 'I'), (9, 1, 'B3', 'I'),
+    (2, 4, 'E2', 'B'), (3, 2, 'B2', 'L'), (5, 1, 'B2', 'L'), (6, 4, 'B1', 'B'), (7, 2, 'B2', 'L'), (9, 1, 'B2', 'L'),
+    # bar 2 — V7 -> I : (F#4) G#4 G#4 F#4 | G#4 (tied into bar 3) over E4
+    (11, 1, 'G#4', 'S'), (12, 1, 'G#4', 'S'), (13, 1, 'F#4', 'S'), (14, 5, 'G#4', 'S'),
+    (12, 2, 'D#4', 'A'), (14, 4, 'E4', 'A'),
+    (10, 1, 'A3', 'I'), (11, 1, 'B3', 'I'), (12, 1, 'A3', 'I'), (13, 1, 'B3', 'I'),
+    (14, 1, 'G#3', 'I'), (15, 1, 'B3', 'I'), (16, 1, 'G#3', 'I'), (17, 1, 'B3', 'I'),
+    (10, 4, 'B1', 'B'), (11, 2, 'B2', 'L'), (13, 1, 'B2', 'L'), (14, 4, 'E2', 'B'), (15, 2, 'B2', 'L'), (17, 1, 'B2', 'L'),
+    # bar 3 — beat 1 : (G#4) A4 A4 G#4 (the line rises toward C#5 on beat 2)
+    (19, 1, 'A4', 'S'), (20, 1, 'A4', 'S'), (21, 1, 'G#4', 'S'),
+    (18, 1, 'G#3', 'I'), (19, 1, 'B3', 'I'), (20, 1, 'G#3', 'I'), (21, 1, 'B3', 'I'),
+    (18, 4, 'E2', 'B'), (19, 2, 'B2', 'L'), (21, 1, 'B2', 'L'),
+]
+OP10_3_VEL = {'S': 66, 'A': 44, 'I': 33, 'B': 48, 'L': 30}
+
+
+def op10_3_notes(s_end=None, octave=0, voices='SAIBL'):
+    """[(s, dur, midi, voice)] of the transcription, optionally cut at s_end and transposed by octaves."""
+    out = []
+    for (s, d, q, v) in OP10_3:
+        if v not in voices or (s_end is not None and s >= s_end):
+            continue
+        out.append((s, d, p(q) + 12 * octave, v))
+    return sorted(out)
+
+
 def dmajor_blast(S, tn, beat, dur=3.0, vel=120):
     """The festival opener: 'ありったけの爆音でＤメジャーのコードを鳴らす'."""
     for q in ('D2', 'A2', 'D3', 'F#3', 'A3', 'D4'):

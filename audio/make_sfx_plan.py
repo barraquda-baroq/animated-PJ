@@ -46,7 +46,10 @@ ev(49.5, 'tinnitus', -2, args={'dur': 1.95, 'f': 5200}, trim=[0, 1.9])
 ev(49.5, 'heartbeat', -3, args={'bpm': 56, 'beats': 2})
 ev(51.4, 'cough', -5)
 ev(52.4, 'breath', -5, args={'kind': 'in', 'dur': 0.5, 'seed': 5})
-ev(57.2, 'wav', -10, args={'path': 'voice_out/V02.wav'}, trim=[0.42, 3.0], lp=3500, reverb={'rt60': 2.6, 'wet': 0.6}, fade=[0.05, 0.4])
+# his remembered voice: V02 from its second phrase (「だって、…」), onset read from the takes
+_d = {d['id']: d for d in json.load(open(os.path.join(ROOT, 'voice_out', 'durations.json'), encoding='utf-8'))}
+_v2 = _d.get('V02', {}); _a = max(0.0, (_v2.get('onsets') or [0, 0.42])[1] - 0.03)
+ev(57.2, 'wav', -10, args={'path': 'voice_out/V02.wav'}, trim=[round(_a, 3), round(_a + 2.55, 3)], lp=3500, reverb={'rt60': 2.6, 'wet': 0.6}, fade=[0.05, 0.4])
 ev(59.6, 'applause', -13, args={'times': [round(0.03 * k + (k % 7) * 0.011, 3) for k in range(48)], 'seed': 11})
 # --- C19 train
 ev(60.0, 'train', -8, args={'dur': 3.1, 'seed': 2}, fade=[0.2, 0.3])

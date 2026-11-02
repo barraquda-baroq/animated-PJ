@@ -452,7 +452,7 @@ PV.timeline = {
   },
   {
    "type": "credit",
-   "text": "原作　宮本有楽『キミの右手のアイロニー』　　劇場アニメーション　近日公開\n音声合成：Open JTalk ／ HTS voice \"Mei\"（© Nagoya Institute of Technology, CC BY 3.0）・nitech_jp_atr503_m001",
+   "text": "原作　宮本有楽『キミの右手のアイロニー』　　劇場アニメーション　近日公開\nVOICEVOX:冥鳴ひまり　VOICEVOX:玄野武宏　VOICEVOX:九州そら",
    "start": 177.8,
    "end": 180.0,
    "style": "bottom",

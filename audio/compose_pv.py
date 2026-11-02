@@ -230,13 +230,24 @@ def m7():
 
 # =================================================================== M8 + M9  53.0 - 59.9  competition
 def m8_m9():
-    c = Cue('M8', 53.0, bpm=50, seed=13)
+    c = Cue('M8', 53.0, bpm=60, seed=13)
     c.track('pf', 0, vol=118, pan=58)
-    # M8: lento cantabile in E major (melody over inner 16ths), from 53.1
-    themes.competition_etude(c.S, 'pf', c.b(53.1), bars=1, vel=64)
+    # M8: Chopin Op.10-3 (transcribed from the supplied score) from the anacrusis at 53.1, eighth ~108 with rubato.
+    # The tied G#4 of bar 2 (s=14) would land at 57.0 — exactly where 'Winter Wind' cuts in: the phrase never arrives.
+    w = [1.16, 1.12, 1.0, 1.0, 1.03, 1.05, 1.08, 1.0, 0.98, 0.98, 0.96, 0.96, 0.99, 1.05]   # sixteenth weights, s=0..13
+    unit = (56.99 - 53.1) / sum(w)
+    T = [53.1]
+    for k in range(40):
+        T.append(T[-1] + unit * (w[k] if k < len(w) else 1.0))
+    dyn = {0: 58, 2: 64, 4: 60, 5: 63, 6: 70, 11: 66, 12: 68, 13: 64, 14: 72}   # soprano: swell into F#4, lean into G#4
+    for (s0, d, q, v) in themes.op10_3_notes(s_end=15):
+        vel = dyn.get(s0, 64) if v == 'S' else themes.OP10_3_VEL[v] + (4 if (v == 'I' and s0 % 4 == 2) else 0) + (3 if 6 <= s0 < 10 else 0)
+        c.n('pf', T[s0] + (0.012 if v in 'IL' else 0.0), T[s0 + d] - T[s0] - 0.02, q, vel, human=0.002)
+    for a, b in ((2, 6), (6, 10), (10, 14), (14, 18)):
+        c.pedal('pf', T[a] + 0.03, T[b] - 0.01)
     x8 = c.render({'pf': 1.0}, rt60=2.4, wet=0.36, length=4.0)
-    x8 = dsp.fade(x8, 0.05, 0.5)
-    put(x8, 53.0, name='M8', lufs=-24)
+    x8 = x8 * dsp.gain_curve(len(x8), [(0, 0), (3.72, 0), (3.98, -40)])[:, None]
+    put(dsp.fade(x8, 0.03, 0.0), 53.0, name='M8', lufs=-24)
     # M9: 'Winter Wind'-like torrent in A minor: right hand cascades from the top, left hand chords
     d = Cue('M9', 57.0, bpm=138, seed=17)
     d.track('pf', 0, vol=120, pan=58)
@@ -317,7 +328,10 @@ def m12():
 def m14():
     c = Cue('M14', 93.6, bpm=54, seed=31)
     c.track('pf', 0, bank=8, vol=96, pan=PAN_PIANO)   # Mellow Grand (una corda feel)
-    c.seq('pf', 93.6, [('B3', 1.0), ('G#3', 0.5), ('A3', 0.25), ('B3', 0.25), ('C#4', 0.6)], vel=48, legato=1.1)
+    # the Op.10-3 melody alone, an octave down in the left hand's register: B2 | E3 . D#3 E3 | F#3 -- and no G#
+    for (t, d, q, v) in ((93.62, 0.6, 'B2', 42), (94.2, 0.62, 'E3', 47), (94.8, 0.3, 'D#3', 41), (95.08, 0.3, 'E3', 44), (95.4, 0.5, 'F#3', 46)):
+        c.n('pf', t, d, q, v, human=0.0)
+    c.pedal('pf', 94.2, 95.75)
     x = c.render({'pf': 1.0}, rt60=2.4, wet=0.3, length=2.4)
     x = x * dsp.gain_curve(len(x), [(0, 0), (2.1, 0), (2.25, -40)])[:, None]   # stops before the peak
     put(dsp.lowpass(x, 3500), 93.6, name='M14', lufs=-33)
