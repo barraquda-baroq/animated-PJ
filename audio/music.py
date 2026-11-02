@@ -108,6 +108,22 @@ class Score:
     def pitchbend(self, tn, beat, val):
         self.tracks[tn].events.append((float(beat), 'pb', int(val)))
 
+    def shape_velocity(self, fn, names=None):
+        """Multiply note-on velocities by fn(beat) (dynamics curve), optionally only for given tracks."""
+        for name, t in self.tracks.items():
+            if names and name not in names:
+                continue
+            t.events = [(b, k, (d[0], int(np.clip(d[1] * fn(b), 1, 127))) if k == 'on' else d) for (b, k, d) in t.events]
+
+    def transpose(self, semis, skip=()):
+        """Shift every note (except drum tracks / names in skip) by semis."""
+        if not semis:
+            return
+        for name, t in self.tracks.items():
+            if t.drums or name in skip:
+                continue
+            t.events = [(b, k, (d[0] + semis, d[1]) if k in ('on', 'off') else d) for (b, k, d) in t.events]
+
     # ---------------- export
     def _tempo_track(self):
         tr = mido.MidiTrack()
@@ -124,7 +140,7 @@ class Score:
         mf.tracks.append(self._tempo_track())
         tr = mido.MidiTrack(); mf.tracks.append(tr)
         ch = t.channel
-        head = [(0.0, 'cc', (0, t.bank)), (0.0, 'cc', (32, 0)), (0.0, 'prog', t.program), (0.0, 'cc', (7, t.vol)), (0.0, 'cc', (10, t.pan)), (0.0, 'cc', (11, 127))]
+        head = ([] if t.drums else [(0.0, 'cc', (0, min(127, t.bank))), (0.0, 'cc', (32, 0))]) + [(0.0, 'prog', t.program), (0.0, 'cc', (7, t.vol)), (0.0, 'cc', (10, t.pan)), (0.0, 'cc', (11, 127))]
         order = {'prog': 0, 'cc': 1, 'pb': 1, 'off': 2, 'on': 3}
         evs = sorted(head + t.events, key=lambda e: (e[0], order[e[1]]))
         last = 0

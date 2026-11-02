@@ -1,0 +1,128 @@
+[
+ {
+  "id": "V01",
+  "speaker": "先輩",
+  "dur": 3.524,
+  "engine": "openjtalk",
+  "path": "voice_out/V01.wav"
+ },
+ {
+  "id": "V02",
+  "speaker": "彼",
+  "dur": 2.932,
+  "engine": "openjtalk",
+  "path": "voice_out/V02.wav"
+ },
+ {
+  "id": "V03",
+  "speaker": "先輩",
+  "dur": 2.388,
+  "engine": "openjtalk",
+  "path": "voice_out/V03.wav"
+ },
+ {
+  "id": "V04",
+  "speaker": "彼",
+  "dur": 3.168,
+  "engine": "openjtalk",
+  "path": "voice_out/V04.wav"
+ },
+ {
+  "id": "V05",
+  "speaker": "先輩",
+  "dur": 4.435,
+  "engine": "openjtalk",
+  "path": "voice_out/V05.wav"
+ },
+ {
+  "id": "V06",
+  "speaker": "彼",
+  "dur": 2.723,
+  "engine": "openjtalk",
+  "path": "voice_out/V06.wav"
+ },
+ {
+  "id": "V07",
+  "speaker": "彼",
+  "dur": 2.159,
+  "engine": "openjtalk",
+  "path": "voice_out/V07.wav"
+ },
+ {
+  "id": "V08",
+  "speaker": "先輩",
+  "dur": 3.55,
+  "engine": "openjtalk",
+  "path": "voice_out/V08.wav"
+ },
+ {
+  "id": "V09",
+  "speaker": "先輩",
+  "dur": 2.523,
+  "engine": "openjtalk",
+  "path": "voice_out/V09.wav"
+ },
+ {
+  "id": "V10",
+  "speaker": "彼",
+  "dur": 3.617,
+  "engine": "openjtalk",
+  "path": "voice_out/V10.wav"
+ },
+ {
+  "id": "V11",
+  "speaker": "彼",
+  "dur": 4.128,
+  "engine": "openjtalk",
+  "path": "voice_out/V11.wav"
+ },
+ {
+  "id": "V12",
+  "speaker": "先輩",
+  "dur": 5.572,
+  "engine": "openjtalk",
+  "path": "voice_out/V12.wav"
+ },
+ {
+  "id": "V13",
+  "speaker": "先輩",
+  "dur": 0.723,
+  "engine": "openjtalk",
+  "path": "voice_out/V13.wav"
+ },
+ {
+  "id": "V14",
+  "speaker": "彼",
+  "dur": 2.437,
+  "engine": "openjtalk",
+  "path": "voice_out/V14.wav"
+ },
+ {
+  "id": "V15",
+  "speaker": "叔母",
+  "dur": 2.831,
+  "engine": "openjtalk",
+  "path": "voice_out/V15.wav"
+ },
+ {
+  "id": "V16",
+  "speaker": "先輩",
+  "dur": 1.8,
+  "engine": "openjtalk",
+  "path": "voice_out/V16.wav"
+ },
+ {
+  "id": "V17",
+  "speaker": "彼",
+  "dur": 5.977,
+  "engine": "openjtalk",
+  "path": "voice_out/V17.wav"
+ },
+ {
+  "id": "V18",
+  "speaker": "先輩",
+  "dur": 1.916,
+  "engine": "openjtalk",
+  "path": "voice_out/V18.wav"
+ }
+]

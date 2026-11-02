@@ -115,6 +115,7 @@ def polish(x, kind='dialogue'):
 
 def synth(line, engine=None):
     engine = engine or ('voicevox' if vv_alive() else 'openjtalk')
+    line = prepare_line(line)
     x = synth_vv(line) if engine == 'voicevox' else synth_ojt(line)
     return polish(x), engine
 
@@ -130,3 +131,43 @@ def render_all(lines, outdir, engine=None):
     with open(os.path.join(outdir, 'durations.json'), 'w') as f:
         json.dump(meta, f, ensure_ascii=False, indent=1)
     return meta
+
+
+# ----------------------------------------------------------------- acting direction -> synthesis params
+DIRECTION_RULES = [
+    # (keywords, params) — first matching rules are merged in order
+    (('叫', '絶叫', '怒鳴', '強く', '激し', 'シャウト'), {'speed': 1.04, 'pitch': 0.04, 'intonation': 1.55, 'volume': 1.35, 'style': 'angry'}),
+    (('泣', '嗚咽', '涙', '震え', '詰まら', '掠れ'), {'speed': 0.84, 'pitch': 0.02, 'intonation': 1.25, 'pause': 1.35}),
+    (('囁', 'ささや', '小さく', '吐息', 'かすか'), {'speed': 0.86, 'intonation': 0.85, 'volume': 0.75, 'style': 'whisper'}),
+    (('淡々', '平坦', '感情のない', '抑揚のない', '温度のない', '無表情'), {'intonation': 0.55, 'speed': 0.92}),
+    (('優し', '柔らか', 'そっと', '慈しみ', '穏やか'), {'speed': 0.9, 'intonation': 1.1, 'pitch': -0.01}),
+    (('明る', '軽', 'あっけらかん', '飄々', '笑'), {'speed': 1.02, 'intonation': 1.2, 'style': 'joy'}),
+    (('悲し', '寂し', '沈ん', '切な', '痛ま'), {'speed': 0.88, 'intonation': 0.95, 'style': 'sad'}),
+    (('ゆっくり', '間を', 'ためら', '躊躇'), {'speed': 0.84, 'pause': 1.4}),
+    (('決意', 'きっぱり', '力強', '真っ直ぐ'), {'speed': 0.95, 'intonation': 1.15, 'volume': 1.1}),
+]
+
+
+def direction_params(delivery):
+    out = {}
+    if not delivery:
+        return out
+    for keys, params in DIRECTION_RULES:
+        if any(k in delivery for k in keys):
+            for k, v in params.items():
+                out.setdefault(k, v)
+    return out
+
+
+def prepare_line(line):
+    """Merge acting direction into explicit params (explicit values win)."""
+    d = direction_params(line.get('delivery', ''))
+    ln = dict(line)
+    for k, v in d.items():
+        if k == 'style':
+            cast = CAST_VV.get(ln['speaker'], {})
+            if v in cast and 'style' not in line:
+                ln['style'] = v
+            continue
+        ln.setdefault(k, v)
+    return ln

@@ -7,6 +7,7 @@ Motifs
   RIGHT_HAND     : the theme's first bar played by the left hand alone, low, in D minor (the lost right hand).
 All functions write into a music.Score at a beat offset and return the end beat.
 """
+import numpy as np
 from music import p, melody, arpeggio
 
 # ----------------------------------------------------------------- harmony (one chord per 4 beats unless split)
@@ -238,3 +239,94 @@ def dmajor_blast(S, tn, beat, dur=3.0, vel=120):
         S.note(tn, beat, dur, q, vel, human=0.0)
         S.note(tn, beat + 0.012 * p(q) / 10, dur, q, vel - 10, human=0.0)
     return beat + dur
+
+
+# ----------------------------------------------------------------- arrangements of the main theme
+CELLO_COUNTER = [('D3', 2), ('C#3', 2), ('B2', 2), ('A2', 2), ('G2', 2), ('F#2', 2), ('E2', 2), ('G2', 2),
+                 ('E2', 2), ('F#2', 2), ('G2', 2), ('A2', 2), ('F#2', 2), ('G2', 2), ('A2', 3), ('A2', 1)]
+
+
+def theme_intimate(S, beat, semis=0, mel='A', piano='piano', guitar='guitar', with_melody=True, vel=1.0):
+    """Guitar fingerpicking + piano melody (+ light LH). 8 bars."""
+    prog = transpose_prog(PROG_A if mel == 'A' else PROG_A2, semis)
+    seq = transpose_seq(MEL_A if mel == 'A' else MEL_A2, semis)
+    guitar_pick(S, guitar, beat, prog, vel=int(54 * vel))
+    if with_melody:
+        melody(S, piano, beat, [(m[0], m[1], int(76 * vel)) if m[0] is not None else m for m in seq])
+        b = beat
+        for bar in prog:  # soft LH roots only
+            for (beats, bass, up) in bar:
+                S.note(piano, b, beats, bass + 12 if isinstance(bass, int) else p(bass) + 12, int(44 * vel))
+                S.pedal(piano, b, b + beats); b += beats
+    return beat + 32
+
+
+def theme_full(S, beat, semis=0, mel='A2', tracks=None, vel=1.0, drums=True):
+    """Full climax: piano melody in octaves, guitar, strings pad + violins doubling, cello counter, bass, drums. 8 bars."""
+    t = dict(piano='piano', guitar='guitar', strings='strings', violins='violins', cello='cello', bass='bass', drums='drums')
+    t.update(tracks or {})
+    prog = transpose_prog(PROG_A2 if mel == 'A2' else PROG_A, semis)
+    seq = transpose_seq(MEL_A2 if mel == 'A2' else MEL_A, semis)
+    # piano: melody in octaves (right hand) + broken LH
+    melody(S, t['piano'], beat, [(m[0], m[1], int(92 * vel)) if m[0] is not None else m for m in seq])
+    melody(S, t['piano'], beat, [((m[0] - 12) if m[0] is not None else None, m[1], int(74 * vel)) for m in seq])
+    piano_lh(S, t['piano'], beat, prog, vel=int(60 * vel))
+    guitar_pick(S, t['guitar'], beat, prog, vel=int(62 * vel))
+    strings_pad(S, t['strings'], beat, prog, vel=int(62 * vel))
+    melody(S, t['violins'], beat, [((m[0] + 12) if m[0] is not None else None, m[1], int(70 * vel)) for m in seq], legato=1.02)
+    melody(S, t['cello'], beat, [(p(c[0]) + semis, c[1], int(72 * vel)) for c in CELLO_COUNTER], legato=1.0)
+    bass_line(S, t['bass'], beat, prog, vel=int(84 * vel))
+    if drums:
+        drums_ballad(S, t['drums'], beat, 8, vel=int(86 * vel))
+    return beat + 32
+
+
+def guitar_lament(S, tn, beat, vel=104, key_semis=0):
+    """Distorted guitar crying alone in the storm (E minor at key_semis=0 -> written in E minor).
+    Uses pitch bends (+-2 semitone range) for wailing bends and wide vibrato."""
+    phrase = [  # (pitch, beats, bend_from_semitones_below, vibrato)
+        ('B4', 2.0, 1, True), ('G4', 1.0, 0, False), ('A4', 1.0, 0, False),
+        ('B4', 3.0, 2, True), (None, 1.0, 0, False),
+        ('D5', 2.0, 2, True), ('C5', 1.0, 0, False), ('B4', 1.0, 0, False),
+        ('A4', 1.5, 0, False), ('G4', 0.5, 0, False), ('F#4', 1.0, 0, False), ('E4', 5.0, 0, True),
+    ]
+    b = beat
+    for pitch, dur, bend, vib in phrase:
+        if pitch is None:
+            b += dur; continue
+        pp = p(pitch) + key_semis
+        S.note(tn, b, dur * 0.98, pp, vel, human=0.0)
+        if bend:
+            S.pitchbend(tn, b, int(-4096 * bend))
+            for k in range(1, 7):
+                S.pitchbend(tn, b + k * 0.06, int(-4096 * bend * (1 - k / 6)))
+        else:
+            S.pitchbend(tn, b, 0)
+        if vib and dur >= 1.5:
+            n = int((dur - 0.6) / 0.09)
+            for k in range(n):
+                S.pitchbend(tn, b + 0.6 + k * 0.09, int(700 * np.sin(k * 1.25)))
+        b += dur
+    S.pitchbend(tn, b, 0)
+    return b
+
+
+# ----------------------------------------------------------------- J.S. Bach, Air (BWV 1068), bars 1-4 (public domain;
+# transcribed from the Mutopia Project LilyPond source bach-air-notes.ly)
+AIR_MELODY = [
+    ('F#5', 4.0),                                                                            # 1
+    ('F#5', 0.5), ('B5', 0.25), ('G5', 0.25), ('E5', 0.25), ('D5', 0.25), ('C#5', 0.25), ('D5', 0.25), ('C#5', 1.0), ('A4', 1.0),  # 2
+    ('A5', 2.0), ('A5', 0.25), ('F#5', 0.25), ('C5', 0.25), ('B4', 0.25), ('E5', 0.25), ('D#5', 0.25), ('A5', 0.25), ('G5', 0.25),  # 3
+    ('G5', 2.0), ('G5', 0.25), ('E5', 0.25), ('B4', 0.25), ('A4', 0.25), ('D5', 0.25), ('C#5', 0.25), ('G5', 0.25), ('F#5', 0.25),  # 4
+]
+AIR_BASS = ['D3', 'D4', 'C#4', 'C#3', 'B2', 'B3', 'A3', 'A2', 'G2', 'G3', 'G#3', 'G#2', 'A2', 'A3', 'G3', 'G2',
+            'F#2', 'F#3', 'E3', 'E2', 'D#2', 'D#3', 'B2', 'B3', 'E2', 'E3', 'D3', 'D2', 'C#2', 'C#3', 'A2', 'A3']
+
+
+def bach_air(S, mel_tn, bass_tn, beat, vel=84, bass_vel=70, stiff=True):
+    """Bars 1-4 of the Air: melody + walking octave bass (eighths)."""
+    music_seq = [(m[0], m[1], vel) for m in AIR_MELODY]
+    melody(S, mel_tn, beat, music_seq, human=0.0 if stiff else 0.01, legato=1.0)
+    for i, q in enumerate(AIR_BASS):
+        S.note(bass_tn, beat + i * 0.5, 0.48, q, bass_vel, human=0.0 if stiff else 0.01)
+    return beat + 16

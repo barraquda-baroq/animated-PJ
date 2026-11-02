@@ -24,7 +24,7 @@
     }
   }
 
-  PV.postDefaults = { bloom: 0.28, grain: 0.55, vignette: 0.45, tint: null, tintAmt: 0, letterbox: false };
+  PV.postDefaults = { bloom: 0.28, halation: 0.35, grain: 0.55, vignette: 0.45, tint: null, tintAmt: 0, letterbox: false };
 
   PV.post = function (ctx, T, frame, S) {
     const P = Object.assign({}, PV.postDefaults, (PV.timeline && PV.timeline.post) || {}, S.post || {});
@@ -40,6 +40,8 @@
       ctx.globalCompositeOperation = 'screen'; ctx.globalAlpha = P.bloom;
       ctx.drawImage(sm2.canvas, 0, 0, W, H);
       ctx.globalAlpha = P.bloom * 0.6; ctx.filter = 'blur(18px)'; ctx.drawImage(sm.canvas, 0, 0, W, H); ctx.filter = 'none';
+      // film halation: warm red-orange glow hugging the brightest areas
+      if (P.halation > 0) { ctx.globalAlpha = P.bloom * P.halation; ctx.filter = 'sepia(1) saturate(4) hue-rotate(-28deg) blur(10px)'; ctx.drawImage(sm.canvas, 0, 0, W, H); ctx.filter = 'none'; }
       ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
     }
 
