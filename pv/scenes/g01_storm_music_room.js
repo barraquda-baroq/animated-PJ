@@ -338,7 +338,7 @@
   const BOY_DIR = (() => { const dx = BENCH[0] - BOY_SEAT[0], dz = BENCH[2] - BOY_SEAT[2], l = Math.hypot(dx, dz); return [dx / l, dz / l]; })();   // he watches her
   const ROOM = {
     c02: { view: 'windows', time: 'noon', furniture: 'none', wind: 0.6, cam: { eye: [6.05, 1.3, 6.95], target: [6.6, 1.12, 0], fov: 56 }, shaft: 0.55, dust: false },
-    c04: { view: 'windows', time: 'noon', furniture: 'none', wind: 0.5, cam: { eye: [6.64, 1.25, 5.97], target: [5.52, 1.08, 2.13], fov: 40 }, shaft: 0.5, dust: false },
+    c04: { view: 'windows', time: 'noon', furniture: 'none', wind: 0.5, cam: { eye: [6.76, 1.25, 6.66], target: [5.58, 0.88, 2.84], fov: 42 }, shaft: 0.5, dust: false },
   };
   const pianoOpts = (R, extra) => R.piano(PIANO.at[0], PIANO.at[1], PIANO.yaw, Object.assign({ lidOpen: 1, bench: false, rimLit: true, desk: false }, extra || {}));
   const ROOM_R = {};

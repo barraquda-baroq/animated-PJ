@@ -120,18 +120,18 @@
   function pianoFront(ctx, c, pal) {
     const O = GP_OUT, I = GP_IN, n = O.length, segs = [];
     for (let i = 0; i < n - 1; i++) { const a = O[i], b = O[i + 1], nn = segNormal(a, b); if (faceCam(c, nn[0], nn[1]) > 0.01) segs.push(i); }
-    if (!segs.length) return;
     ctx.save();
-    // one silhouette for the visible wall run(s)
+    // the treble arm: the case side sweeps down from the rim to the key level in one S-curve toward the front of the keys
+    const AZ = [], NA = 10; for (let k = 0; k <= NA; k++) AZ.push(lerp(GP.frontZ, GP.fallZ, k / NA));
+    const armTopY = (z) => lerp(GP.armY, GP.rimY, PV.smoother(GP.frontZ + 0.22, GP.fallZ, z));
+    const armSide = faceCam(c, -1, 0) > 0.01;
+    const arm = armSide ? polyPath(c, AZ.map((z) => [-3.35, armTopY(z), z]).concat(AZ.slice().reverse().map((z) => [-3.35, GP.botY, z]))) : null;
+    const armTop = polyPath(c, [[-3.35, GP.armY, GP.frontZ], [-2.66, GP.armY, GP.frontZ], [-2.66, GP.armY, GP.frontZ + 0.3], [-3.35, armTopY(GP.frontZ + 0.3), GP.frontZ + 0.3]]);
+    // one silhouette for the visible wall run(s) + the arm
     const wall = new Path2D();
     for (const i of segs) { const a = O[i], b = O[i + 1]; wall.addPath(polyPath(c, [[a[0], GP.rimY, a[1]], [b[0], GP.rimY, b[1]], [b[0], GP.botY, b[1]], [a[0], GP.botY, a[1]]])); }
-    // treble cheek block (the case's arm beside the keys) and its top
-    const arm = polyPath(c, [[-3.35, GP.armY, GP.frontZ], [-3.35, GP.armY, GP.fallZ], [-3.35, GP.botY, GP.fallZ], [-3.35, GP.botY, GP.frontZ]]);
-    const armTop = polyPath(c, [[-3.35, GP.armY, GP.frontZ], [-2.66, GP.armY, GP.frontZ], [-2.66, GP.armY, GP.fallZ], [-3.35, GP.armY, GP.fallZ]]);
-    // the step from the arm up to the full rim at the fallboard
-    const step = polyPath(c, [[-3.35, GP.rimY, GP.fallZ], [-3.35, GP.armY, GP.fallZ], [-2.66, GP.armY, GP.fallZ], [-2.66, GP.rimY, GP.fallZ]]);
-    ctx.fillStyle = pal.side; ctx.fill(arm); ctx.fill(wall); ctx.fillStyle = pal.top; ctx.fill(armTop);
-    if (faceCam(c, 0, -1) > 0) { ctx.fillStyle = pal.side; ctx.fill(step); }
+    if (arm) wall.addPath(arm);
+    ctx.fillStyle = pal.side; ctx.fill(wall); ctx.fillStyle = pal.top; ctx.fill(armTop);
     // reflections: the room above mirrored in the upper part of the wall, darker toward the bottom; vertical sheen streaks
     ctx.save(); ctx.clip(wall);
     const t0 = gp(c, -3.3, GP.rimY, 3), b0 = gp(c, -3.3, GP.botY, 3);
@@ -144,21 +144,18 @@
       ctx.fillStyle = g; ctx.fillRect(-2000, -2000, 6000, 6000);
     }
     ctx.restore();
-    // the near rim's top band (a thin lit surface) and the highlight under its rounded edge
+    // the near rim's top band (a thin lit surface)
     for (const i of segs) {
       const a = O[i], b = O[i + 1], ai = I[i], bi = I[i + 1];
       const p = polyPath(c, [[a[0], GP.rimY, a[1]], [b[0], GP.rimY, b[1]], [bi[0], GP.rimY, bi[1]], [ai[0], GP.rimY, ai[1]]]);
       ctx.fillStyle = pal.top; ctx.fill(p); ctx.strokeStyle = pal.top; ctx.lineWidth = 0.8; ctx.stroke(p);
     }
-    const run = segs.map((i) => O[i]).concat([O[segs[segs.length - 1] + 1]]);
-    const hl = (dy, w, col, a) => { ctx.strokeStyle = PV.rgba(col, a); ctx.lineWidth = w; ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.beginPath(); run.forEach(([x, z], k) => { const q = gp(c, x, GP.rimY + dy, z); k ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]); }); ctx.stroke(); };
-    hl(0.035, Math.max(1.2, c.s * 0.011), pal.edge, pal.edgeA);
-    hl(0.0, Math.max(0.8, c.s * 0.004), pal.line, 0.9);
-    // outline of the wall: ink in the lacquer's own dark colour (anime line art), lighter where it meets the light
-    ctx.strokeStyle = pal.line; ctx.lineWidth = Math.max(1, c.s * 0.006); ctx.lineJoin = 'round';
-    ctx.stroke(arm);
-    { const a = gp(c, -3.35, GP.rimY, GP.fallZ), b = gp(c, -3.35, GP.botY, GP.fallZ); ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke(); }
-    { const a = gp(c, -3.35, GP.armY, GP.frontZ), b = gp(c, -3.35, GP.armY, GP.fallZ); ctx.strokeStyle = PV.rgba(pal.edge, pal.edgeA * 0.8); ctx.lineWidth = Math.max(1, c.s * 0.007); ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke(); }
+    // the highlight under the rounded top edge: along the arm's sweep and on along the rim, and the ink of the top edge
+    const run = (armSide ? AZ.map((z) => [-3.35, armTopY(z), z]) : []).concat(segs.length ? segs.map((i) => [O[i][0], GP.rimY, O[i][1]]).concat([[O[segs[segs.length - 1] + 1][0], GP.rimY, O[segs[segs.length - 1] + 1][1]]]) : []);
+    const hl = (dy, w, col, a) => { ctx.strokeStyle = PV.rgba(col, a); ctx.lineWidth = w; ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.beginPath(); run.forEach(([x, y, z], k) => { const q = gp(c, x, y + dy, z); k ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]); }); ctx.stroke(); };
+    if (run.length > 1) { hl(0.035, Math.max(1.2, c.s * 0.011), pal.edge, pal.edgeA); hl(0.0, Math.max(0.8, c.s * 0.004), pal.line, 0.9); }
+    // ink round the arm's front edge
+    if (arm) { const a = gp(c, -3.35, GP.armY, GP.frontZ), b = gp(c, -3.35, GP.botY, GP.frontZ); ctx.strokeStyle = pal.line; ctx.lineWidth = Math.max(1, c.s * 0.006); ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke(); }
     ctx.restore();
   }
   // the open lid: its lacquered underside (the strings and the light mirrored in it), the edge of the board, the prop stick
@@ -195,7 +192,7 @@
     // the front edge of the lid catches a thin line of light
     { const a = gp(c, ...gLid(GP.hinge, GP.fallZ)), b = gp(c, ...gLid(-3.35, GP.fallZ)); ctx.strokeStyle = PV.rgba(pal.edge, pal.edgeA * 0.7); ctx.lineWidth = Math.max(1, c.s * 0.005); ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke(); }
     // the prop stick from the bentside rim up to the board
-    { const r = gp(c, -2.05, GP.rimY, 6.25), l = gp(c, ...gLid(-2.2, 6.25)); const k = 0.82, top = [lerp(r[0], l[0], k), lerp(r[1], l[1], k)];
+    { const r = gp(c, -0.55, GP.rimY, 8.1), l = gp(c, ...gLid(-0.7, 8.1)); const k = 0.82, top = [lerp(r[0], l[0], k), lerp(r[1], l[1], k)];
       ctx.strokeStyle = pal.line; ctx.lineWidth = Math.max(2, c.s * 0.034); ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(r[0], r[1]); ctx.lineTo(top[0], top[1]); ctx.stroke();
       ctx.strokeStyle = PV.rgba(pal.edge, pal.edgeA * 0.6); ctx.lineWidth = Math.max(1, c.s * 0.008); ctx.beginPath(); ctx.moveTo(r[0] - c.s * 0.01, r[1]); ctx.lineTo(top[0] - c.s * 0.01, top[1]); ctx.stroke(); }
     ctx.restore();
@@ -205,6 +202,10 @@
    * params (besides the library's): rel 0..1 (the arms leave the keys and come down to the lap, with a small lift), lift
    * (shoulders up: the breath), trem 0..1 (frozen tremble of the arms / shoulders), neckPitch (absolute nod), keys/bench false */
   function ensurePose() {
+    const SP = PV.anime && PV.anime.BODY_SPECS;
+    if (SP && SP.senpai && !SP.g05_senpai) {   // 作画修正 for these cuts: the neck 0.07 H shorter (the updo shows the whole nape)
+      const c = JSON.parse(JSON.stringify(SP.senpai)); c.neckLen = Math.max(0.2, c.neckLen - 0.07); SP.g05_senpai = c;
+    }
     const P = PV.anime && PV.anime.FIG_POSES; if (!P || P.g05_piano || !P.piano) return;
     const base = P.piano;
     P.g05_piano = {
@@ -248,7 +249,7 @@
   const C16 = { cough: 51.4 };
   const CAM16 = { th: 0.72, ph: 0.19, x: 820, y: 1570, s: 430 };
   const PAL16 = {   // the black lacquer in the white world: it mirrors the white (no outlines in this world: the ink is soft)
-    side: '#17161c', top: '#3a3a44', inner: '#16151a', innerWall: '#1d1c22', plate: '#2c2722', strings: 'rgba(120,112,100,0.35)',
+    side: '#17161c', top: '#3a3a44', inner: '#121116', innerWall: '#1b1a20', plate: '#221e1b', strings: 'rgba(150,140,124,0.16)',
     lid: '#121116', lidEdge: '#2b2a32', lidRefl: '#d8dae2', lidReflA: 0.07, lidSheen: '#ffffff', lidSheenA: 0.08,
     refl: '#e9eaf0', reflA: 0.12, streaks: [[3.2, 0.5, 0.1], [6.2, 0.7, 0.08]], edge: '#ffffff', edgeA: 0.8, line: '#0b0a0e',
   };
@@ -305,22 +306,22 @@
     const closeK = sm(52.42, 52.6, tq);                                        // ... with the eyes closed
     const frozen = 1 - sm(cough, cough + 0.5, T);
     const shallow = frozen * (0.5 + 0.5 * Math.sin(tq * TAU / 0.8));           // quick shallow breaths while frozen
-    const lookX = lerp(0.08, -0.26, eyeK), lookY = lerp(0.06, -0.02, eyeK) + 0.3 * closeK;
+    const lookX = lerp(0.08, -0.32, eyeK), lookY = lerp(0.06, -0.02, eyeK) + 0.3 * closeK;
     const open = closeK > 0 ? lerp(1.0, 0, closeK) : (lit ? 1.04 : 0.98) * blinkO;
     const head = {
-      expr: 'neutral', noBlink: true, turn: -0.1 * headK + 0.05 * inh,
+      expr: 'neutral', noBlink: true, neckW: 1.1, turn: -0.06 * headK + 0.05 * inh, roll: frozen * 0.006 * N2(tq * 11.3, 7.7),
       eyes: closeK > 0.5 ? { open: 0, closed: 'down', look: [0.1, 0.3] }
         : { open, look: [lookX, lookY], shine: lit ? 1 : 0.22, dull: lit ? 0 : 0.38, hlK: lit ? 1.12 : 0.78, wide: lit ? 0.12 * (1 - closeK) : 0 },
       brows: { inner: lerp(0.1, 0.34, sm(51.6, 51.9, tq)) - 0.18 * closeK, outer: lerp(-0.04, 0.06, sm(51.6, 51.9, tq)) },
       mouth: { shape: T < 51.62 && T > 51.43 ? 'o' : 'flat', open: frozen * 0.07 + (T > 51.43 && T < 51.62 ? 0.12 : 0) + 0.04 * inh },
       blush: lerp(0.03, 0.34, sm(51.75, 52.5, tq)),
-      lightDir: -2.5, shade: 0.05 + 0.04 * k,
+      lightDir: -2.5, shade: 0.035 + 0.04 * k,
     };
     const fig = {
-      who: 'senpai', outfit: 'dress', pose: 'g05_piano', facing: cam.th, camPitch: cam.ph, x: cam.x, y: cam.y, scale: cam.s, T,
+      who: 'g05_senpai', outfit: 'dress', pose: 'g05_piano', facing: cam.th, camPitch: cam.ph, x: cam.x, y: cam.y, scale: cam.s, T,
       light: light16(k), keyDir: -2.45, rimDir: -2.2,
-      params: { intensity: 0, play: 0, look: 'keys', rel, trem: frozen * 0.8, lift: 0.08 * (1 - rel) + 0.012 * shallow + 0.05 * inh,
-        neckYaw: -0.22 * headK + 0.08 * inh, neckRoll: 0.07 * headK, neckPitch: lerp(0.02, -0.03, headK) + 0.1 * inh, bendAdd: -0.02 * inh },
+      params: { intensity: 0, play: 0, look: 'keys', rel, trem: frozen * 0.8, lift: 0.08 - 0.05 * rel + 0.012 * shallow + 0.045 * inh,
+        neckYaw: -0.13 * headK + 0.08 * inh, neckRoll: -0.03 * headK, neckPitch: lerp(0.02, -0.03, headK) + 0.1 * inh, bendAdd: -0.02 * inh },
       head,
     };
     ctx.save();
@@ -347,12 +348,12 @@
     ctx.fillStyle = '#f4f4f2'; ctx.fillRect(0, 0, W, H);
     V.forEach((v, i) => {
       ctx.save(); ctx.beginPath(); const cx = (i % 2) * 960, cy = Math.floor(i / 2) * 540; ctx.rect(cx, cy, 960, 540); ctx.clip(); ctx.translate(cx, cy); ctx.scale(0.5, 0.5);
-      ctx.drawImage(bg16(false), 0, 0);
-      const cam = gcam(v.th ?? 0.86, v.ph ?? 0.15, v.x ?? 760, v.y ?? 1650, v.s ?? 430);
-      pianoBack(ctx, cam, PAL16);
-      PV.anime.figure(ctx, { who: 'senpai', outfit: 'dress', pose: 'g05_piano', facing: cam.th, camPitch: cam.ph, x: cam.x, y: cam.y, scale: cam.s, T: v.T ?? 50.0, light: 'stage', keyDir: -2.45, rimDir: -2.2,
-        params: Object.assign({ intensity: 0, play: 0, look: 'keys' }, v.p || {}), head: Object.assign({ expr: 'neutral', noBlink: true, lightDir: -2.5, shade: 0.05 }, v.h || {}) });
-      pianoFront(ctx, cam, PAL16); pianoLid(ctx, cam, PAL16);
+      const P17 = v.bg === 17; ctx.drawImage(P17 ? bg17(true) : bg16(false), 0, 0);
+      const cam = gcam(v.th ?? 0.86, v.ph ?? 0.15, v.x ?? 760, v.y ?? 1650, v.s ?? 430), PAL = P17 ? PAL17 : PAL16;
+      pianoBack(ctx, cam, PAL);
+      PV.anime.figure(ctx, { who: v.who || 'senpai', outfit: 'dress', pose: 'g05_piano', facing: cam.th, camPitch: cam.ph, x: cam.x, y: cam.y, scale: cam.s, T: v.T ?? 50.0, light: v.L || 'stage', faceLift: v.fl, keyDir: v.kd ?? -2.45, rimDir: v.rd ?? -2.2,
+        params: Object.assign({ intensity: 0, play: 0, look: 'keys' }, v.p || {}), costume: v.c, head: Object.assign({ expr: 'neutral', noBlink: true, lightDir: -2.5, shade: 0.05 }, v.h || {}) });
+      pianoFront(ctx, cam, PAL); pianoLid(ctx, cam, PAL);
       ctx.restore();
       ctx.fillStyle = '#c00'; ctx.font = '20px monospace'; ctx.fillText(JSON.stringify(v).slice(0, 90), (i % 2) * 960 + 10, Math.floor(i / 2) * 540 + 24);
     });
@@ -366,12 +367,15 @@
    * in the shaft; a slow dolly-in. The right side (the vertical monologue, x ≈ 1480–1760) stays dark and calm: the open
    * lid's underside and the dim hall.
    */
-  const CAM17 = { th: 1.1, ph: 0.14, x: 600, y: 1075, s: 215 };
+  const CAM17 = { th: 0.98, ph: 0.13, x: 610, y: 1195, s: 290 };
   const PAL17 = {
     side: '#141015', top: '#3a2c22', inner: '#100c0c', innerWall: '#1a1412', plate: '#4a3820', strings: 'rgba(214,170,96,0.28)',
     lid: '#0e0b0d', lidEdge: '#2a201a', lidRefl: '#d6aa60', lidReflA: 0.16, lidSheen: '#ffd59a', lidSheenA: 0.1,
     refl: '#ffd59a', reflA: 0.16, streaks: [[3.0, 0.45, 0.16], [6.0, 0.6, 0.12]], edge: '#ffd59a', edgeA: 0.85, line: '#060406',
   };
+  // her light: LIGHT.spot, but the spot is in front of her and above (her face is lit, the rim from above), not behind her
+  let SPOT17 = null;
+  const spot17 = () => SPOT17 || (SPOT17 = Object.assign({}, PV.anime.LIGHT.spot, { light: '#fff0dc', shadow: '#7a5a6e', amb: 0.06, rimA: 0.7, sat: 1.0, dark: 1.0 }));
   function bg17(warm) {
     return PV.cached('g05:c17bg2:' + (warm ? 'w' : 'c'), W, H, (c) => {
       const wk = warm ? 1 : 0;
@@ -396,20 +400,20 @@
     const blinkO = bf < 0 || bf > 4 ? 1 : [0.5, 0.1, 0.0, 0.3, 0.75][bf];
     const tears = T < 55.2 ? 0.5 * sm(53.9, 55.0, T) : lerp(0.5, 0.72, sm(55.2, 55.6, T));
     const head = {
-      expr: 'focus', noBlink: true,
+      expr: 'focus', noBlink: true, neckW: 1.1,
       eyes: { open: (0.82 + 0.1 * strong) * blinkO, focus: lerp(0.55, 0.9, strong), tears, look: [0.25, 0.2 - 0.14 * strong], hlK: 1.05 },
       brows: { furrow: lerp(0.25, 0.8, think), inner: lerp(-0.2, 0.05, think) - 0.35 * strong },
       mouth: { shape: 'flat', open: 0 }, blush: 0.12 + 0.08 * think,
       lightDir: -2.0, shade: 0.1,
     };
     const fig = {
-      who: 'senpai', outfit: 'dress', pose: 'g05_piano', facing: cam.th, camPitch: cam.ph, x: cam.x, y: cam.y, scale: cam.s, T,
-      light: 'spot', keyDir: -1.95, rimDir: -1.7, faceLift: 0.62,
-      params: { intensity: lerp(0.38, 0.7, strong), play: 1, look: 'keys', neckYaw: lerp(-0.22, 0.1, sm(54.2, 56.3, tq)), neckPitch: lerp(0.1, 0.0, strong) },
+      who: 'g05_senpai', outfit: 'dress', pose: 'g05_piano', facing: cam.th, camPitch: cam.ph, x: cam.x, y: cam.y, scale: cam.s, T,
+      light: spot17(), keyDir: -1.95, rimDir: -1.7,
+      params: { intensity: lerp(0.38, 0.7, strong), play: 1, look: 'keys', lift: 0.03, neckYaw: lerp(-0.2, 0.12, sm(54.2, 56.3, tq)), neckPitch: lerp(0.03, -0.04, strong) },
       head,
     };
     ctx.save();
-    PV.camera(ctx, { zoom: 1.0 + 0.06 * PV.ease.inOut(clamp(tt / d)), cx: 640, cy: 470, x: 4 * Math.sin(tt * 0.5) });
+    PV.camera(ctx, { zoom: 1.0 + 0.06 * PV.ease.inOut(clamp(tt / d)), cx: 700, cy: 420, x: 4 * Math.sin(tt * 0.5) });
     ctx.drawImage(bg17(false), 0, 0);
     if (warmK > 0.002) { ctx.globalAlpha = warmK; ctx.drawImage(bg17(true), 0, 0); ctx.globalAlpha = 1; }
     pianoBack(ctx, cam, PAL17);

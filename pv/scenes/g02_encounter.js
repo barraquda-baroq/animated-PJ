@@ -512,15 +512,89 @@
       L.godRays(c, 18.0, { x: 420, y: -120, angle: 1.0, spread: 0.32, count: 6, length: 1500, width: 120, flare: 2.2, alpha: 0.24, color: '#fff1d6', seed: 66, flicker: 0, mode: 'source-over' });
     });
   }
+  // A local chair pose for the close juice shots (C05 far, C06 bust): the library's seated_chair 'juice' variant without
+  // its own carton and hand (both are made for small figures: at a 350 px head the hand reads as a mitten and the carton as
+  // stacked cubes). The scene draws the pack in his hand itself (juiceInHand). Registered only for the duration of a call.
+  const SIP_POSE = 'g02_sip';
+  const sipPose = {
+    facing: '3q_left', anchor: 'top centre of the chair seat', armsFront: true,
+    body(sp, prm, tq, o, OF) { return A().FIG_POSES.seated_chair.body(sp, Object.assign({}, prm, { variant: 'juice' }), tq, o, OF); },
+    limbs(J, sp, prm, tq, o, OF) {
+      const r = A().FIG_POSES.seated_chair.limbs(J, sp, Object.assign({}, prm, { variant: 'juice' }), tq, o, OF);
+      if (prm.ownHand) r.arms.R.hand = { hidden: true };
+      return r;
+    },
+    props(G, prm, tq, o) { if (prm.chair !== false) A().FIG_POSES.seated_chair.props(G, Object.assign({}, prm, { variant: 'idle' }), tq, o); },
+  };
+  function withSipPose(fn) {
+    const P = A().FIG_POSES, had = Object.prototype.hasOwnProperty.call(P, SIP_POSE), old = P[SIP_POSE];
+    P[SIP_POSE] = sipPose;
+    try { return fn(); } finally { if (had) P[SIP_POSE] = old; else delete P[SIP_POSE]; }
+  }
+  // The 200 ml pack in his right hand at close range (anime shorthand: the hand behind the pack, four fingertips wrapping its
+  // front edge, the thumb on the other edge), orange with two white bands like g01's pack on his thigh. o: wrist [x,y],
+  // mouth [x,y], s (head px), k (0 = at his lips .. 1 = lowered), light, side (+1: fingers on the screen-left edge)
+  function juiceInHand(c, o) {
+    const s = o.s, h = 0.44 * s, w = h * 0.58, d = h * 0.24, k = clamp(o.k);
+    const mB = A().mat('carton_band', o.light), mW = A().mat('carton', o.light), mS = A().mat('straw', o.light);
+    const sk = A().mat('skin', A().faceLight(o.light));
+    const lw = Math.max(1, A().inkW(s) * 0.62), sd = o.side || 1;
+    // the pack stands on the hand: centre a little above the wrist, tilted toward his lips while he sips
+    const tilt = lerp(-0.22 * sd, 0.06 * sd, k);
+    const cx = o.wrist[0] + Math.sin(tilt) * 0.2 * s, cy = o.wrist[1] - Math.cos(tilt) * 0.2 * s;
+    c.save(); c.translate(cx, cy); c.rotate(tilt); c.lineJoin = 'round'; c.lineCap = 'round';
+    const quad = (pts, fill) => { c.beginPath(); pts.forEach((p, i) => (i ? c.lineTo(p[0], p[1]) : c.moveTo(p[0], p[1]))); c.closePath(); c.fillStyle = fill; c.fill(); };
+    const x0 = -w / 2, x1 = w / 2, y0 = -h / 2, y1 = h / 2, dx = d * sd, dy = -d * 0.45;
+    // back of the hand peeking out behind the pack (the palm side away from us)
+    c.fillStyle = sk.shade; c.strokeStyle = sk.line; c.lineWidth = lw;
+    c.beginPath(); c.ellipse(-sd * w * 0.32, h * 0.18, w * 0.5, h * 0.36, 0.12 * sd, 0, TAU); c.fill(); c.stroke();
+    // the pack: side face, front face with its two white bands, the gable top, the straw
+    const sx0 = sd > 0 ? x1 : x0;
+    quad([[sx0, y0], [sx0 + dx, y0 + dy], [sx0 + dx, y1 + dy], [sx0, y1]], mB.shade);
+    quad([[x0, y0], [x1, y0], [x1, y1], [x0, y1]], mB.base);
+    for (const [a, b] of [[0.07, 0.3], [0.6, 0.8]]) {
+      quad([[x0, y0 + h * a], [x1, y0 + h * a], [x1, y0 + h * b], [x0, y0 + h * b]], mW.base);
+      quad([[sx0, y0 + h * a], [sx0 + dx, y0 + h * a + dy], [sx0 + dx, y0 + h * b + dy], [sx0, y0 + h * b]], mW.shade);
+    }
+    quad([[x0, y0], [x0 + dx, y0 + dy], [x1 + dx, y0 + dy], [x1, y0]], mB.hi);
+    c.strokeStyle = mB.line; c.lineWidth = lw; c.beginPath();
+    c.moveTo(x0, y1); c.lineTo(x0, y0); c.lineTo(x0 + dx, y0 + dy); c.lineTo(x1 + dx, y0 + dy); c.lineTo(x1 + dx, y1 + dy); c.lineTo(x1, y1); c.closePath();
+    c.moveTo(sx0, y0); c.lineTo(sx0, y1); c.moveTo(x0, y0); c.lineTo(x1, y0); c.stroke();
+    c.restore();
+    // the straw: from the top toward his lips (sipping) or standing up (lowered)
+    const top = [cx + Math.sin(tilt) * h * 0.5 + Math.cos(tilt) * w * 0.18 * sd, cy - Math.cos(tilt) * h * 0.5 + Math.sin(tilt) * w * 0.18 * sd];
+    const toMouth = Math.atan2(o.mouth[1] - top[1], o.mouth[0] - top[0]), up = -PI / 2 + tilt + 0.25 * sd;
+    const ang = lerp(toMouth, up, sm(0.15, 0.6, k)), len = lerp(Math.hypot(o.mouth[0] - top[0], o.mouth[1] - top[1]) + 0.01 * s, 0.17 * s, sm(0.15, 0.6, k));
+    const tip = [top[0] + Math.cos(ang) * len, top[1] + Math.sin(ang) * len];
+    c.save(); c.lineCap = 'round';
+    c.strokeStyle = mS.line; c.lineWidth = 0.034 * s + lw; c.beginPath(); c.moveTo(top[0], top[1]); c.lineTo(tip[0], tip[1]); c.stroke();
+    c.strokeStyle = mS.base; c.lineWidth = 0.034 * s - lw * 0.4; c.stroke();
+    c.restore();
+    // fingers wrapping the front: four fingertips down one edge, the thumb on the other
+    c.save(); c.translate(cx, cy); c.rotate(tilt);
+    const fx = -sd * w * 0.5, tip4 = [[-0.16, 0.95], [0.02, 1.0], [0.2, 0.96], [0.37, 0.86]];
+    for (let i = 0; i < 4; i++) {
+      const [fy, fl] = tip4[i], yy = fy * h, ww = 0.075 * s * fl, hh = 0.05 * s * fl;
+      c.beginPath(); c.ellipse(fx + sd * ww * 0.55, yy, ww, hh, 0.08 * sd, 0, TAU);
+      c.fillStyle = sk.base; c.fill(); c.strokeStyle = sk.line; c.lineWidth = lw * 0.9; c.stroke();
+      c.beginPath(); c.ellipse(fx + sd * ww * 0.95, yy - hh * 0.05, ww * 0.32, hh * 0.55, 0, 0, TAU); c.fillStyle = A().mixHex(sk.base, sk.hi, 0.5); c.fill();   // nail
+    }
+    // thumb along the far edge, its tip over the top band
+    const tx = sd * w * 0.5;
+    c.beginPath(); c.ellipse(tx - sd * 0.035 * s, -h * 0.05, 0.05 * s, 0.11 * s, -0.1 * sd, 0, TAU);
+    c.fillStyle = sk.base; c.fill(); c.strokeStyle = sk.line; c.lineWidth = lw * 0.9; c.stroke();
+    c.restore();
+    return { top, tip };
+  }
   // 彼 in C06: a bust, 3/4, seated by the pier (the window and its curtain behind him on the light side). Placed by the neck
   // point (measured), in the DIR=+1 frame: x is mirrored by sX(), the facing by DIR.
-  const C06_BOY = { x: 1240, y: 600, size: 350, facing: -0.78 };
+  const C06_BOY = { x: 1230, y: 640, size: 400, facing: -0.78 };
   function c06BoyArgs(T, p, h) {
-    const base = { who: 'boy', outfit: 'uniform', pose: 'seated_chair', facing: C06_BOY.facing * DIR, scale: C06_BOY.size, T, light: C05_LIGHT,
+    const base = { who: 'boy', outfit: 'uniform', pose: SIP_POSE, facing: C06_BOY.facing * DIR, scale: C06_BOY.size, T, light: C05_LIGHT,
       rimDir: sAng(-2.62), keyDir: sAng(PI + 0.25), rimA: 0, wind: 0.08, windDir: sAng(0),
-      params: { variant: 'juice', sip: 1, chair: false, nod: 0.02 },
+      params: { sip: 1, chair: false, nod: 0.02, ownHand: true },
       head: { expr: 'neutral', lightDir: sAng(PI + 0.12), shade: 0.6, rimW: 1.4, faceLift: 1, blinkOffset: 1.85 } };
-    const nk = probeNeck('c06boy', base);
+    const nk = withSipPose(() => probeNeck('c06boy', base));
     const o = Object.assign({}, base, { x: sX(C06_BOY.x) - nk[0], y: C06_BOY.y - nk[1] });
     o.params = Object.assign({}, base.params, p); o.head = Object.assign({}, base.head, h);
     return o;
@@ -555,11 +629,12 @@
       const smile = sm(17.75, 18.45, Tq);                                            // the easy half-smile grows while he says it
       const gq = sm(18.35, 18.75, Tq) * (1 - sm(19.0, 19.75, Tq));
       const lp = lips(Tq, 'boy', 0);
-      const o = c06BoyArgs(Tq, { sip: lerp(1, 0.42, lowerK) + 0.05 * sm(19.3, 19.8, Tq), nod: 0.02 - 0.06 * eh + 0.07 * nod - 0.02 * jan, tilt: 0.03 * jan * DIR },
+      const o = c06BoyArgs(Tq, { sip: lerp(0.7, 0.34, lowerK), nod: 0.02 - 0.06 * eh + 0.07 * nod - 0.02 * jan, tilt: 0.03 * jan * DIR },
         { expr: smile > 0.5 ? 'gentle' : 'neutral', talk: lp.talk, mouth: Object.assign({ asym: -0.75 * smile }, lp.mouth || {}),
           eyes: { look: [0.3 * -DIR, -0.04], open: lerp(1, 0.84, smile) + 0.22 * eh },
           brows: { inner: 0.3 * eh + 0.1 * smile, outer: 0.25 * eh }, blush: 0.06 + 0.06 * smile, hair: { wind: 0.08 + 0.6 * gq, windDir: sAng(0) } });
-      info = A().figure(c, o);
+      info = withSipPose(() => A().figure(c, o));
+      if (info && info.head && info.head.mouth) juiceInHand(c, { wrist: info.hands.R, mouth: info.head.mouth, s: C06_BOY.size, k: lowerK, light: C05_LIGHT, side: DIR });
     });
     // joint positions on this frame's drawing (cheap: re-run only when the twos drawing changed)
     if (info) C06_INFO.v = info;
@@ -571,8 +646,9 @@
     const beam = sweep > 0 && sweep < 1 ? Math.pow(Math.sin(PI * sweep), 1.2) : 0;
     let beamFn = null, beamBox = null, beamLine = null;
     if (beam > 0 && J) {
-      const sh = DIR > 0 ? (J.shoulders.L[0] < J.shoulders.R[0] ? J.shoulders.L : J.shoulders.R) : (J.shoulders.L[0] > J.shoulders.R[0] ? J.shoulders.L : J.shoulders.R);
-      const sx = sh[0] - 30 * DIR, sy = sh[1] + 10;                                 // the shoulder toward the window
+      // between his shoulders, nearer the near one (the window-side one hides behind his chest in 3/4)
+      const sL = J.shoulders.L, sR = J.shoulders.R, nearS = (sL[0] - sR[0]) * DIR > 0 ? sL : sR, farS = nearS === sL ? sR : sL;
+      const sx = lerp(farS[0], nearS[0], 0.62), sy = lerp(farS[1], nearS[1], 0.62) + 6;
       const bxp = sx + DIR * lerp(-150, 190, PV.ease.inOutCubic(sweep));            // where the beam crosses the shoulder line
       const ang = sAng(0.92);                                                         // beam direction (down, away from the window)
       beamLine = [bxp, sy + 10, ang];
@@ -1128,26 +1204,44 @@
     }
     ctx.restore();
   }
-  // ---- the picture they land in: the music room against the window, her at the piano (left), him with the guitar
-  // (right). Painted once (the figures hold still for this last half second); the camera pushes in on it.
-  const C08_WIDE_CAM = { camX: -0.5, camZ: -0.55, camY: 0.0 };
+  // ---- the picture they land in: the music room against the window, her at the piano (left), him with the acoustic
+  // (right) — they turn to each other and smile (彼: crescent eyes; 先輩: the full smile, a little of the upper teeth).
+  // The room and the piano are painted once; the two of them act on twos over it; the camera pulls back a touch.
+  const C08_WIDE_CAM = { camX: -0.8, camZ: -1.05, camY: -0.08, lookY: -0.08 };
+  const C08_SEAT = { her: [5.62, 0.5, 4.62], him: [7.85, 0.45, 4.3] };
+  const C08_PLACE = {};
   function c08WidePlate() {
-    return PV.cached('g02:c08wide', W, H, (c) => {
+    return PV.cached('g02:c08wide4', W, H, (c) => {
       const T = 27.75;
       const R = L.musicRoom(c, T, Object.assign({ view: 'windows', time: 'noon', furniture: 'none', wind: 0.6, shaft: 1.7 }, C08_WIDE_CAM));
       L.grandPiano(c, R.piano(5.75, 3.35, 1.32, { lidOpen: 1, bench: false, rimLit: { alpha: 1 } }));
-      const seat = R.project([5.62, 0.5, 4.62]), sh = R.project([5.62, 1.5, 4.62]);
-      const gs = (seat[1] - sh[1]) * 0.225 / 92;
-      L.girlAtPianoBack(c, T, { x: seat[0], y: seat[1], scale: gs, intensity: 0.35, turn: 0.32, outfit: 'blouse', light: -1.35, rimColor: '#fff0d4', rim: 1.25, backlight: 0.5, glow: 0.85 });
-      const bp = R.project([7.85, 0.45, 4.3]), bh = R.project([7.85, 1.45, 4.3]);
-      const bs = (bp[1] - bh[1]) * 0.224 / 92;
-      L.boySeated(c, T, { x: bp[0], y: bp[1], scale: bs, pose: 'guitar', flip: true, light: -1.6, rimColor: '#fff0d4', rim: 1.25, backlight: 0.5, glow: 0.85, guitarTone: 0.16 });
+      for (const k of ['her', 'him']) {
+        const p = C08_SEAT[k], a = R.project(p), b = R.project([p[0], p[1] + 1, p[2]]);
+        C08_PLACE[k] = { x: a[0], y: a[1], pxm: a[1] - b[1] };
+      }
     });
+  }
+  // the two of them at global time T (on twos) into a buffer the size of the frame, in the plate's own coordinates
+  function c08Pair(c, T) {
+    c08WidePlate();
+    const P = C08_PLACE, look = sm(27.5, 27.7, T), smile = sm(27.6, 27.86, T), hisSmile = sm(27.58, 27.8, T);
+    const L8 = C05_LIGHT;
+    // 彼 on the chair at the right, the school acoustic on his thigh, turned to her
+    A().figure(c, { who: 'boy', outfit: 'uniform', pose: 'seated_chair', facing: -0.86, camPitch: 0.05, x: P.him.x, y: P.him.y, scale: P.him.pxm * 0.244, T, light: L8,
+      rimDir: -1.75, params: { variant: 'guitar', headDown: -0.22 * look, strum: 0.4 },
+      head: { expr: hisSmile > 0.5 ? 'smile' : 'neutral', turn: -0.12 * look, eyes: { look: [-0.6, 0.05] }, lightDir: -1.9, shade: 0.5, faceLift: 1, rim: 0.8 } });
+    // 先輩 at the piano (her back to us, facing the keys), her head turned over her right shoulder to him
+    A().figure(c, { who: 'senpai', outfit: 'uniform', pose: 'piano', facing: PI - 0.5, camPitch: 0.05, x: P.her.x, y: P.her.y, scale: P.her.pxm * 0.23, T, light: L8,
+      rimDir: -1.35, params: { intensity: 0.3, keys: false, bench: true, look: 'ahead' },
+      head: { expr: smile > 0.5 ? 'smile' : 'gentle', turn: -1.0 * lerp(0.7, 1, look), eyes: { look: [0.5, 0.05] }, lightDir: -1.5, shade: 0.5, faceLift: 1, rim: 0.8,
+        hair: { wind: 0.3, windDir: PI * 0.95 } } });
   }
   function c08Wide(ctx, T, lt) {
     const k = clamp((lt - 5.45) / 0.6);
+    const fig = onTwos('c08pair', T, 0, (c, q) => c08Pair(c, q));
     ctx.save(); PV.camera(ctx, { zoom: 1.055 - 0.035 * PV.ease.outCubic(k), cx: 920, cy: 600 });
     ctx.drawImage(c08WidePlate(), 0, 0);
+    ctx.drawImage(fig, 0, 0);
     ctx.restore();
     // the window light between them, dust turning in it
     L.glow(ctx, 1000, 330, 760, '#fff6e4', 0.42);
@@ -1220,10 +1314,13 @@
     const hv = (o) => (c, t) => { c.fillStyle = '#d8c6b0'; c.fillRect(0, 0, 480, H);
       carton(c, 240 + (o.cx || 0), 520 + (o.cy || 0), 170, o.tilt || 0, 'window');
       L.hand(c, Object.assign({ x: 240, y: 700, rot: 0, scale: 1.3, side: 'R', kind: 'him', view: 'back', curl: [0.5, 0.6, 0.65, 0.7, 0.75], spread: 0.05, arm: 120, keyColor: '#fff3dc', fillColor: '#e2b8a6', tint: 0.5 }, o.h || {})); };
-    PV.g02devVariants.push(hv({ h: { view: 'back', rot: 0.3 } }));
-    PV.g02devVariants.push(hv({ h: { view: 'side', rot: 0.3 } }));
-    PV.g02devVariants.push(hv({ h: { view: 'edge', rot: -0.3 } }));
-    PV.g02devVariants.push(hv({ h: { view: 'back', rot: 1.2, curl: [0.4, 0.75, 0.8, 0.85, 0.9] }, cy: -40 }));
+    const fv = (o) => (c, t) => { c.fillStyle = '#d8c6b0'; c.fillRect(0, 0, 480, H);
+      carton(c, 240 + (o.cx || 0), 470 + (o.cy || 0), 170, o.tilt || 0, 'window');
+      L.handFist(c, Object.assign({ x: 240, y: 700, rot: 0, scale: 1.25, side: 'R', kind: 'him', clench: 0.55, shake: 0, arm: 120, keyColor: '#fff3dc', fillColor: '#e2b8a6', tint: 0.5 }, o.h || {})); };
+    PV.g02devVariants.push(fv({ h: { rot: -0.2 } }));
+    PV.g02devVariants.push(fv({ h: { view: 'side', yaw: 0, pitch: 0, rot: 0 } }));
+    PV.g02devVariants.push(fv({ h: { view: 'side', yaw: 0.3, pitch: 0.2, rot: -0.15, clench: 0.4 } }));
+    PV.g02devVariants.push(fv({ h: { view: 'back', yaw: 0.2, pitch: 0.1, rot: -1.4, clench: 0.5 }, cy: 60 }));
   }
 
 })();

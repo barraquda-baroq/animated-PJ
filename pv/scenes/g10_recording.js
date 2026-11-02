@@ -117,6 +117,11 @@
     if (h.box) ctx.drawImage(h.canvas, h.box.x, h.box.y, h.box.w, h.box.h, h.box.x, h.box.y, h.box.w, h.box.h); else ctx.drawImage(h.canvas, 0, 0);
     ctx.restore();
   }
+  // lay a held layer through the current transform (the camera moves it with the shot)
+  function layCam(ctx, h, q) {
+    const b = h.box || { x: 0, y: 0, w: W, h: H };
+    ctx.save(); ctx.imageSmoothingQuality = q || 'medium'; ctx.drawImage(h.canvas, b.x, b.y, b.w, b.h, b.x, b.y, b.w, b.h); ctx.restore();
+  }
   // a colour with its saturation scaled toward its luminance (for light drawn over an already desaturated cel)
   const desat = (hex, s) => { const [r, g, b] = PV.hex2rgb(hex), y = 0.299 * r + 0.587 * g + 0.114 * b, f = (v) => Math.round(clamp(y + (v - y) * s, 0, 255)).toString(16).padStart(2, '0'); return '#' + f(r) + f(g) + f(b); };
   // scale the saturation of a region of a layer (in place) toward grey by (1 - s)
@@ -883,8 +888,8 @@
     const L = C39.light;
     return {
       who: 'boy', outfit: 'year2', costume: { top: 'tee_black' }, pose: 'stand', facing: Math.PI / 2, camPitch: 0.15,
-      x: C39.boyX, y: C39.boyY - 5 * hitch, scale: C39.boyS, T: C39.T0 + u, light: 'lamp', rimDir: 0.15, keyDir: L.key,
-      params: { weight: 0.15, bow: 0.3, nod: 0.6 + 0.06 * hitch - 0.1 * firm + 0.08 * sink },
+      x: C39.boyX, y: C39.boyY - 11 * hitch + 6 * sink, scale: C39.boyS, T: C39.T0 + u, light: 'lamp', rimDir: 0.15, keyDir: L.key,
+      params: { weight: 0.15, bow: 0.3 + 0.06 * sink, nod: 0.6 + 0.1 * hitch - 0.17 * firm + 0.12 * sink },
       head: { yaw: C39.yaw, expr: 'cry', talk: true, lightDir: L.key, shade: L.shade, rim: 1.1, faceLift: L.lift,
         eyes: { open: lerp(0.55, 0.32, brk) + 0.1 * firm - 0.15 * sink, squeeze: 0.3 + 0.45 * brk, sad: 0.65, tears: 0.45 + 0.47 * smooth(0.5, 4.3, u), look: [0.3, 0.6] },
         brows: { inner: 0.7 + 0.3 * brk, outer: -0.3, furrow: 0.55 + 0.3 * brk - 0.1 * firm },
@@ -896,19 +901,43 @@
   C39.yaw = 0.86;
   // a second, cool rim from the streetlight: the band of the layer's own silhouette on the light side (union minus the union
   // shifted away from the light), tinted, laid inside the figure (source-atop).  box = the region the cel covers.
+  // A second rim light from a cel's own silhouette: the band of the layer's union on the light side (the union minus the union
+  // shifted away from the light), tinted, faded with the distance from the source (fall = {x, y, r0, r1, min}) and laid inside
+  // the figure only (source-atop).  Computed at half resolution inside box (the band is a few px wide; upscaled it stays crisp
+  // enough and costs a quarter).
   function silRim(c, box, dir, w, col, alpha, key, fall) {
-    const B = PV.buffer('g10:silrim:' + key), b = B.ctx, dx = Math.cos(dir) * w, dy = Math.sin(dir) * w;
-    b.save(); b.setTransform(1, 0, 0, 1, 0, 0); b.beginPath(); b.rect(box.x, box.y, box.w, box.h); b.clip();
-    b.globalCompositeOperation = 'copy'; b.drawImage(c.canvas, 0, 0);
-    b.globalCompositeOperation = 'destination-out'; b.drawImage(c.canvas, -dx, -dy);
-    b.globalCompositeOperation = 'source-in'; b.fillStyle = col; b.fillRect(box.x, box.y, box.w, box.h);
-    if (fall) {   // the light falls off away from its source (fall = {x, y, r0, r1, min})
-      const g = b.createRadialGradient(fall.x, fall.y, fall.r0, fall.x, fall.y, fall.r1); g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(1, `rgba(0,0,0,${fall.min})`);
-      b.globalCompositeOperation = 'destination-in'; b.fillStyle = g; b.fillRect(box.x, box.y, box.w, box.h);
+    const q = 0.5, bw = Math.ceil(box.w * q) + 2, bh = Math.ceil(box.h * q) + 2;
+    const B = PV.buffer('g10:silrim:' + key, Math.ceil(W * q) + 2, Math.ceil(H * q) + 2), b = B.ctx, dx = Math.cos(dir) * w * q, dy = Math.sin(dir) * w * q;
+    b.save(); b.setTransform(1, 0, 0, 1, 0, 0); b.beginPath(); b.rect(0, 0, bw, bh); b.clip();
+    b.globalCompositeOperation = 'copy'; b.drawImage(c.canvas, box.x, box.y, box.w, box.h, 0, 0, box.w * q, box.h * q);
+    b.globalCompositeOperation = 'destination-out'; b.drawImage(c.canvas, box.x, box.y, box.w, box.h, -dx, -dy, box.w * q, box.h * q);
+    b.globalCompositeOperation = 'source-in'; b.fillStyle = col; b.fillRect(0, 0, bw, bh);
+    if (fall) {
+      const fx = (fall.x - box.x) * q, fy = (fall.y - box.y) * q, g = b.createRadialGradient(fx, fy, fall.r0 * q, fx, fy, fall.r1 * q);
+      g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(1, `rgba(0,0,0,${fall.min})`);
+      b.globalCompositeOperation = 'destination-in'; b.fillStyle = g; b.fillRect(0, 0, bw, bh);
     }
     b.restore();
-    c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.globalCompositeOperation = 'source-atop'; c.globalAlpha = alpha;
-    c.drawImage(B.canvas, box.x, box.y, box.w, box.h, box.x, box.y, box.w, box.h); c.restore();
+    c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.globalCompositeOperation = 'source-atop'; c.globalAlpha = alpha; c.imageSmoothingQuality = 'medium';
+    c.drawImage(B.canvas, 0, 0, box.w * q, box.h * q, box.x, box.y, box.w, box.h); c.restore();
+  }
+  // a low-resolution, blurred paint limited to a box (layout px): only that region is painted, blurred and laid in
+  function lowResBlurBox(ctx, key, f, blur, box, paint) {
+    const sw = Math.ceil(box.w * f), sh = Math.ceil(box.h * f), pad = Math.ceil(blur * f * 2) + 2;
+    const b = PV.buffer('g10:lrb:' + key, sw + 2 * pad, sh + 2 * pad), c = b.ctx;
+    c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, sw + 2 * pad, sh + 2 * pad);
+    c.setTransform(f, 0, 0, f, (pad - box.x * f), (pad - box.y * f));
+    paint(c);
+    const b2 = PV.buffer('g10:lrb2:' + key, sw + 2 * pad, sh + 2 * pad), c2 = b2.ctx;
+    c2.setTransform(1, 0, 0, 1, 0, 0); c2.clearRect(0, 0, sw + 2 * pad, sh + 2 * pad); c2.filter = `blur(${(blur * f).toFixed(2)}px)`; c2.drawImage(b.canvas, 0, 0); c2.filter = 'none';
+    ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.imageSmoothingQuality = 'low';
+    ctx.drawImage(b2.canvas, pad, pad, sw, sh, box.x, box.y, box.w, box.h); ctx.restore();
+  }
+  // the region his cel covers (from the head anchors): the hair round the head, the bowed back, down to the bottom of the frame
+  function c39boyBox(hd) {
+    const S = C39.boyS, x0 = Math.max(0, Math.floor(Math.min(hd.neck[0], hd.earL[0]) - 0.95 * S)), x1 = Math.min(W, Math.ceil(Math.max(hd.nose[0], hd.crown[0]) + 0.4 * S));
+    const y0 = Math.max(0, Math.floor(hd.crown[1] - 0.4 * S));
+    return { x: x0, y: y0, w: x1 - x0, h: H - y0 };
   }
 
   // light inside his cel: the darkness of the room takes the body below the face (the lamp and the window reach the head),
@@ -919,9 +948,9 @@
     let g = c.createRadialGradient(fx, fy, 170, fx, fy, 760); g.addColorStop(0, 'rgba(9,10,17,0)'); g.addColorStop(1, 'rgba(9,10,17,0.62)');
     c.fillStyle = g; c.fillRect(box.x, box.y, box.w, box.h);
     // the neck under the bowed head falls into the jaw's shadow (its lit back edge comes back with the streetlight rim)
-    const nk = hd.neck, nx = nk[0] - 0.08 * C39.boyS, ny = nk[1] + 0.2 * C39.boyS;
-    g = c.createRadialGradient(nx, ny, 0, nx, ny, 0.42 * C39.boyS); g.addColorStop(0, 'rgba(14,12,20,0.5)'); g.addColorStop(0.6, 'rgba(14,12,20,0.36)'); g.addColorStop(1, 'rgba(14,12,20,0)');
-    c.fillStyle = g; c.fillRect(nx - 0.42 * C39.boyS, ny - 0.42 * C39.boyS, 0.84 * C39.boyS, 0.84 * C39.boyS);
+    const nk = hd.neck, nx = nk[0] - 0.1 * C39.boyS, ny = nk[1] + 0.14 * C39.boyS, nr = 0.48 * C39.boyS;
+    g = c.createRadialGradient(nx, ny, 0, nx, ny, nr); g.addColorStop(0, 'rgba(14,12,20,0.6)'); g.addColorStop(0.55, 'rgba(14,12,20,0.45)'); g.addColorStop(1, 'rgba(14,12,20,0)');
+    c.fillStyle = g; c.fillRect(nx - nr, ny - nr, 2 * nr, 2 * nr);
     const bx = n[0] + 40, by = n[1] - 10;
     g = c.createRadialGradient(bx, by, 0, bx, by, 230); g.addColorStop(0, 'rgba(255,206,150,0.2)'); g.addColorStop(0.55, 'rgba(255,206,150,0.08)'); g.addColorStop(1, 'rgba(255,206,150,0)');
     c.fillStyle = g; c.fillRect(bx - 230, by - 230, 460, 460);
@@ -994,9 +1023,11 @@
       L.dust(ctx, t, { seed: 391, count: 50, x0: 380, y0: 120, x1: 1500, y1: 900, size: 2.0, alpha: 0.3, color: '#dfe9ff', drift: 50, vx: 4, vy: -2 });
 
       // ---- her, deep in the bokeh: still until she starts to hold it in (5.1), then on twos
-      const HER = held('C39her', tq < 5.05 ? 'still' : tq, (c) => {
-        lowResBlur(c, 'C39her', 0.5, 4, (cc) => {
-          PV.anime.figure(cc, c39herArgs(tq < 5.05 ? 0 : tq));
+      const tqH = Math.max(0, q12(tc - 1 / 24)), herKey = tqH < 5.05 ? 'still' : tqH;     // her drawings change one frame after his
+      const HER = held('C39her', herKey, (c) => {
+        const hb = { x: 1100, y: 200, w: W - 1100, h: H - 200 };
+        lowResBlurBox(c, 'C39her', 0.5, 4, hb, (cc) => {
+          PV.anime.figure(cc, c39herArgs(tqH < 5.05 ? 0 : tqH));
           // the table top in front of her (it hides her below the chest), the lamp's pool on it, the lamp's foot
           cc.fillStyle = PV.linGrad(cc, 0, 790, 0, H + 40, [[0, '#231d17'], [1, '#100d0b']]); cc.fillRect(1156, 789, W, 400);
           cc.fillStyle = 'rgba(232,184,120,0.22)'; cc.fillRect(1156, 787, W, 3);
@@ -1004,9 +1035,9 @@
             cc.save(); cc.beginPath(); cc.rect(1156, 789, W, 400); cc.clip(); cc.translate(0, 800); cc.scale(1, 0.25); cc.translate(0, -800); cc.fillStyle = g; cc.fillRect(1156, 380, W, 840); cc.restore(); }
           cc.fillStyle = '#2a211a'; cc.beginPath(); cc.ellipse(C39LAMP.x, 792, 46, 8, 0, 0, TAU); cc.fill();
         });
-        return { x: 1100, y: 200, w: W - 1100, h: H - 200 };
+        return hb;
       });
-      layHeld(ctx, HER);
+      layCam(ctx, HER, 'low');
       ctx.restore();
 
       // ---- him: the bowed profile on twos (layout space; the camera is applied when it is laid in)
@@ -1014,13 +1045,13 @@
       PV.camera(ctx, { zoom: 1 + 0.032 * push, cx: 860, cy: 470 });
       const HIM = held('C39him', tq, (c) => {
         C39.boyInfo = PV.anime.figure(c, c39boyArgs(tq));
-        const box = { x: 0, y: 0, w: 1400, h: H };
+        const box = c39boyBox(C39.boyInfo.head);
         c39profileMouth(c, C39.boyInfo.head, C39.boyS, tq, 0.25 + 0.6 * c39brk(tq));
         c39boyLight(c, box, C39.boyInfo.head);
         silRim(c, box, -2.3, 4, '#d4e0ff', 0.5, 'C39', { x: 548, y: 250, r0: 200, r1: 900, min: 0.1 });
         return box;
       });
-      layHeld(ctx, HIM);
+      layCam(ctx, HIM, 'medium');
       // ---- the drop: it gathers at the end of the tear on his jaw and falls at the second break (≈158.8, 24 fps)
       const hd = C39.boyInfo && C39.boyInfo.head;
       if (hd) {

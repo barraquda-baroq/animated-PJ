@@ -366,10 +366,19 @@
     }
     grain(c, 0, 0, W, H, 3000, 9, '#000', 0.08, 2);
     c.restore();
+    // the sofa's occlusion shadow on the floor and its four short legs
+    const S = RM.sofa, sh = PV.makeCanvas(W, H), g = sh.ctx;
+    poly(g, P, [[-S.ax - 0.15, FY, S.backZ0 - 0.1], [S.ax + 0.15, FY, S.backZ0 - 0.1], [S.ax + 0.2, FY, S.baseZ + 0.3], [-S.ax - 0.2, FY, S.baseZ + 0.3]]);
+    g.fillStyle = night ? 'rgba(0,0,0,0.85)' : 'rgba(18,14,11,0.7)'; g.fill();
+    c.save(); c.filter = 'blur(9px)'; c.drawImage(sh.canvas, 0, 0); c.restore();
+    for (const [x, z] of [[-S.ax + 0.12, S.baseZ - 0.12], [S.ax - 0.12, S.baseZ - 0.12], [-S.ax + 0.12, S.backZ0 + 0.12], [S.ax - 0.12, S.backZ0 + 0.12]]) {
+      poly(c, P, [[x - 0.09, S.legY, z], [x + 0.09, S.legY, z], [x + 0.07, FY, z], [x - 0.07, FY, z]]); c.fillStyle = night ? '#060504' : '#1c1713'; c.fill();
+    }
   }
 
   /* --- the sofa: soft BG-art cushions. Each piece = a face list {Q (4 corners), bows, n (normal), mat}; drawn far to near. */
-  function sofaPieces(night) {
+  // camSide: +1 the camera is off his end (+x, C33), -1 off her end (-x, C35)
+  function sofaPieces(night, camSide = 1) {
     const S = RM.sofa, F = RM.FY, out = [];
     const add = (Q, n, bows, k, name) => out.push({ Q, n, bows, k: k ?? 1, name });
     const third = (2 * S.sx) / 3;
@@ -383,10 +392,8 @@
       add([[x0, S.seatY + 0.06, S.seatBZ], [x1, S.seatY + 0.06, S.seatBZ], [x1, S.cushTopY, S.cushTopZ], [x0, S.cushTopY, S.cushTopZ]], [0, -0.16, 0.99],
         [[0, 0, 0.06], [0.06, 0, 0.05], [0, -0.1, 0.05], [-0.06, 0, 0.05]], 1, 'cush' + i);
     }
-    // the far arm (her side): top, inner face, front
-    add([[-S.ax, S.armY, S.backZ0], [-S.sx, S.armY, S.backZ0], [-S.sx, S.armY, S.baseZ + 0.04], [-S.ax, S.armY, S.baseZ + 0.04]], [0, -1, 0], [0, [0.03, -0.05, 0], 0, [-0.03, -0.05, 0]], 1, 'armLTop');
-    add([[-S.sx, S.armY, S.backZ1], [-S.sx, S.armY, S.baseZ + 0.04], [-S.sx, 0.5, S.baseZ + 0.04], [-S.sx, 0.5, S.backZ1]], [1, 0, 0], [[0.03, -0.04, 0], 0, 0, 0], 0.85, 'armLIn');
-    add([[-S.ax, S.armY, S.baseZ + 0.04], [-S.sx, S.armY, S.baseZ + 0.04], [-S.sx, S.legY, S.baseZ + 0.04], [-S.ax, S.legY, S.baseZ + 0.04]], [0, 0, 1], [[0, -0.07, 0], 0, 0, 0], 1, 'armLF');
+    // the far arm (the end away from the camera): top, inner face, front
+    out.push(...armPieces(-camSide));
     // seat cushions: top + rounded front
     for (let i = 0; i < 3; i++) {
       const x0 = -S.sx + i * third + 0.015, x1 = -S.sx + (i + 1) * third - 0.015;
@@ -397,14 +404,18 @@
     add([[-S.sx, 0.5, S.baseZ], [S.sx, 0.5, S.baseZ], [S.sx, S.legY, S.baseZ], [-S.sx, S.legY, S.baseZ]], [0, 0, 1], null, 0.62, 'base');
     return out;
   }
-  function sofaNearPieces() {
+  // one arm of the sofa (sg = -1 her end, +1 his end): its top, inner face, outer face, front; the back panel's end face
+  function armPieces(sg) {
     const S = RM.sofa, out = [], add = (Q, n, bows, k, name) => out.push({ Q, n, bows, k: k ?? 1, name });
-    add([[S.ax, S.backY, S.backZ0], [S.ax, S.backY, S.backZ1], [S.ax, S.armY, S.backZ1], [S.ax, S.armY, S.backZ0]], [1, 0, 0], null, 0.7, 'backREnd');
-    add([[S.ax, S.armY, S.backZ0], [S.ax, S.armY, S.baseZ + 0.04], [S.ax, S.legY, S.baseZ + 0.04], [S.ax, S.legY, S.backZ0]], [1, 0, 0], [[0.03, -0.05, 0], 0, 0, 0], 0.7, 'armROut');
-    add([[S.sx, S.armY, S.backZ0], [S.ax, S.armY, S.backZ0], [S.ax, S.armY, S.baseZ + 0.04], [S.sx, S.armY, S.baseZ + 0.04]], [0, -1, 0], [0, [0.03, -0.05, 0], 0, [-0.03, -0.05, 0]], 1, 'armRTop');
-    add([[S.sx, S.armY, S.baseZ + 0.04], [S.ax, S.armY, S.baseZ + 0.04], [S.ax, S.legY, S.baseZ + 0.04], [S.sx, S.legY, S.baseZ + 0.04]], [0, 0, 1], [[0, -0.07, 0], 0, 0, 0], 1, 'armRF');
+    const xo = sg * S.ax, xi = sg * S.sx, fz = S.baseZ + 0.04;
+    add([[xo, S.backY, S.backZ0], [xo, S.backY, S.backZ1], [xo, S.armY, S.backZ1], [xo, S.armY, S.backZ0]], [sg, 0, 0], null, 0.7, 'backEnd');
+    add([[xo, S.armY, S.backZ0], [xo, S.armY, fz], [xo, S.legY, fz], [xo, S.legY, S.backZ0]], [sg, 0, 0], [[sg * 0.03, -0.05, 0], 0, 0, 0], 0.7, 'armOut');
+    add([[xi, S.armY, S.backZ1], [xi, S.armY, fz], [xi, 0.5, fz], [xi, 0.5, S.backZ1]], [-sg, 0, 0], [[-sg * 0.03, -0.04, 0], 0, 0, 0], 0.85, 'armIn');
+    add([[xi, S.armY, S.backZ0], [xo, S.armY, S.backZ0], [xo, S.armY, fz], [xi, S.armY, fz]], [0, -1, 0], [0, [sg * 0.03, -0.05, 0], 0, [-sg * 0.03, -0.05, 0]], 1, 'armTop');
+    add([[xi, S.armY, fz], [xo, S.armY, fz], [xo, S.legY, fz], [xi, S.legY, fz]], [0, 0, 1], [[0, -0.07, 0], 0, 0, 0], 1, 'armF');
     return out;
   }
+  function sofaNearPieces(camSide = 1) { return armPieces(camSide); }
   const SOFA_COL = { day: { amb: [58, 51, 45], lit: [150, 134, 116] }, night: { amb: [26, 22, 19], lit: [110, 86, 62] } };
   // ambient painting of pieces: tone by orientation (no direct light), occlusion toward the bottom, fabric grain
   function paintPieces(c, P, pieces, night) {
@@ -543,7 +554,7 @@
     const tt = clamp(t, -0.5, d + 0.5), T = 123.5 + t, A = PV.anime, tq = A.onTwos(T);
     const P = g9proj(C33V.facing, C33V.pitch, C33V.X, C33V.Y, C33V.s);
     const LO = { soft: 0.62, screen: 0.12, blur: 8, color: '#fff2e2' };
-    const room = PV.cached('g09_frontRoomD3', W, H, (c) => { paintFrontRoom(c, P, false); litPass(c, P, wallSurfs(), LO); paintTableLamp(c, P, false); });
+    const room = PV.cached('g09_frontRoomD4', W, H, (c) => { paintFrontRoom(c, P, false); litPass(c, P, wallSurfs(), LO); paintTableLamp(c, P, false); });
     const sofa = PV.cached('g09_frontSofaD3', W, H, (c) => c.drawImage(litPieces(P, sofaPieces(false), false, LO), 0, 0));
     const near = PV.cached('g09_frontNearD3', W, H, (c) => c.drawImage(litPieces(P, sofaNearPieces(), false, LO), 0, 0));
     const sky = 0.93 + 0.07 * Math.sin(tt * 0.55 + 0.6) + 0.02 * N2(tt * 0.4, 3.1);   // the overcast light breathing (a cloud passing)
@@ -556,7 +567,7 @@
     const lift = PV.smooth(124.0, 124.5, tq) * (1 - PV.smooth(125.6, 126.4, tq));
     const close = PV.smooth(129.35, 129.75, tq);
     const mo = A.mouth(T, 'senpai');
-    const herHead = { expr: 'empty', eyes: { look: [-0.08, 0.22] }, mouth: { shape: 'flat', open: 0.55 * mo.open } };
+    const herHead = { expr: 'empty', eyes: { look: [-0.08, 0.22] }, mouth: { shape: 'flat', open: 0.68 * mo.open } };
     const hisHead = { expr: 'neutral', undereye: 0.32, brows: { inner: 0.12, outer: -0.15 },
       eyes: { open: lerp(0.6, 0.0, close) + 0.14 * lift, look: [lerp(-0.35, -0.6, lift), lerp(0.55, 0.15, lift)], sad: 0.3 } };
     if (close > 0.98) hisHead.eyes.closed = 'down';
@@ -567,7 +578,7 @@
     A.pair(fc, { pose: 'sit_side', x: an[0], y: an[1], scale: C33V.s, T, light: 'room_gray', facing: C33V.facing, camPitch: C33V.pitch, keyDir: -2.58, rimDir: -2.58,
       params: { side: 'right', gap: C33V.gap, seat: 'sofa', sofa: false },
       senpai: { outfit: 'home', costume: { legs: 'tights' }, params: { look: 0.05 + 0.13 * herTurn, nod: 0.1 }, head: herHead },
-      boy: { outfit: 'year2', costume: { shoes: 'slipper' }, params: { look: 0.32, nod: 0.24 + 0.1 * sink, slump: 0.04 }, head: hisHead } });
+      boy: { outfit: 'year2', costume: { shoes: 'slipper' }, params: { look: -0.42, nod: 0.24 + 0.1 * sink, slump: 0.04 }, head: hisHead } });
     fc.setTransform(1, 0, 0, 1, 0, 0);
     // --- compose: room → their shadows on the wall → sofa → their shadows on the cushions → them → the near arm
     ctx.save(); PV.camera(ctx, cam);
@@ -629,49 +640,54 @@
    *   → slow push-in → refocusing dissolve to the hands on their laps: his hand holds hers palm to palm while his thumb
    *   strokes the scar on the back of it → 140.0 (t=5.0) the stroking stops, his fingers fold down between hers
    * ==================================================================== */
-  const C35 = { boyX: 834, girlX: 1010, seatY: 935, sc: 1.36 };
-  function paintLampGlow(c) { // the lamp's light on the wall: a warm pool, soft cones up and down out of the drum shade
-    const P = LAMP, t2 = PV.makeCanvas(W, H), b = t2.ctx;
-    let g = b.createRadialGradient(P.x, P.shadeY + 40, 20, P.x, P.shadeY + 40, 820);
-    g.addColorStop(0, 'rgba(232,184,120,0.42)'); g.addColorStop(0.3, 'rgba(201,138,78,0.17)'); g.addColorStop(1, 'rgba(201,138,78,0)');
+  // the same room at night, seen from HER side of the sofa (facing +0.3, the guide's C35 camera): she has slid against him
+  // while asleep (the gap is filled only now), wrapped in the blanket; the small table lamp beside her is the only light.
+  const C35V = { facing: 0.15, pitch: 0.2, X: 1380, Y: 1330, s: 320, ax: -1.2, az: -0.1 };
+  const C35_X0 = 3.3, C35_X1 = 4.0;   // the refocusing dissolve to the hands (after his 「嫌だ……」 137.94–138.4)
+  function lampGlowFront(c, P) { // the lamp's warm pool on the wall and the sofa back, soft cones out of the drum shade
+    const T0 = RM.table, lx = T0.x - 0.15, lz = T0.z - 0.15, sh = P(lx, T0.y - 1.1, lz), s = P.s;
+    const t2 = PV.makeCanvas(W, H), b = t2.ctx;
+    let g = b.createRadialGradient(sh[0], sh[1], 10, sh[0], sh[1], 6.2 * s);
+    g.addColorStop(0, 'rgba(240,190,120,0.55)'); g.addColorStop(0.22, 'rgba(214,150,86,0.24)'); g.addColorStop(0.6, 'rgba(160,100,56,0.07)'); g.addColorStop(1, 'rgba(160,100,56,0)');
     b.fillStyle = g; b.fillRect(0, 0, W, H);
-    for (const [y0, y1, a, up] of [[P.shadeY - 360, P.shadeY, 0.2, true], [P.shadeY + P.shadeH, P.shadeY + P.shadeH + 420, 0.26, false]]) {
+    const top = P(lx, T0.y - 1.55, lz), bot = P(lx, T0.y - 0.62, lz), rT = 0.42 * s, rB = 0.55 * s;
+    for (const [y0, y1, a, up, r0] of [[top[1] - 2.2 * s, top[1], 0.22, true, rT], [bot[1], bot[1] + 2.6 * s, 0.2, false, rB]]) {
       const cg = b.createLinearGradient(0, up ? y1 : y0, 0, up ? y0 : y1); cg.addColorStop(0, PV.rgba('#f2c890', a)); cg.addColorStop(1, PV.rgba('#f2c890', 0));
       b.fillStyle = cg; b.beginPath();
-      if (up) { b.moveTo(P.x - P.rTop, y1); b.lineTo(P.x + P.rTop, y1); b.lineTo(P.x + P.rTop + 170, y0); b.lineTo(P.x - P.rTop - 170, y0); }
-      else { b.moveTo(P.x - P.rBot, y0); b.lineTo(P.x + P.rBot, y0); b.lineTo(P.x + P.rBot + 220, y1); b.lineTo(P.x - P.rBot - 220, y1); }
+      if (up) { b.moveTo(top[0] - r0, y1); b.lineTo(top[0] + r0, y1); b.lineTo(top[0] + r0 + 0.9 * s, y0); b.lineTo(top[0] - r0 - 0.9 * s, y0); }
+      else { b.moveTo(bot[0] - r0, y0); b.lineTo(bot[0] + r0, y0); b.lineTo(bot[0] + r0 + 1.1 * s, y1); b.lineTo(bot[0] - r0 - 1.1 * s, y1); }
       b.closePath(); b.fill();
     }
-    c.save(); c.globalCompositeOperation = 'screen'; c.filter = 'blur(22px)'; c.drawImage(t2.canvas, 0, 0); c.restore();
+    c.save(); c.globalCompositeOperation = 'screen'; c.filter = 'blur(18px)'; c.drawImage(t2.canvas, 0, 0); c.restore();
   }
-  function c35Room(ctx, tt) {
-    const room = PV.cached('g09_roomN', W, H, (c) => { paintRoom(c, true); paintLampGlow(c); paintLamp(c, true); });
-    const sofa = PV.cached('g09_sofaN2', W, H, (c) => { paintSofa(c, true); paintSofaProps(c, true);
-      // the back of the sofa faces away from the lamp: it sinks into the dark toward the left (keeps the eye on the two)
-      c.globalCompositeOperation = 'source-atop';
-      const sf = c.createLinearGradient(SOFA.x0 - 100, 0, LAMP.x, 0); sf.addColorStop(0, 'rgba(0,0,0,0.66)'); sf.addColorStop(0.55, 'rgba(0,0,0,0.5)'); sf.addColorStop(1, 'rgba(0,0,0,0.04)');
-      c.fillStyle = sf; c.fillRect(0, 0, W, H); c.globalCompositeOperation = 'source-over'; });
+  function c35Room(ctx, tt, T) {
+    const A = PV.anime, tq = A.onTwos(T);
+    const P = g9proj(C35V.facing, C35V.pitch, C35V.X, C35V.Y, C35V.s);
+    const room = PV.cached('g09_frontRoomN3', W, H, (c) => { paintFrontRoom(c, P, true); paintTableLamp(c, P, true);
+      c.drawImage(litPieces(P, sofaPieces(true, -1), true, null), 0, 0); lampGlowFront(c, P);
+      // the room falls into the dark away from the lamp (to the right)
+      const lp = P(RM.table.x, -1.5, RM.table.z), fg = c.createRadialGradient(lp[0], lp[1], 2 * P.s, lp[0], lp[1], 9 * P.s);
+      fg.addColorStop(0, 'rgba(0,0,0,0)'); fg.addColorStop(1, 'rgba(0,0,0,0.55)'); c.fillStyle = fg; c.fillRect(0, 0, W, H); });
+    const near = PV.cached('g09_frontNearN3', W, H, (c) => { c.drawImage(litPieces(P, sofaNearPieces(-1), true, null), 0, 0);
+      const lp = P(RM.table.x, -1.5, RM.table.z); c.globalCompositeOperation = 'source-atop';
+      const g = c.createRadialGradient(lp[0], lp[1], 0, lp[0], lp[1], 3.2 * P.s); g.addColorStop(0, 'rgba(255,190,120,0.35)'); g.addColorStop(1, 'rgba(255,190,120,0)'); c.fillStyle = g; c.fillRect(0, 0, W, H); });
     ctx.drawImage(room, 0, 0);
-    drawClock(ctx, 1668, 236, 44, 135 + tt, true);
-    // faint cold city glow through the lace (the outside is still there)
-    ctx.save(); ctx.globalCompositeOperation = 'screen'; ctx.globalAlpha = 0.5;
-    const wg = ctx.createLinearGradient(0, ROOM.winY1, 0, ROOM.winY0); const g0 = wg; g0.addColorStop(0, 'rgba(70,86,120,0.35)'); g0.addColorStop(1, 'rgba(70,86,120,0)');
-    ctx.fillStyle = g0; ctx.fillRect(ROOM.winX0, ROOM.winY0, ROOM.winX1 - ROOM.winX0, ROOM.winY1 - ROOM.winY0); ctx.restore();
-    // the two of them: she has slid against his shoulder, wrapped in the blanket
-    const settle = PV.ease.inOut(clamp((tt - 0.15) / 0.85));                  // 135.15–136.0 blanket rustle: her head finds his shoulder
-    const u = 92 * C35.sc;
-    const fo = { scale: C35.sc, light: -0.22, rimColor: '#f3c992', rim: 1.0, backlight: 0.22, glow: 0.35, fill: '#120e0b' };
-    const hisTilt = 0.1 * PV.ease.inOut(clamp((tt - 1.3) / 1.2));             // he leans his head toward her
-    seatedBack(ctx, tt, Object.assign({}, fo, { who: 'him', x: C35.boyX, y: C35.seatY, seed: 5, headTilt: hisTilt, headDrop: 0.05, breathe: 0.8 }));
-    // her head: from just nodding off (upright) to resting on his right shoulder
-    const restHead = [(C35.boyX + 0.62 * u * 1.0 - C35.girlX) / u, -2.83, -0.82];
-    const upHead = [-0.08, -3.02, -0.18];
-    const head = [lerp(upHead[0], restHead[0], settle), lerp(upHead[1], restHead[1], settle) + 0.012 * Math.sin(tt * 1.1), lerp(upHead[2], restHead[2], settle)];
-    seatedBack(ctx, tt, Object.assign({}, fo, { who: 'her', x: C35.girlX, y: C35.seatY, seed: 8, lean: lerp(-0.04, -0.15, settle), head, blanket: 0.75, blanketTone: '#a0744a', breathe: 0.6, sheen: 0.4, backlight: 0.12 }));
-    ctx.drawImage(sofa, 0, 620, W, H - 620, 0, 620, W, H - 620);
-    // lamp light grazing the sofa's right arm / cushion
-    ctx.save(); ctx.globalCompositeOperation = 'screen'; let g = ctx.createRadialGradient(1700, 700, 10, 1700, 700, 520);
-    g.addColorStop(0, 'rgba(232,184,120,0.2)'); g.addColorStop(1, 'rgba(232,184,120,0)'); ctx.fillStyle = g; ctx.fillRect(1180, 180, 740, 900); ctx.restore();
+    drawDeskClock(ctx, P, T, true);
+    // --- acting (on twos).  135.15–136.0 (the blanket rustles at 135.2): her head slides the last bit onto his shoulder.
+    // 136.0 「はなして。」 her lips barely move, asleep. He looks down at her; at her whisper his brows knit; 137.94
+    // 「嫌だ……」 he says it into her hair, and closes his eyes.
+    const settle = PV.ease.inOut(clamp((tq - 135.15) / 0.85));
+    const hurt = PV.smooth(136.2, 136.9, tq), shut = PV.smooth(138.05, 138.45, tq);
+    const herHead = { expr: 'sleep', undereye: 0.22, blush: 0.08, mouth: { shape: 'flat', open: 0.5 * A.mouth(T, 'senpai').open } };
+    const hisHead = { expr: 'sad', talk: true, T, undereye: 0.28, brows: { inner: 0.35 + 0.45 * hurt, outer: -0.2, furrow: 0.35 * hurt },
+      eyes: { open: lerp(0.62, 0.0, shut), look: [-0.55, 0.65], sad: 0.5 } };
+    if (shut > 0.98) hisHead.eyes.closed = 'down';
+    const an = P(C35V.ax, 0, C35V.az);
+    PV.anime.pair(ctx, { pose: 'sit_side', x: an[0], y: an[1], scale: C35V.s, T, light: 'lamp', facing: C35V.facing, camPitch: C35V.pitch, keyDir: -2.95, rimDir: -2.95,
+      params: { side: 'right', gap: 0, seat: 'sofa', sofa: false, lean: lerp(0.62, 1, settle), blanket: true },
+      senpai: { outfit: 'home', costume: { legs: 'tights' }, params: { slump: 0.28 }, head: herHead },
+      boy: { outfit: 'year2', costume: { shoes: 'slipper' }, params: { look: -0.2, nod: 0.1, tilt: -0.14 * settle }, head: hisHead } });
+    ctx.drawImage(near, 0, 0);
   }
   // L.handsInterlock, re-assembled here with one hook: her scars are re-stated (value contrast, see scarRidge) right
   // after her palm is drawn, so his thumb and fingers still pass OVER them.  Same geometry/params as the library.
@@ -778,12 +794,13 @@
     if (has('dust')) L.dust(ctx, tt, { seed: 51, count: 26, x0: 900, x1: 1900, y0: 0, y1: 700, size: 2.4, alpha: 0.35, drift: 22, vx: -2, vy: 1.5, color: '#ffd9a8' });
   }
   PV.shot('C35', { draw(ctx, t, d) {
-    const tt = clamp(t, -0.5, d + 0.5);
-    const X0 = 2.35, X1 = 3.05, mixK = PV.ease.inOut(clamp((tt - X0) / (X1 - X0)));
-    // stage 1: the backs, pushing in toward the place where she rests on him / stage 2: the hands (comes into focus
-    // through the dissolve, keeps creeping in, a last small push as the fingers lace at 140.0)
-    const p1 = PV.ease.inOutCubic(clamp(tt / X1)), q2 = clamp((tt - X0) / (d - X0));
-    const st1 = (c) => { PV.camera(c, { zoom: 1.03 + 0.34 * p1, cx: lerp(990, 930, p1), cy: lerp(620, 700, p1) }); c35Room(c, tt); };
+    const tt = clamp(t, -0.5, d + 0.5), T = 135.0 + t;
+    const X0 = C35_X0, X1 = C35_X1, mixK = PV.ease.inOut(clamp((tt - X0) / (X1 - X0)));
+    // stage 1: their two faces (her sleeping face on his shoulder, his face), a slow push-in; during the dissolve the camera
+    // sinks toward their hands / stage 2: the hands (comes into focus through the dissolve, keeps creeping in, a last small
+    // push as the fingers lace at 140.0)
+    const p1 = PV.ease.inOut(clamp(tt / X0)), dr = PV.ease.inOut(clamp((tt - X0 + 0.15) / (X1 - X0 + 0.15))), q2 = clamp((tt - X0) / (d - X0));
+    const st1 = (c) => { PV.camera(c, { zoom: 1.0 + 0.07 * p1 + 0.08 * dr, cx: 1000, cy: 330, y: -150 * dr }); c35Room(c, tt, T); };
     const st2 = (c) => { PV.camera(c, { zoom: 1.0 + 0.07 * PV.ease.inOut(q2) + 0.012 * PV.ease.inOutCubic(clamp((tt - 5.0) / 0.9)), cx: 930, cy: 500 }); c35Hands(c, tt); };
     // the dissolve with a refocus: a stage that is being defocused is rendered at half resolution, blurred, mixed
     const half = (key, fn, blur, alpha) => {
@@ -1240,10 +1257,18 @@
 (function () {
   const PV = window.PV;
   PV.shot('dev_g09_pair', { draw(ctx, t) {
-    ctx.fillStyle = '#9a9a9a'; ctx.fillRect(0, 0, PV.W, PV.H);
-    const A = PV.anime, T = 125 + t;
-    A.pair(ctx, { pose: 'sit_side', x: 960, y: 560, scale: 230, T, light: 'room_gray', facing: -0.42, camPitch: 0.2, keyDir: -2.58, rimDir: -2.58,
-      params: { side: 'right', gap: 2.6, seat: 'sofa', sofa: false },
-      senpai: { outfit: 'home', costume: { legs: 'tights' }, head: { expr: 'empty' } }, boy: { outfit: 'year2', costume: { shoes: 'slipper' } } });
+    ctx.fillStyle = '#3a3330'; ctx.fillRect(0, 0, PV.W, PV.H);
+    const A = PV.anime, T = 136.2;
+    const V = [[0.15, 0.7, -0.05, -0.1, 0.45], [0.1, 0.9, -0.08, -0.08, 0.5], [0.2, 0.7, -0.1, 0.04, 0.55], [0.12, 1.1, -0.05, -0.06, 0.35]];
+    V.forEach((v, i) => {
+      const x = 480 + (i % 2) * 960, y = 470 + Math.floor(i / 2) * 540;
+      ctx.save(); ctx.beginPath(); ctx.rect((i % 2) * 960, Math.floor(i / 2) * 540, 960, 540); ctx.clip();
+      A.pair(ctx, { pose: 'sit_side', x, y: y + 230, scale: 150, T, light: 'lamp', facing: v[0], camPitch: v[4], keyDir: -2.95, rimDir: -2.95,
+        params: { side: 'right', gap: 0, seat: 'sofa', sofa: false, lean: 1, blanket: true },
+        senpai: { outfit: 'home', costume: { legs: 'tights' }, params: { slump: v[1] }, head: { expr: 'sleep' } },
+        boy: { outfit: 'year2', params: { look: -0.2, nod: v[2], tilt: v[3] }, head: { expr: 'sad', eyes: { look: [-0.5, 0.6] }, mouth: { shape: 'a', open: 0.6 } } } });
+      ctx.fillStyle = '#fff'; ctx.font = '22px sans-serif'; ctx.fillText(JSON.stringify(v), (i % 2) * 960 + 20, Math.floor(i / 2) * 540 + 30);
+      ctx.restore();
+    });
   } });
 })();

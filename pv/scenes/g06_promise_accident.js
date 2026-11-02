@@ -424,7 +424,8 @@
       }, 'c20streak', [0, Math.max(0, Math.floor(Y - 160)), W, Math.min(H, Math.ceil(Y + 160))]);
     }
     // near: out-of-focus grass and light (slides left during the orbit)
-    ctx.drawImage(c20Near(), -110 * orb - 160, 0);
+    const nx = Math.round(-110 * orb) - 160;
+    ctx.drawImage(c20Near(), -nx, 780, W, H - 780, 0, 780, W, H - 780);   // (the near layer lives in the bottom band only)
   }
   /* ======================================================================= C21 */
   // her right hand (front, back of the hand toward us) and his left hand (behind, palm toward us).
@@ -549,12 +550,16 @@
   }
 
   /* ======================================================================= C22 */
-  // 70.0–75.5 (t: 0–5.5). Their backs (she on his left), the bay, the lit white bridge and its lights on the water.
-  // 70.4 『コンクールが終わったらさ……また、セッションしようね』, 74.0 (t=4.0) her head comes to rest on his shoulder.
-  // Slow push-in. The world behind them is flattened at zoom 1 and drawn once through the camera.
-  const C22 = { cam: { cx: 920, cy: 500 },
-    bay: { hz: 470, wheelX: 250, wheelR: 98, cityX0: -40, cityX1: 980, cityH: 210, bridgeX0: 930, bridgeX1: 2150, deck: 34, towerH: 230, towers: [1240, 1800], span: 250, lw: 4.6, lamps: 18,
-      paint: (c) => L.glow(c, 920, 470, 600, '#ffe2b8', 0.11) } };   // the shore's warm light behind them (baked)
+  // 70.0–75.5 (t: 0–5.5). Sitting side by side on the lawn, seen from the front-oblique — the same camera as C33 and C42
+  // (pair facing -0.42, camPitch 0.2) — she is on his left (screen right), her hand on his (C21). Behind them the bay at
+  // night: the far shore's lights, the lit white bridge, every light trembling on the water; the shore's warm light rims
+  // their profiles. 70.4 V05「コンクールが終わったらさ……また、セッションしようね」: a shy smile, eyes down, then turned up to
+  // him; 74.0 (t=4.0) her head comes to rest on his shoulder, eyes closed, smiling; he colours, looks away, and only the corner
+  // of his mouth smiles. Slow push-in. The subtitle sits at the bottom, over their knees: the faces stay in the upper half.
+  // The camera looks down a little, so the horizon is high: the far shore is a band of lights above their heads.
+  const C22 = { cam: { cx: 960, cy: 540 }, pair: { x: 960, y: 985, s: 150 }, facing: -0.42, camPitch: 0.2,
+    bay: { hz: 330, wheelX: 230, wheelR: 88, cityX0: -40, cityX1: 1010, cityH: 165, bridgeX0: 960, bridgeX1: 2200, deck: 30, towerH: 172, towers: [1290, 1790], span: 250, lw: 4.4, lamps: 18,
+      paint: (c) => L.glow(c, 960, 330, 640, '#ffe2b8', 0.12) } };   // the shore's warm light behind them (baked)
   function c22Near() {      // big out-of-focus blades across the bottom — painted once
     return PV.cached('g06:c22near', W, H, (c) => {
       const A = PV.makeCanvas(W, H), a = A.ctx;
@@ -562,39 +567,67 @@
       c.filter = 'blur(12px)'; c.drawImage(A.canvas, 0, 0); c.filter = 'none';
     });
   }
-  PV.shot('C22', { draw(ctx, t, d) { const tq0 = q12(clamp(t, 0, d)); onTwos(ctx, 'C22', tq0, () => drawC22(ctx, tq0, d)); } });
-  function drawC22(ctx, t, d) {
-    const tc = t, tq = t;   // on twos: every input below is the quantised time
-    const push = PV.ease.inOut(tc / d);
-    const lean = PV.ease.inOut(clamp((tc - 4.0) / 1.2));
-    // ---- the world behind them at zoom 1
+  // the world behind them at zoom 1 — the far shore (painted once, out of focus), the water and the far lights on twos
+  function c22World(tq, lean) {
     const WB = PV.buffer('g06:c22world'), w = WB.ctx;
-    const B = bayStatic('c22bay', C22.bay, 2.6);
-    w.fillStyle = '#121a3c'; w.fillRect(0, 0, W, H);          // (the buffer is reused: start every frame from a clean base)
-    w.save(); w.imageSmoothingEnabled = false; w.drawImage(B.img, 0, 0); w.restore();
-    bayWater(w, tq, B, 770, 'c22', [0, 466, W, 774]);
-    L.bokeh(w, tq, { seed: 2203, count: 30, rmin: 12, rmax: 40, x0: -40, x1: W + 40, y0: 300, y1: 500, alpha: 0.3, mode: 'lighter', colors: ['#e8a24a', '#fff1d6', '#e88aa0', '#ffbf6b'] });
-    // the lawn's edge and railing below the couple, the lawn
-    w.fillStyle = '#080c18'; w.fillRect(0, 758, W, 14); w.fillStyle = 'rgba(214,180,190,0.22)'; w.fillRect(0, 758, W, 2);
-    nightLawn(w, tq, { y0: 770, key: 'c22b', seed: 2022 });
+    if (c22World.k === tq) return WB.canvas;
+    c22World.k = tq;
+    const B = bayStatic('c22bay2', C22.bay, 4.2), hz = B.hz;
+    w.fillStyle = '#121a3c'; w.fillRect(0, 0, W, H);
+    w.drawImage(B.img, 0, 0);
+    bayWater(w, tq, B, 660, 'c22', [0, hz - 4, W, 664]);
+    L.bokeh(w, tq, { seed: 2203, count: 30, rmin: 12, rmax: 40, x0: -40, x1: W + 40, y0: 150, y1: 345, alpha: 0.3, mode: 'lighter', colors: ['#e8a24a', '#fff1d6', '#e88aa0', '#ffbf6b'] });
+    // the lawn: its far edge against the water is a ragged line of grass tufts whose tips catch the shore's light
+    nightLawn(w, tq, { y0: 662, key: 'c22c', seed: 2022 });
+    w.drawImage(c22Edge(), 0, 0);
     // the warm light of the shore behind them grows a little as she leans on him
-    if (lean > 0.01) lightPass(w, (c) => L.glow(c, 920, 470, 600, '#ffe2b8', 0.1 * lean), 'c22warm', [300, 0, 1540, 1080]);
+    if (lean > 0.01) lightPass(w, (c) => L.glow(c, 960, 360, 640, '#ffe2b8', 0.12 * lean), 'c22warm', [200, 0, 1720, 900]);
+    return WB.canvas;
+  }
+  function c22Edge() {      // the grass at the lawn's far edge, silhouetted against the water — painted once
+    return PV.cached('g06:c22edge', W, H, (c) => {
+      const g = c.createLinearGradient(0, 648, 0, 700); g.addColorStop(0, 'rgba(6,9,20,0)'); g.addColorStop(0.3, 'rgba(6,9,20,0.85)'); g.addColorStop(1, 'rgba(6,9,20,0)');
+      c.fillStyle = g; c.fillRect(0, 648, W, 52);
+      foreBlades(c, 0, { seed: 2231, count: 520, x0: -20, x1: W + 20, y: 668, lmin: 6, lmax: 20, wmin: 2, wmax: 4.5, color: '#070b17', rim: '#d9a874', lean: 0.3 });
+    });
+  }
+  PV.shot('C22', { draw(ctx, t, d, S) {
+    const tc = clamp(t, 0, d), tq = q12(tc);
+    drawC22(ctx, tc, tq, absT(S, 'C22', tq), d);
+  } });
+  function drawC22(ctx, tc, tq, Tq, d) {
+    const A = AN(), P = C22.pair;
+    const push = PV.ease.inOut(tc / d);                                  // the camera: 24 fps
+    // the acting (on twos): eyes down for「コンクールが終わったらさ……」, turned up to him for「また、セッションしようね」,
+    // then (74.0) her head to his shoulder
+    const turn = sm(1.95, 2.45, tq), lean = PV.ease.inOut(clamp((tq - 3.95) / 0.8));
+    const look = turn * (1 - lean) * 0.75;
+    const glance = sm(2.3, 2.8, tq) * (1 - sm(3.6, 4.0, tq));             // he glances at her while she says it
+    const away = sm(4.15, 4.75, tq);                                      // … and looks away once her head is on his shoulder
+    ctx.fillStyle = '#121a3c'; ctx.fillRect(0, 0, W, H);
     ctx.save();
     PV.camera(ctx, { zoom: 1 + 0.1 * push, cx: C22.cam.cx, cy: C22.cam.cy });
     ctx.imageSmoothingQuality = 'low';
-    ctx.drawImage(WB.canvas, 0, 0);
-    // the couple from behind: she sits on his left (her dress and cardigan, his summer shirt)
-    L.coupleSittingBack(ctx, tq, { x: 925, y: 965, scale: 1.42, seat: 'grass', lean, girlOutfit: 'blazer', boyOutfit: 'shirt', wind: 0.35, windDir: -0.2,
-      light: -PI / 2 - 0.3, rimColor: '#ffe6c4', backlight: 0.28, glow: 0.55 });
-    // the lawn in front of where they sit (the figure's own tufts catch the rim light too brightly: bury them in dark grass)
-    ctx.save(); const gg = ctx.createLinearGradient(0, 958, 0, 1040); gg.addColorStop(0, 'rgba(9,12,24,0)'); gg.addColorStop(0.4, 'rgba(9,12,24,0.92)'); gg.addColorStop(1, 'rgba(6,9,18,1)');
-    ctx.fillStyle = gg; ctx.fillRect(-100, 958, W + 200, 240); ctx.restore();
-    foreBlades(ctx, tq, { seed: 2221, count: 300, x0: 380, x1: 1480, y: 1012, lmin: 36, lmax: 92, wmin: 4, wmax: 9, color: '#070a15', rim: '#8a6a4c', lean: 0.25 });
-    foreBlades(ctx, tq, { seed: 2222, count: 140, x0: 300, x1: 1560, y: 1050, lmin: 44, lmax: 120, wmin: 6, wmax: 12, color: '#05080f', rim: '#6d5440', lean: 0.3 });
+    ctx.drawImage(c22World(tq, lean), 0, 0);
+    groundShadow(ctx, P.x + 10, P.y + 6, 2.3 * P.s, 0.32 * P.s, 0.6);
+    const her = lean > 0.45
+      ? { expr: 'closed', blush: 0.55, mouth: { shape: 'smile', open: 0 } }
+      : { expr: 'gentle', talk: true, blush: 0.42 + 0.12 * turn, eyes: { open: lerp(0.78, 0.95, turn), look: [lerp(0.05, -0.35, turn), lerp(0.42, -0.05, turn)] } };
+    const him = away > 0.5
+      ? { expr: 'gentle', blush: 0.55, eyes: { open: 1.0, look: [-0.65, 0.25] }, mouth: { shape: 'smile', open: 0, asym: -0.8 } }
+      : { expr: 'neutral', blush: 0.15 + 0.22 * glance, eyes: { open: 1.1, look: [lerp(-0.1, 0.45, glance), lerp(0.15, 0.12, glance)] }, mouth: { shape: 'smile', open: 0, asym: -0.6 * glance } };
+    A.pair(ctx, { pose: 'sit_side', x: P.x, y: P.y, scale: P.s, facing: C22.facing, camPitch: C22.camPitch, T: Tq, light: 'night', rimDir: -2.3,
+      wind: 0.3, windDir: PI,
+      params: { side: 'left', lean, look, boyLook: 0.95 * glance - 0.34 * away, boyNod: 0.08 + 0.06 * glance - 0.1 * away },
+      senpai: { outfit: 'dress_cardigan', head: her,
+        // her right hand rests on his left hand on the grass (C21's hands)
+        params: { armR: { W: [-0.62, -0.42, 0.55], pole: [-1, 0.3, -0.5], hand: { f: [-0.3, 0.6, 0.6], palm: [0, 1, 0.2], curl: 0.45 } } } },
+      boy: { outfit: 'uniform', costume: { shoes: 'loafer_dark' }, head: him } });
+    // the lawn in front of where they sit (in focus), seating them in the grass
+    foreBlades(ctx, tq, { seed: 2221, count: 260, x0: 560, x1: 1400, y: 1010, lmin: 22, lmax: 60, wmin: 3, wmax: 7, color: '#070a15', rim: '#8a6a4c', lean: 0.25 });
     ctx.restore();
-    ctx.save(); ctx.imageSmoothingEnabled = false; ctx.drawImage(c22Near(), 0, 0); ctx.restore();
+    ctx.drawImage(c22Near(), 0, 900, W, H - 900, 0, 900, W, H - 900);   // (the blurred blades live in the bottom band only)
   }
-
   /* ======================================================================= C23 */
   // 75.5–78.5 (t: 0–3.0). An autumn morning; the low sun is behind her: cold backlight. Her right hand holds the bag
   // strap across her white blouse — the same screen position, size and white sleeve as the hand on the keys (C03) and
