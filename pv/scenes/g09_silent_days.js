@@ -1259,13 +1259,13 @@
   PV.shot('dev_g09_pair', { draw(ctx, t) {
     ctx.fillStyle = '#3a3330'; ctx.fillRect(0, 0, PV.W, PV.H);
     const A = PV.anime, T = 136.2;
-    const V = [[0.15, 0.7, -0.05, -0.1, 0.45], [0.1, 0.9, -0.08, -0.08, 0.5], [0.2, 0.7, -0.1, 0.04, 0.55], [0.12, 1.1, -0.05, -0.06, 0.35]];
+    const V = [[0.12, 1.0, -0.05, -0.06, 0.35, -0.2], [0.12, 1.1, -0.05, -0.06, 0.35, -0.35], [0.2, 1.0, -0.05, -0.06, 0.32, -0.3], [0.05, 1.05, -0.05, -0.06, 0.3, -0.3]];
     V.forEach((v, i) => {
       const x = 480 + (i % 2) * 960, y = 470 + Math.floor(i / 2) * 540;
       ctx.save(); ctx.beginPath(); ctx.rect((i % 2) * 960, Math.floor(i / 2) * 540, 960, 540); ctx.clip();
       A.pair(ctx, { pose: 'sit_side', x, y: y + 230, scale: 150, T, light: 'lamp', facing: v[0], camPitch: v[4], keyDir: -2.95, rimDir: -2.95,
         params: { side: 'right', gap: 0, seat: 'sofa', sofa: false, lean: 1, blanket: true },
-        senpai: { outfit: 'home', costume: { legs: 'tights' }, params: { slump: v[1] }, head: { expr: 'sleep' } },
+        senpai: { outfit: 'home', costume: { legs: 'tights' }, params: { slump: v[1], nod: v[5] }, head: { expr: 'sleep' } },
         boy: { outfit: 'year2', params: { look: -0.2, nod: v[2], tilt: v[3] }, head: { expr: 'sad', eyes: { look: [-0.5, 0.6] }, mouth: { shape: 'a', open: 0.6 } } } });
       ctx.fillStyle = '#fff'; ctx.font = '22px sans-serif'; ctx.fillText(JSON.stringify(v), (i % 2) * 960 + 20, Math.floor(i / 2) * 540 + 30);
       ctx.restore();

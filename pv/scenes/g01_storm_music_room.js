@@ -497,6 +497,40 @@
       head: o.head || {},
     });
   }
+  // The scene's keyboard is in front of her lap and under her hands (the body library knows that only for its own keyboard).
+  // After she is painted, the grand piano (a cached image) is painted again inside the projected keyboard: key tops, the front
+  // of the keybed, the treble cheek block and the treble front leg -- minus her arms (a wide capsule from each shoulder to just
+  // past each hand). c: her plate (room-camera space under the plate's zoom), info: PV.anime.figure's return, s: her head px
+  function keysOver(c, R, info, s) {
+    const Wd = 1.49, cw = (Wd - 1.222) / 2, P = (x, y, z) => R.project(pianoL2R([x, y, z]));
+    const polys = [
+      [P(-0.152, 0.74, cw), P(0.002, 0.74, cw), P(0.002, 0.74, Wd - cw), P(-0.152, 0.74, Wd - cw)],          // key tops (black keys included)
+      [P(-0.158, 0.62, cw), P(-0.158, 0.745, cw), P(-0.158, 0.745, Wd - cw), P(-0.158, 0.62, Wd - cw)],      // front of the keybed
+    ];
+    const corners = (b) => { const o = []; for (const x of [b[0], b[3]]) for (const y of [b[1], b[4]]) for (const z of [b[2], b[5]]) o.push(P(x, y, z)); return o; };
+    for (const b of [[-0.176, 0.62, Wd - cw - 0.004, 0.003, 0.806, Wd + 0.004], [-0.142, 0, Wd - cw + 0.01, -0.028, 0.63, Wd - 0.008]]) polys.push(hull2(corners(b)));
+    const m = c.getTransform(), B = PV.buffer('g01:keysOver'), bc = B.ctx;
+    bc.setTransform(1, 0, 0, 1, 0, 0); bc.clearRect(0, 0, W, H); bc.setTransform(m);
+    bc.save(); bc.beginPath();
+    for (let q of polys) { if (area2(q) < 0) q = q.slice().reverse(); q.forEach((p, i) => (i ? bc.lineTo(p[0], p[1]) : bc.moveTo(p[0], p[1]))); bc.closePath(); }
+    bc.clip(); L.grandPiano(bc, pianoOpts(R)); bc.restore();
+    bc.globalCompositeOperation = 'destination-out'; bc.lineCap = 'round'; bc.strokeStyle = '#000'; bc.lineWidth = s * 0.44;
+    for (const k of ['L', 'R']) {
+      const S0 = info.shoulders[k], Hh = info.hands[k];
+      bc.beginPath(); bc.moveTo(S0[0], S0[1]); bc.lineTo(Hh[0] + (Hh[0] - S0[0]) * 0.22, Hh[1] + (Hh[1] - S0[1]) * 0.22); bc.stroke();
+    }
+    bc.globalCompositeOperation = 'source-over';
+    c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.drawImage(B.canvas, 0, 0); c.restore();
+  }
+  const area2 = (q) => { let a = 0; for (let i = 0; i < q.length; i++) { const p = q[i], r = q[(i + 1) % q.length]; a += p[0] * r[1] - r[0] * p[1]; } return a; };
+  function hull2(pts) {
+    const p = pts.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]); if (p.length < 3) return p;
+    const cr = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+    const lo = [], up = [];
+    for (const q of p) { while (lo.length >= 2 && cr(lo[lo.length - 2], lo[lo.length - 1], q) <= 0) lo.pop(); lo.push(q); }
+    for (let i = p.length - 1; i >= 0; i--) { const q = p[i]; while (up.length >= 2 && cr(up[up.length - 2], up[up.length - 1], q) <= 0) up.pop(); up.push(q); }
+    return lo.slice(0, -1).concat(up.slice(0, -1));
+  }
   // 彼 takes the straw from his mouth, stands the pack on his thigh and claps: one continuous action. The library's chair pose has
   // 'juice' (sip) and 'clap' as separate variants; this local pose blends their body and arm targets (prm.k 0 = juice, 1 = clap;
   // prm.hold = the pack still in his hand). It is put in PV.anime.FIG_POSES under a g01_ name only for the duration of the call.
@@ -794,6 +828,7 @@
       PV.camera(c, { zoom: zq, cx: C02_F.x, cy: C02_F.y });
       const P = figPlace(R, BENCH, HER_DIR, 'senpai', 0.42), s = P.scale, Tq = T0 + q + day * 3.7;
       const info = drawPianist(c, R, Tq, { intensity: 0.95, rimDir: -1.15, head: { expr: 'focus', turn: -0.22, brows: { furrow: 0.8, inner: -0.5 }, eyes: { open: 0.74, look: [0.3, 0.62] }, mouth: { shape: 'flat', open: 0 }, hair: c02HairWind(Tq, 0.95) } });
+      keysOver(c, R, info, s);
       sweat(c, info && info.head, 1, q, 'window');
       return devBox(c, P.x - 3.8 * s, P.y - 5.0 * s, P.x + 4.4 * s, P.y + 2.6 * s);
     }), zq, zoom, C02_F.x, C02_F.y);
@@ -1048,6 +1083,7 @@
           : { expr: 'neutral', eyes: { open: 0.5, look: [0.25, 0.65] }, brows: { inner: 0.25, outer: -0.05, furrow: 0.1 }, mouth: { shape: 'a', open: 0.14 + 0.12 * pant }, turn: -0.12 };
       head.hair = { wind: 0.06 + 0.25 * pl + 0.2 * st * (1 - sm(C04.jump + 0.1, C04.jump + 0.6, q)), windDir: Math.PI - 0.6 };
       const info = drawPianist(c, R, T0 + q, { intensity: 0.55 * pl, play: pl, breathe: breath, look: st > 0.5 ? 'ahead' : 'keys', lean: 0.04 * breath, rimDir: -1.2, head });
+      keysOver(c, R, info, s);
       sweat(c, info && info.head, 1, q, 'window');
       return devBox(c, Pg.x - 3.6 * s, Pg.y - 5.0 * s, Pg.x + 4.4 * s, Pg.y + 2.6 * s);
     });
