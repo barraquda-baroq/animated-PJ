@@ -233,3 +233,254 @@
     });
   } });
 })();
+/* ================================================================ INTEGRATION SHEETS (model-sheet consistency: anime_head.js x anime_body.js)
+ * dev_anime_body_lineup1..4 : 先輩 / 彼 (+ 叔母) side by side in every outfit, front + back, on one ground line with height marks
+ *                            (her crown must reach his nose tip: design sheet 1-2), a head-unit ruler, neck attachment, colours.
+ * dev_anime_body_shots1..6  : every pose in its shot lighting at the size it has in the film (wide: figure 250-450 px, medium:
+ *                            700-1000 px, close: head 250-400 px). Each cell is a 1:1 crop of a real 1920x1080 frame.
+ * dev_anime_body_pairs1..2  : the two-person poses (embrace in the rain, leap, sit_side lean / sit_back, collapsed) at medium size.
+ * Everything time-varying is computed from PV.anime.onTwos(t) (scenes must do the same).                                       */
+(function () {
+  const PV = window.PV, W = PV.W, H = PV.H;
+  const A = () => PV.anime;
+  const BOY_K = 1.06, AUNT_K = (164 / 7.2) / (161 / 7.0);   // head sizes relative to hers (design sheet 1-1 / 1-2)
+  const KW = { senpai: 1, boy: BOY_K, aunt: AUNT_K };
+  function paper(ctx, top = '#f2eee6', bot = '#e3ddd1') {
+    ctx.fillStyle = PV.linGrad(ctx, 0, 0, 0, H, [[0, top], [1, bot]]); ctx.fillRect(0, 0, W, H);
+  }
+  function txt(ctx, x, y, s, col = 'rgba(60,50,40,0.85)', size = 20, align = 'center') { ctx.save(); ctx.font = size + 'px sans-serif'; ctx.textAlign = align; ctx.fillStyle = col; ctx.fillText(s, x, y); ctx.restore(); }
+  function dash(ctx, x0, x1, y, col) { ctx.save(); ctx.strokeStyle = col; ctx.lineWidth = 1.5; ctx.setLineDash([8, 6]); ctx.beginPath(); ctx.moveTo(x0, y); ctx.lineTo(x1, y); ctx.stroke(); ctx.restore(); }
+
+  /* ---------- lineups: sets = [[title, [[who, outfit, extra], ...]], ...]; each set front then back */
+  function lineup(ctx, t, sets, S, title) {
+    paper(ctx); const gy = 1036;
+    ctx.save(); ctx.strokeStyle = 'rgba(90,80,70,0.35)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(40, gy); ctx.lineTo(W - 40, gy); ctx.stroke(); ctx.restore();
+    // head-unit ruler (her head = S): 0..8
+    ctx.save(); ctx.strokeStyle = 'rgba(90,80,70,0.45)'; ctx.lineWidth = 1;
+    for (let i = 0; i <= 8; i++) { const y = gy - i * S; ctx.beginPath(); ctx.moveTo(14, y); ctx.lineTo(30, y); ctx.stroke(); txt(ctx, 36, y + 5, String(i), 'rgba(90,80,70,0.6)', 13, 'left'); }
+    ctx.restore();
+    const wOf = (who) => (who === 'boy' ? 2.05 : 1.85) * S * KW[who];
+    const slots = []; for (const [lab, mem] of sets) for (const f of ['front', 'back']) slots.push({ lab, mem, f });
+    const gap = 0.36 * S; let total = 0; for (const s of slots) for (const m of s.mem) total += wOf(m[0]); total += gap * (slots.length - 1);
+    let x = (W - total) / 2 + 20;
+    const tq = A().onTwos(t);
+    for (const sl of slots) {
+      const info = [];
+      for (const [who, outfit, extra] of sl.mem) {
+        const w = wOf(who); x += w / 2;
+        const o = Object.assign({ who, outfit, pose: 'stand', facing: sl.f, x, y: gy, scale: S * KW[who], T: t, light: 'day', params: { weight: who === 'boy' ? -0.3 : 0.35 } }, extra || {});
+        const r = A().figure(ctx, o); info.push({ who, x, r });
+        txt(ctx, x, gy + 22, (sl.f === 'front' ? '' : '(back) ') + outfit, 'rgba(60,50,40,0.8)', 15);
+        x += w / 2;
+      }
+      // height marks: her crown vs his nose tip (front only), the crown of every figure
+      const sp = info.find(i => i.who === 'senpai'), by = info.find(i => i.who === 'boy');
+      for (const i of info) if (i.r && i.r.head && i.r.head.crown) { const c = i.r.head.crown; ctx.fillStyle = 'rgba(200,60,60,0.8)'; ctx.fillRect(c[0] - 5, c[1] - 1, 10, 2); }
+      if (sp && by && sp.r.head && by.r.head && sl.f === 'front') {
+        const cy = sp.r.head.crown[1], ny = by.r.head.nose[1];
+        dash(ctx, sp.x - 40, by.x + 40, cy, 'rgba(200,60,60,0.55)');
+        ctx.fillStyle = 'rgba(40,110,200,0.9)'; ctx.fillRect(by.r.head.nose[0] - 7, ny - 1, 14, 2);
+        txt(ctx, sp.x - 0.9 * S, cy - 8, 'crown−nose ' + (cy - ny).toFixed(0) + 'px', 'rgba(160,40,40,0.95)', 13, 'right');
+      }
+      x += gap;
+    }
+    void tq;
+    txt(ctx, W / 2, 30, title, 'rgba(60,50,40,0.85)', 22);
+  }
+  PV.shot('dev_anime_body_lineup1', { draw(ctx, t) {
+    lineup(ctx, t, [['school', [['senpai', 'uniform'], ['boy', 'uniform']]], ['blazer', [['senpai', 'blazer'], ['boy', 'blazer']]]], 108,
+      'LINEUP 1 — school (C02–C12): uniform / blazer, front + back, one ground line. Red tick = crown, blue = his nose tip');
+  } });
+  PV.shot('dev_anime_body_lineup2', { draw(ctx, t) {
+    lineup(ctx, t, [['sea', [['senpai', 'summer', { noHat: false }], ['boy', 'tee']]], ['competition day', [['senpai', 'dress'], ['boy', 'uniform']]]], 108,
+      'LINEUP 2 — the sea (C15/C19: summer + tee) / the competition day (C16–C22: dress + uniform)');
+  } });
+  PV.shot('dev_anime_body_lineup3', { draw(ctx, t) {
+    lineup(ctx, t, [['night park', [['senpai', 'dress_cardigan'], ['boy', 'uniform']]], ['storm', [['senpai', 'gown'], ['boy', 'wet']]]], 108,
+      'LINEUP 3 — the night park (C20–C22: dress + cardigan) / the storm (C27–C32: gown + cast, wet shirt)');
+  } });
+  PV.shot('dev_anime_body_lineup4', { draw(ctx, t) {
+    lineup(ctx, t, [['silent days', [['senpai', 'home'], ['boy', A().OUTFITS.boy.year2 ? 'year2' : 'tee']]], ['ending', [['senpai', 'ending'], ['boy', 'ending']]]], 108,
+      'LINEUP 4 — the silent days (C33–C40: home + year2) / the ending (C42: ending + ending)');
+  } });
+  PV.shot('dev_anime_body_lineup6', { draw(ctx, t) {
+    lineup(ctx, t, [['outdoors', [['senpai', 'out_brace'], ['boy', 'year2_black']]], ['festival', [['senpai', 'summer_uniform'], ['boy', 'summer_uniform']]]], 108,
+      'LINEUP 6 — the silent days outdoors (out_brace + year2_black) / the festival (C13/C14: summer uniforms)');
+  } });
+  PV.shot('dev_anime_body_lineup5', { draw(ctx, t) {
+    lineup(ctx, t, [['aunt', [['aunt', 'coat'], ['boy', 'uniform']]], ['spring', [['senpai', 'spring2'], ['boy', 'jacket']]]], 108,
+      'LINEUP 5 — 叔母 (C36: coat; 164 cm next to 彼 178 cm) / year 2 spring (C41: spring2) + his night jacket');
+  } });
+
+  /* ---------- shot cells: each cell is a 1:1 crop of a real frame (sizes as in the film) */
+  const BG = {
+    window: (c, x, y, w, h) => { c.fillStyle = PV.linGrad(c, x, 0, x + w, 0, [[0, '#6f5a4c'], [0.5, '#d9c3a8'], [0.8, '#fff6e6'], [1, '#fffaf2']]); c.fillRect(x, y, w, h); c.fillStyle = PV.radGrad(c, x + w * 0.85, y + h * 0.3, 20, w * 0.8, [[0, '#ffffff', 0.8], [1, '#fff3dc', 0]]); c.fillRect(x, y, w, h); c.fillStyle = 'rgba(110,80,55,0.28)'; c.fillRect(x, y + h * 0.82, w, h * 0.18); },
+    stage: (c, x, y, w, h) => { c.fillStyle = PV.radGrad(c, x + w / 2, y + h * 0.35, 30, w, [[0, '#ffffff'], [1, '#d6dae3']]); c.fillRect(x, y, w, h); },
+    spot: (c, x, y, w, h) => { c.fillStyle = '#120e18'; c.fillRect(x, y, w, h); c.fillStyle = PV.radGrad(c, x + w / 2, y + h * 0.1, 20, h * 1.1, [[0, '#ffe6bd', 0.5], [1, '#ffe6bd', 0]]); c.fillRect(x, y, w, h); },
+    storm: (c, x, y, w, h) => { c.fillStyle = PV.linGrad(c, 0, y, 0, y + h, [[0, '#1b2236'], [1, '#2c3550']]); c.fillRect(x, y, w, h); c.strokeStyle = 'rgba(200,215,240,0.22)'; c.lineWidth = 1.5; for (let i = 0; i < 90; i++) { const xx = x + (i * 97) % w, yy = y + (i * 131) % h; c.beginPath(); c.moveTo(xx, yy); c.lineTo(xx - 8, yy + 40); c.stroke(); } },
+    summer: (c, x, y, w, h) => { c.fillStyle = PV.linGrad(c, 0, y, 0, y + h, [[0, '#4a92e8'], [0.55, '#bfe0fb'], [0.56, '#3f8fd6'], [1, '#2a6fb5']]); c.fillRect(x, y, w, h); },
+    night: (c, x, y, w, h) => { c.fillStyle = PV.linGrad(c, 0, y, 0, y + h, [[0, '#0d1430'], [0.6, '#232a55'], [1, '#141a33']]); c.fillRect(x, y, w, h); for (let i = 0; i < 26; i++) { c.fillStyle = `rgba(255,${200 + (i * 37) % 50},150,${0.22 + (i % 5) * 0.07})`; c.beginPath(); c.arc(x + (i * 211) % w, y + h * 0.55 + (i * 53) % 70, 5 + (i % 4) * 4, 0, 2 * Math.PI); c.fill(); } },
+    sunset: (c, x, y, w, h) => { c.fillStyle = PV.linGrad(c, 0, y, 0, y + h, [[0, '#7a5a8c'], [0.45, '#f0a070'], [0.62, '#ffd58a'], [0.63, '#c98f62'], [1, '#4a3a3a']]); c.fillRect(x, y, w, h); c.fillStyle = PV.radGrad(c, x + w * 0.8, y + h * 0.6, 20, w * 0.6, [[0, '#fff4d0', 0.9], [1, '#ffb070', 0]]); c.fillRect(x, y, w, h); },
+    gray: (c, x, y, w, h) => { c.fillStyle = PV.linGrad(c, 0, y, 0, y + h, [[0, '#8a8b90'], [1, '#5e5f66']]); c.fillRect(x, y, w, h); c.fillStyle = 'rgba(235,235,240,0.3)'; c.fillRect(x + w * 0.62, y + h * 0.1, w * 0.3, h * 0.55); },
+    hospital: (c, x, y, w, h) => { c.fillStyle = PV.linGrad(c, x, 0, x + w, 0, [[0, '#cfd9e3'], [0.5, '#f4f8fc'], [1, '#d9e2ea']]); c.fillRect(x, y, w, h); c.fillStyle = PV.radGrad(c, x + w * 0.5, y + h * 0.35, 20, w * 0.6, [[0, '#ffffff', 0.95], [1, '#ffffff', 0]]); c.fillRect(x, y, w, h); },
+    lamp: (c, x, y, w, h) => { c.fillStyle = PV.linGrad(c, x, 0, x + w, 0, [[0, '#2a2026'], [0.7, '#3a2e2a'], [1, '#6a4a32']]); c.fillRect(x, y, w, h); c.fillStyle = PV.radGrad(c, x + w * 0.95, y + h * 0.25, 10, w * 0.5, [[0, '#ffd9a8', 0.7], [1, '#ffd9a8', 0]]); c.fillRect(x, y, w, h); },
+    doorway: (c, x, y, w, h) => { c.fillStyle = '#3b3230'; c.fillRect(x, y, w, h); c.fillStyle = PV.linGrad(c, x + w * 0.2, 0, x + w * 0.55, 0, [[0, '#ffe2b8'], [1, '#fff4e0']]); c.fillRect(x + w * 0.18, y + h * 0.05, w * 0.4, h * 0.8); c.fillStyle = 'rgba(80,60,50,0.4)'; c.fillRect(x, y + h * 0.85, w, h * 0.15); },
+  };
+  function cell(ctx, x, y, w, h, bg, lab, fn) {
+    ctx.save(); ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip(); BG[bg](ctx, x, y, w, h); fn(); ctx.restore();
+    ctx.save(); ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 2; ctx.strokeRect(x + 1, y + 1, w - 2, h - 2); ctx.restore();
+    ctx.save(); ctx.font = '17px sans-serif'; const tw = ctx.measureText(lab).width; ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(x + 6, y + 6, tw + 14, 26); ctx.fillStyle = '#fff'; ctx.fillText(lab, x + 13, y + 25); ctx.restore();
+  }
+  const F = (o) => A().figure(o.ctx, o);
+  /* shots1: the wide shots (figures 250-450 px tall) */
+  PV.shot('dev_anime_body_shots1', { draw(ctx, t) {
+    const tq = A().onTwos(t);
+    cell(ctx, 0, 0, 960, 540, 'window', 'C02/C04 wide: piano (treble end 3/4) + 彼 on a chair, juice (window)', () => {
+      F({ ctx, who: 'boy', pose: 'seated_chair', facing: '3q_left', x: 790, y: 330, scale: 34, T: t, light: 'window', rimDir: -0.5, params: { variant: 'juice', sip: 0.5 + 0.5 * Math.sin(tq * 1.2) } });
+      F({ ctx, who: 'senpai', pose: 'piano', facing: 1.05, camPitch: 0.3, x: 330, y: 330, scale: 58, T: t, light: 'window', rimDir: -0.5, params: { intensity: 0.9, keysLeft: 1.7, keysRight: 1.7 }, head: { expr: 'focus', brows: { furrow: 0.6 } } });
+    });
+    cell(ctx, 960, 0, 960, 540, 'window', 'C12 wide backlit: she stands by the piano, he cries with the acoustic', () => {
+      F({ ctx, who: 'senpai', pose: 'stand', facing: '3q_left', x: 1260, y: 500, scale: 56, T: t, light: 'window', rimDir: -0.35, params: { weight: 0.3, arms: 'chest' }, head: { expr: 'surprise', eyes: { open: 0.9 } } });
+      F({ ctx, who: 'boy', pose: 'seated_chair', facing: '3q_left', x: 1640, y: 420, scale: 56 * 1.06, T: t, light: 'window', rimDir: -0.35, params: { variant: 'guitar', headDown: 0.15 }, head: { expr: 'cry', talk: true, T: 36.8 + t } });
+    });
+    cell(ctx, 0, 540, 960, 540, 'spot', 'C13 stage from the audience: keyboard + Strat (spot)', () => {
+      F({ ctx, who: 'senpai', outfit: 'summer_uniform', pose: 'stand', facing: '3q_right', x: 300, y: 1010, scale: 52, T: t, light: 'spot', rimDir: -1.6, params: { arms: 'keys', weight: 0.2 }, head: { expr: 'determined' } });
+      F({ ctx, who: 'boy', outfit: 'summer_uniform', pose: 'stand', facing: '3q_left', x: 640, y: 1010, scale: 52 * 1.06, T: t, light: 'spot', rimDir: -1.6, params: { arms: 'strat', weight: 0.3 }, head: { expr: 'focus' } });
+    });
+    cell(ctx, 960, 540, 960, 540, 'storm', 'C27 storm bridge wide: at the railing (gown, cast, wet)', () => {
+      F({ ctx, who: 'senpai', outfit: 'gown', pose: 'railing', facing: 'right', x: 1400, y: 1000, scale: 40, T: t, light: 'storm', rimDir: -2.2, wet: 1, params: { variant: 'hold', railing: true, railMat: 'steel', turn: -0.5 }, head: { expr: 'cry', hair: { style: 'wet' } } });
+    });
+  } });
+  /* shots2: wide / medium-wide */
+  PV.shot('dev_anime_body_shots2', { draw(ctx, t) {
+    const tq = A().onTwos(t);
+    cell(ctx, 0, 0, 960, 540, 'summer', 'C15 railing from the side: her profile under the hat, him beside (summer)', () => {
+      F({ ctx, who: 'boy', outfit: 'tee', pose: 'railing', facing: 'right', x: 400, y: 545, scale: 48 * 1.06, T: t, light: 'summer', wind: 0.8, windDir: 3.0, params: { variant: 'lean', railing: true, railZ: 0.8 }, head: { expr: 'gentle', eyes: { look: [0.6, 0] } } });
+      F({ ctx, who: 'senpai', outfit: 'summer', pose: 'railing', facing: 'right', x: 560, y: 560, scale: 50, T: t, light: 'summer', wind: 1.0, windDir: 3.0, params: { variant: 'lean', railing: true, railZ: 0.8 }, head: { expr: 'smile' } });
+    });
+    cell(ctx, 960, 0, 960, 540, 'night', 'C20 night park: running toward the camera (dress + cardigan)', () => {
+      F({ ctx, who: 'boy', pose: 'stand', facing: 'left', x: 1800, y: 640, scale: 52 * 1.06, T: t, light: 'night', rimDir: -2.6, params: { weight: 0.2, arms: 'reach' }, head: { expr: 'surprise' } });
+      F({ ctx, who: 'senpai', outfit: 'dress_cardigan', pose: 'run', facing: -0.25, camPitch: -0.04, x: 1450, y: 470, scale: 46, T: t, light: 'night', rimDir: -2.6, params: { stride: 0.75 }, head: { expr: 'smile' } });
+    });
+    cell(ctx, 0, 540, 960, 540, 'night', 'C22 grass, front-3/4: head on his shoulder (night)', () => {
+      A().pair(ctx, { pose: 'sit_side', x: 480, y: 940, scale: 62, T: t, light: 'night', rimDir: -2.6, facing: -0.42, camPitch: 0.2, params: { side: 'left', lean: PV.smooth(1, 3, tq) }, senpai: { outfit: 'dress_cardigan', head: { expr: 'closed' } }, boy: { outfit: 'uniform', head: { expr: 'gentle' } } });
+    });
+    cell(ctx, 960, 540, 960, 540, 'gray', 'C33 sofa with a gap, same camera (room_gray): empty eyes', () => {
+      A().pair(ctx, { pose: 'sit_side', x: 1440, y: 900, scale: 58, T: t, light: 'room_gray', facing: -0.42, camPitch: 0.2, params: { side: 'right', gap: 1.0, seat: 'sofa' }, senpai: { outfit: 'home', head: { expr: 'empty', talk: true, T: 123.9 + t } }, boy: { outfit: A().OUTFITS.boy.year2 ? 'year2' : 'tee', head: { expr: 'sad' } } });
+    });
+  } });
+  /* shots3: wide / medium-wide */
+  PV.shot('dev_anime_body_shots3', { draw(ctx, t) {
+    const tq = A().onTwos(t);
+    cell(ctx, 0, 0, 960, 540, 'sunset', 'C42 sunset grass, same camera: she turns to him ("ねえ")', () => {
+      A().pair(ctx, { pose: 'sit_side', x: 480, y: 420, scale: 62, T: t, light: 'sunset', rimDir: -0.3, facing: -0.42, camPitch: 0.2, params: { side: 'left', look: PV.smooth(0.5, 1.5, tq) }, senpai: { outfit: 'ending', head: { expr: 'gentle' } }, boy: { outfit: 'ending', head: { expr: 'gentle' } } });
+    });
+    cell(ctx, 960, 0, 960, 540, 'gray', 'C35 asleep on his shoulder under the blanket (her side)', () => {
+      A().pair(ctx, { pose: 'sit_side', x: 1440, y: 470, scale: 70, T: t, light: 'room_gray', facing: 0.3, camPitch: 0.2, params: { side: 'right', gap: 0, seat: 'sofa', lean: 1, blanket: true }, senpai: { outfit: 'home', head: { expr: 'sleep' } }, boy: { outfit: A().OUTFITS.boy.year2 ? 'year2' : 'tee', head: { expr: 'sad', talk: true, T: 137.9 + t } } });
+    });
+    cell(ctx, 0, 540, 960, 540, 'spot', 'C14 kneeling, the Strat held up, face to the light (spot)', () => {
+      F({ ctx, who: 'boy', outfit: 'summer_uniform', pose: 'kneel_guitar', facing: '3q_left', x: 480, y: 1050, scale: 66, T: t, light: 'spot', rimDir: -1.6, params: { variant: 'raise' }, head: { expr: 'closed', mouth: { open: 0.5, shape: 'a' } } });
+    });
+    cell(ctx, 960, 540, 960, 540, 'storm', 'C31 on the wet ground (far): over him / rising', () => {
+      A().pair(ctx, { pose: 'collapsed', x: 1250, y: 1000, scale: 54, T: t, light: 'storm', rimDir: -2.2, facing: 'right', params: { rise: 0.1 }, senpai: { outfit: 'gown', wet: 1, head: { expr: 'cry' } }, boy: { outfit: 'wet', head: { expr: 'pain' } } });
+      A().pair(ctx, { pose: 'collapsed', x: 1650, y: 1000, scale: 54, T: t, light: 'storm', rimDir: -2.2, facing: 'right', params: { rise: 1 }, senpai: { outfit: 'gown', wet: 1, head: { expr: 'cry' } }, boy: { outfit: 'wet', head: { expr: 'determined' } } });
+    });
+  } });
+  /* shots4: medium (seated figure ~700-800 px): C10 and C17 at the piano */
+  PV.shot('dev_anime_body_shots4', { draw(ctx, t) {
+    cell(ctx, 0, 0, 960, 1080, 'window', 'C10 medium: treble-end 3/4, eyes closed, gentle (window rim)', () => {
+      F({ ctx, who: 'senpai', pose: 'piano', facing: 1.05, camPitch: 0.28, x: 430, y: 600, scale: 150, T: t, light: 'window', rimDir: -0.5, params: { intensity: 0.35, keysLeft: 1.2, keysRight: 1.4 }, head: { expr: 'closed' } });
+    });
+    cell(ctx, 960, 0, 960, 1080, 'stage', 'C17 medium: right profile, dress + chignon, focus (white stage)', () => {
+      F({ ctx, who: 'senpai', outfit: 'dress', pose: 'piano', facing: 'right', camPitch: 0.06, x: 1330, y: 620, scale: 150, T: t, light: 'stage', params: { intensity: 0.75, keysLeft: 1.0, keysRight: 1.6 }, head: { expr: 'focus', brows: { furrow: 0.7 }, eyes: { tears: 0.75 } } });
+    });
+  } });
+  /* shots5: medium standing (700-1000 px): C25 (him at the window, pained), C36 (the aunt glancing back), C04 clapping */
+  PV.shot('dev_anime_body_shots5', { draw(ctx, t) {
+    cell(ctx, 0, 0, 640, 1080, 'hospital', 'C25 medium: him at the window, pained', () => {
+      F({ ctx, who: 'boy', pose: 'stand', facing: -0.25, x: 320, y: 1380, scale: 150, T: t, light: 'hospital', rimDir: -1.4, params: { weight: 0.3, armBend: 0.1 }, head: { expr: 'pain', talk: true, T: 83.8 + t, eyes: { look: [0, 0.1] } } });
+    });
+    cell(ctx, 640, 0, 640, 1080, 'doorway', 'C36: 叔母 walks out, glances back (doorway backlight)', () => {
+      F({ ctx, who: 'aunt', outfit: 'coat', pose: 'walk', facing: -2.55, x: 960, y: 1030, scale: 122, T: t, light: 'window', rimDir: -0.6, params: { neckYaw: 1.2, twist: 0.35 }, head: { talk: true, T: 141.4 + t, eyes: { open: 0.8, look: [-0.3, 0.1] } } });
+    });
+    cell(ctx, 1280, 0, 640, 1080, 'window', 'C04/C06 medium: chair, clap / juice', () => {
+      F({ ctx, who: 'boy', pose: 'seated_chair', facing: '3q_left', x: 1590, y: 560, scale: 118, T: t, light: 'window', rimDir: -0.4, params: { variant: 'clap', claps: [0.6, 1.1, 1.6, 2.6, 3.1, 4.0, 4.5] }, head: { expr: 'smile' } });
+    });
+  } });
+  /* shots6: close-ups. Left column = the body library at close-up scale (figure, clipped); the head library's bust for comparison */
+  PV.shot('dev_anime_body_shots6', { draw(ctx, t) {
+    const tq = A().onTwos(t);
+    cell(ctx, 0, 0, 640, 540, 'window', 'C05 close (figure): 3/4, teary, talking', () => {
+      F({ ctx, who: 'senpai', pose: 'stand', facing: 0.55, x: 330, y: 1720, scale: 230, T: t, light: 'window', rimDir: -0.5, params: { weight: 0.2, tilt: 0.12 }, head: { expr: 'teary', talk: true, T: 12.6 + t, eyes: { tears: 0.5, look: [0.2, -0.15] } } });
+    });
+    cell(ctx, 640, 0, 640, 540, 'window', 'C05 close (head lib bust) for comparison', () => {
+      A().bust(ctx, { who: 'senpai', outfit: 'uniform', x: 960, y: 330, size: 230, yaw: 0.45, roll: 0.06, light: 'window', rimDir: -0.5, T: 12.6 + t, expr: 'teary', talk: true, eyes: { tears: 0.5, look: [0.2, -0.15] } });
+    });
+    cell(ctx, 1280, 0, 640, 540, 'window', 'C06 close (figure): juice, half-smile, talking', () => {
+      F({ ctx, who: 'boy', pose: 'seated_chair', facing: -0.6, x: 1600, y: 760, scale: 190, T: t, light: 'window', rimDir: -0.4, params: { variant: 'juice', sip: 0.6 }, head: { expr: 'gentle', talk: true, T: 16.5 + t } });
+    });
+    cell(ctx, 0, 540, 640, 540, 'stage', 'C16 close (figure): dress, chignon, blank stare', () => {
+      F({ ctx, who: 'senpai', outfit: 'dress', pose: 'stand', facing: 0.3, x: 320, y: 2300, scale: 240, T: t, light: 'stage', params: { weight: 0.1 }, head: { expr: 'neutral', eyes: { shine: 0.35, look: [0.25, 0.1] } } });
+    });
+    cell(ctx, 640, 540, 640, 540, 'storm', 'C28 close (figure): turns, wet hair, shouting, cast', () => {
+      F({ ctx, who: 'senpai', outfit: 'gown', pose: 'stand', facing: 0.35, x: 960, y: 2280, scale: 240, T: t, light: 'storm', rimDir: -2.2, wet: 1, params: { weight: 0.1 }, head: { expr: 'shout', talk: true, T: 99.0 + t, eyes: { tears: 1 }, hair: { style: 'wet' } } });
+    });
+    cell(ctx, 1280, 540, 640, 540, 'lamp', 'C39 close (figure): profile, crying, talking (lamp)', () => {
+      F({ ctx, who: 'boy', outfit: A().OUTFITS.boy.year2 ? 'year2' : 'tee', pose: 'stand', facing: 'left', x: 1640, y: 2350, scale: 240, T: t, light: 'lamp', rimDir: -0.3, params: { weight: 0.1, nod: 0.3 }, head: { expr: 'cry', talk: true, T: 154.3 + t } });
+    });
+  } });
+  /* pairs1: medium two-person poses — C32 embrace (both faces), C20 leap (landing), sit_back (back view reference) */
+  PV.shot('dev_anime_body_pairs1', { draw(ctx, t) {
+    const tq = A().onTwos(t);
+    cell(ctx, 0, 0, 760, 1080, 'storm', 'C32 the embrace in the rain (two faces)', () => {
+      A().pair(ctx, { pose: 'embrace', x: 380, y: 1070, scale: 118, T: t, light: 'storm', rimDir: -2.2, facing: -0.75, camPitch: 0.06, params: { progress: 1 }, senpai: { outfit: 'gown', wet: 1, head: { expr: 'surprise', eyes: { tears: 0.6 }, hair: { style: 'wet' } } }, boy: { outfit: 'wet', head: { expr: 'determined', talk: true, T: 117.0 + t } } });
+    });
+    cell(ctx, 760, 0, 640, 1080, 'night', 'C20 the leap (landing 0.25, camera side-on -1.2)', () => {
+      A().pair(ctx, { pose: 'leap_embrace', x: 1080, y: 1050, scale: 104, T: t, light: 'night', rimDir: -2.6, facing: -1.2, params: { progress: 0.25 }, senpai: { outfit: 'dress_cardigan', head: { expr: 'smile' } }, boy: { outfit: 'uniform', head: { expr: 'surprise' } } });
+    });
+    cell(ctx, 1400, 0, 520, 1080, 'night', 'sit_back + lean (back view ref.)', () => {
+      A().pair(ctx, { pose: 'sit_back', x: 1660, y: 900, scale: 84, T: t, light: 'night', rimDir: -2.6, camPitch: 0.15, params: { side: 'left', lean: 1 }, senpai: { outfit: 'dress_cardigan', head: { expr: 'closed' } }, boy: { outfit: 'uniform' } });
+      A().pair(ctx, { pose: 'leap_embrace', x: 1660, y: 470, scale: 52, T: t, light: 'night', rimDir: -2.6, params: { progress: (tq % 3) / 3 }, senpai: { outfit: 'dress_cardigan', head: { expr: 'smile' } }, boy: { outfit: 'uniform', head: { expr: 'surprise' } } });
+    });
+  } });
+  /* pairs2: medium C22 lean, C33 gap, C31 close-ish collapsed */
+  PV.shot('dev_anime_body_pairs2', { draw(ctx, t) {
+    const tq = A().onTwos(t);
+    cell(ctx, 0, 0, 960, 540, 'night', 'C22 medium: lean 1 (head on his shoulder)', () => {
+      A().pair(ctx, { pose: 'sit_side', x: 470, y: 500, scale: 118, T: t, light: 'night', rimDir: -2.6, facing: -0.42, camPitch: 0.2, params: { side: 'left', lean: 1 }, senpai: { outfit: 'dress_cardigan', head: { expr: 'closed' } }, boy: { outfit: 'uniform', head: { expr: 'gentle', eyes: { look: [0.4, 0.3] } } } });
+    });
+    cell(ctx, 960, 0, 960, 540, 'sunset', 'C42 medium: look 1 ("ねえ")', () => {
+      A().pair(ctx, { pose: 'sit_side', x: 1430, y: 500, scale: 118, T: t, light: 'sunset', rimDir: -0.3, facing: -0.42, camPitch: 0.2, params: { side: 'left', look: 1 }, senpai: { outfit: 'ending', head: { expr: 'gentle' } }, boy: { outfit: 'ending', head: { expr: 'gentle' } } });
+    });
+    cell(ctx, 0, 540, 960, 540, 'storm', 'C31 medium: she is over him (rise 0.1)', () => {
+      A().pair(ctx, { pose: 'collapsed', x: 480, y: 1040, scale: 110, T: t, light: 'storm', rimDir: -2.2, facing: 'right', params: { rise: 0.1 }, senpai: { outfit: 'gown', wet: 1, head: { expr: 'cry' } }, boy: { outfit: 'wet', head: { expr: 'pain', talk: true, T: 110.4 + t } } });
+    });
+    cell(ctx, 960, 540, 960, 540, 'gray', 'C33 medium: the gap (room_gray)', () => {
+      A().pair(ctx, { pose: 'sit_side', x: 1440, y: 1000, scale: 118, T: t, light: 'room_gray', facing: -0.42, camPitch: 0.2, params: { side: 'right', gap: 1.0, seat: 'sofa' }, senpai: { outfit: 'home', head: { expr: 'empty', talk: true, T: 123.9 + t } }, boy: { outfit: A().OUTFITS.boy.year2 ? 'year2' : 'tee', head: { expr: 'sad' } } });
+    });
+    void tq;
+  } });
+})();
+// debug: seated skirt / blanket close-up (front-3/4 from above, as C22/C42/C35)
+(function () {
+  const PV = window.PV;
+  PV.shot('dev_anime_body_dbgsit', { draw(ctx, t) {
+    ctx.fillStyle = '#c9c4ba'; ctx.fillRect(0, 0, PV.W, PV.H);
+    PV.anime.figure(ctx, { who: 'senpai', outfit: 'ending', pose: 'sit_ground', facing: -0.42, camPitch: 0.2, x: 480, y: 900, scale: 200, T: 2, params: { knees: 'side', sideDir: -1, arms: 'lap', look: -0.6 } });
+    PV.anime.figure(ctx, { who: 'senpai', outfit: 'dress_cardigan', pose: 'sit_ground', facing: -0.42, camPitch: 0.2, x: 1400, y: 900, scale: 200, T: 2, params: { knees: 'side', sideDir: 1, arms: 'lap' } });
+  } });
+})();
+// perf probe for the integration changes: ?=  dev_anime_body_perfN (head neck) vs perfB (body neck) vs perfR (no rim light)
+(function () {
+  const PV = window.PV;
+  const mk = (id, extra, pose) => PV.shot(id, { draw(ctx, t) {
+    ctx.fillStyle = '#ddd'; ctx.fillRect(0, 0, PV.W, PV.H);
+    for (let i = 0; i < 10; i++) PV.anime.figure(ctx, Object.assign({ who: i % 2 ? 'boy' : 'senpai', pose: pose || 'stand', facing: '3q_right', x: 150 + i * 170, y: 1000, scale: 120, T: t + i * 0.1, light: 'window', rimDir: -0.5 }, extra));
+  } });
+  mk('dev_anime_body_perfN', {});
+  mk('dev_anime_body_perfB', { bodyNeck: true });
+  mk('dev_anime_body_perfR', { light: 'day' });
+  mk('dev_anime_body_perfP', { partRim: true });
+  mk('dev_anime_body_perfX', { rimA: 0, head: { rim: 0 } });
+  mk('dev_anime_body_perfH', { rimA: 0 });
+})();
