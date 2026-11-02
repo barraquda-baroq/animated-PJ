@@ -30,18 +30,22 @@
     const P = Object.assign({}, PV.postDefaults, (PV.timeline && PV.timeline.post) || {}, S.post || {});
     ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
 
-    // ---- bloom: threshold-ish small copy, blurred, screened back
+    // ---- bloom: threshold + all blurs at low res, accumulate glow layers at low res, ONE full-res screen pass
     if (P.bloom > 0) {
       const sm = PV.buffer('bloomSmall', 480, 270);
+      sm.ctx.imageSmoothingQuality = 'low';
       sm.ctx.filter = 'brightness(0.78) contrast(2.6) saturate(1.15)';
       sm.ctx.drawImage(PV.out.canvas, 0, 0, 480, 270);
-      const sm2 = PV.buffer('bloomSmall2', 480, 270);
-      sm2.ctx.filter = 'blur(7px)'; sm2.ctx.drawImage(sm.canvas, 0, 0);
-      ctx.globalCompositeOperation = 'screen'; ctx.globalAlpha = P.bloom;
-      ctx.drawImage(sm2.canvas, 0, 0, W, H);
-      ctx.globalAlpha = P.bloom * 0.6; ctx.filter = 'blur(18px)'; ctx.drawImage(sm.canvas, 0, 0, W, H); ctx.filter = 'none';
-      // film halation: warm red-orange glow hugging the brightest areas
-      if (P.halation > 0) { ctx.globalAlpha = P.bloom * P.halation; ctx.filter = 'sepia(1) saturate(4) hue-rotate(-28deg) blur(10px)'; ctx.drawImage(sm.canvas, 0, 0, W, H); ctx.filter = 'none'; }
+      sm.ctx.filter = 'none';
+      const acc = PV.buffer('bloomAcc', 480, 270);
+      acc.ctx.clearRect(0, 0, 480, 270);
+      acc.ctx.globalCompositeOperation = 'lighter';
+      acc.ctx.globalAlpha = P.bloom; acc.ctx.filter = 'blur(7px)'; acc.ctx.drawImage(sm.canvas, 0, 0);
+      acc.ctx.globalAlpha = P.bloom * 0.6; acc.ctx.filter = 'blur(20px)'; acc.ctx.drawImage(sm.canvas, 0, 0);
+      if (P.halation > 0) { acc.ctx.globalAlpha = P.bloom * P.halation; acc.ctx.filter = 'sepia(1) saturate(4) hue-rotate(-28deg) blur(10px)'; acc.ctx.drawImage(sm.canvas, 0, 0); }
+      acc.ctx.filter = 'none'; acc.ctx.globalAlpha = 1; acc.ctx.globalCompositeOperation = 'source-over';
+      ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'low';
+      ctx.globalCompositeOperation = 'screen'; ctx.drawImage(acc.canvas, 0, 0, W, H);
       ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
     }
 
