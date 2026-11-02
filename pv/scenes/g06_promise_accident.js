@@ -225,13 +225,71 @@
     ctx.restore();
   }
 
+  /* ======================================================================= the characters (C20 / C22) */
+  // Every character is drawn with PV.anime (anime.js + anime_head.js + anime_body.js): line art, cel paint, anime faces.
+  // The figures act on twos — pose, expression, blinks and the lip-sync all come from the quantised GLOBAL time — while the
+  // camera moves at 24 fps (each frame draws the figures through that frame's camera, so the line art stays crisp).
+  const AN = () => PV.anime;
+  // global seconds of local time t (the lip-sync and the blinks run on the film's clock; a solo preview starts the shot at
+  // 0, so it falls back to the storyboard start)
+  const SB_START = { C20: 63.0, C22: 70.0 };
+  const absT = (S, id, t) => ((S && S.start > 0.01) ? S.start : SB_START[id]) + t;
+  const lerpV = (a, b, k) => a.map((v, i) => lerp(v, b[i], k));
+  // a soft contact shadow on the ground under a figure (the night ground: cool, very soft)
+  function groundShadow(ctx, x, y, rx, ry, a) {
+    ctx.save(); ctx.translate(x, y); ctx.scale(1, ry / rx);
+    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, rx); g.addColorStop(0, `rgba(2,4,10,${a})`); g.addColorStop(0.55, `rgba(2,4,10,${(a * 0.6).toFixed(3)})`); g.addColorStop(1, 'rgba(2,4,10,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, rx, 0, TAU); ctx.fill(); ctx.restore();
+  }
+
   /* ======================================================================= C20 */
-  // 63.0–66.5 (t: 0–3.5). Static wide: she runs in from the left, the heels quickening (63.2–64.7); at 64.75 (t=1.75)
-  // she leaps into his chest and the two shadows become one (M11's climax, 64.8): a warm burst behind them, a streak
-  // across the lens, the camera feels the impact; then it slowly orbits (far right, near left) and pushes in.
-  // The world behind the pair is flattened at zoom 1 into a wide buffer and drawn once through the camera.
-  const C20 = { s: 0.95, gy: 925, boyX: 1250, tHit: 1.75, cam: { cx: 1150, cy: 620 },
+  // 63.0–66.5 (t: 0–3.5). The night park. 先輩 — the navy dress and the ecru cardigan, the chignon half fallen, unfamiliar
+  // heels — runs across the lawn toward us and him, smiling (her face to the camera: she comes from the far left and
+  // curves toward him); the heels quicken (clicks at 63.2 / 63.56 / 63.88 / 64.16 / 64.4 / 64.6 = her heel strikes), she opens
+  // her arms and at 64.75 (t=1.75) leaps into his chest (M11's climax, 64.8): a warm burst behind them, a streak across the
+  // lens, the camera feels the impact. He staggers and holds her, and the momentum of her leap turns them half round so his
+  // face comes to us — surprised, then softening, the lips parting as if to speak (原作3553–3556) — while hers rests on his
+  // shoulder, eyes closed, smiling through tears. Then the camera slowly orbits and pushes in.
+  // He stands in profile facing her (his back view is not used: the library's back of his head reads as a blank face).
+  // Ground: a perspective lawn — horizon y=560, camera at her chest height; units = her head height (23 cm).
+  const C20 = { tHit: 1.75, fLand: -1.45, fEnd: -0.8, camPitch: -0.03, cam: { cx: 1120, cy: 430 },
+    G: { hz: 560, hc: 4.86, f: 2059, cx: 960 },
+    boy: { X: 2.52, Z: 23.56 },
+    path: [[-12.5, 38.0], [-7.8, 33.4], [-4.5, 24.25], [0.66, 23.47]],   // her run (ground X, depth Z), a cubic Bézier
+    steps: [0.2, 0.56, 0.88, 1.16, 1.4, 1.6],                                  // heel clicks (audio/make_sfx_plan.py)
     bay: { hz: 560, wheelX: 330, wheelR: 112, cityX0: -40, cityX1: 1250, bridgeX0: 1290, bridgeX1: 2500, deck: 30, towerH: 215, towers: [1540, 2100], span: 240, scale: 1.045, scaleCx: 960, scaleCy: 560 } };
+  const g20 = (X, Z) => { const G = C20.G, s = G.f / Z; return { x: G.cx + X * s, y: G.hz + G.hc * s, s }; };
+  // run cycles at local time t: the support foot changes (a heel strike) at cycle 0.315 + k/2 (POSES.run), on each click
+  function c20Phase(t) {
+    const S = C20.steps, n = S.length;
+    if (t <= S[0]) return 0.315 + (t - S[0]) * 0.5 / (S[1] - S[0]);
+    for (let k = 1; k < n; k++) if (t <= S[k]) return 0.315 + 0.5 * (k - 1 + (t - S[k - 1]) / (S[k] - S[k - 1]));
+    return 0.315 + 0.5 * (n - 1 + (t - S[n - 1]) / (S[n - 1] - S[n - 2]));
+  }
+  const c20Path = (() => {
+    const P = C20.path, N = 240, pts = [], len = [0];
+    const bz = (u) => { const a = (1 - u) ** 3, b = 3 * (1 - u) ** 2 * u, c = 3 * (1 - u) * u * u, e = u ** 3; return [a * P[0][0] + b * P[1][0] + c * P[2][0] + e * P[3][0], a * P[0][1] + b * P[1][1] + c * P[2][1] + e * P[3][1]]; };
+    for (let i = 0; i <= N; i++) { pts.push(bz(i / N)); if (i) len.push(len[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1])); }
+    return { pts, len, total: len[N] };
+  })();
+  // her ground point, heading and apparent facing (the heading seen from the camera) at local time t: the distance run
+  // grows with the run cycles (a constant stride), so she speeds up with the cadence
+  function c20Her(t) {
+    const tEnd = C20.tHit - 1 / 12, ph0 = c20Phase(0), ph1 = c20Phase(tEnd);
+    const L = c20Path, d = clamp((c20Phase(Math.min(t, tEnd)) - ph0) / (ph1 - ph0)) * L.total;
+    let i = 1; while (i < L.len.length - 1 && L.len[i] < d) i++;
+    const k = clamp((d - L.len[i - 1]) / Math.max(1e-9, L.len[i] - L.len[i - 1]));
+    const X = lerp(L.pts[i - 1][0], L.pts[i][0], k), Z = lerp(L.pts[i - 1][1], L.pts[i][1], k);
+    const heading = Math.atan2(L.pts[i][0] - L.pts[i - 1][0], -(L.pts[i][1] - L.pts[i - 1][1]));
+    return { X, Z, heading, facing: heading - Math.atan2(-X, Z) };
+  }
+  // the pair's anchor: chosen so that his place in the pair (leap_embrace) is exactly where he stood
+  function c20Anchor(f) {
+    const B = AN().__body, VM = B.mm(B.rot(0, C20.camPitch, 0), B.rot(f, 0, 0));
+    const lay = AN().PAIR_POSES.leap_embrace.layout({ progress: 0 }), pb = B.mv(VM, lay.boy.pos);
+    const P = g20(C20.boy.X, C20.boy.Z);
+    return { x: P.x - pb[0] * P.s, y: P.y - pb[1] * P.s, s: P.s };
+  }
   const C20M = 260;   // horizontal margin of the cached ground layer
   function c20Ground() {   // the lawn, the two park lamps and their warm light — painted once
     return PV.cached('g06:c20ground', W + 2 * C20M, H, (c) => {
@@ -254,63 +312,104 @@
       L.bokeh(c, 0, { seed: 2002, count: 5, rmin: 70, rmax: 130, x0: 1500, x1: 2000, y0: 1000, y1: 1160, alpha: 0.22, mode: 'lighter', colors: ['#d0a246', '#c8701c', '#c2456e'] });
     });
   }
-  PV.shot('C20', { draw(ctx, t, d) { const tq0 = q12(clamp(t, 0, d)); onTwos(ctx, 'C20', tq0, () => drawC20(ctx, tq0, d)); } });
-  function drawC20(ctx, t, d) {
-    const tc = t, tq = t;   // on twos: every input below is the quantised time
-    const { s, gy, boyX, tHit } = C20, u = 92 * s;
-    const orb = PV.ease.inOut(clamp((tc - 1.95) / (d - 1.95)));
+  // the water with every light reflected, on twos: painted at half resolution into its own buffer once per drawing
+  function c20Water(tq, B) {
+    const q = 0.5, b = PV.buffer('g06:c20water', Math.ceil((W + 160) * q), Math.ceil(H * q));
+    if (c20Water.k !== tq) {
+      c20Water.k = tq; const c = b.ctx; c.clearRect(0, 0, b.canvas.width, b.canvas.height);
+      c.save(); c.beginPath(); c.rect(0, 552 * q, (W + 160) * q, 192 * q); c.clip();
+      c.setTransform(q, 0, 0, q, 0, 0); c.translate(960, 560); c.scale(1.045, 1.045); c.translate(-960, -560);
+      L.nightWater(c, tq, { horizonY: B.hz + 3, y1: 730, lights: B.lights, seed: 63, glow: 0.55 });
+      c.restore();
+    }
+    return b.canvas;
+  }
+  PV.shot('C20', { draw(ctx, t, d, S) {
+    const tc = clamp(t, 0, d), tq = q12(tc);
+    drawC20(ctx, tc, tq, absT(S, 'C20', tq), d);
+  } });
+  function drawC20(ctx, tc, tq, Tq, d) {
+    const A = AN(), { tHit } = C20;
     const hit = tq >= tHit - 1e-6;
-    // warmth: a burst at the impact (M11's climax), then a held glow
-    const burst = hit ? Math.exp(-Math.pow((tc - (tHit + 0.1)) / 0.34, 2)) : 0, hug = 0.45 * sm(tHit, tHit + 0.6, tc) + 0.55 * burst;
-    const bump = hit ? 0.013 * Math.exp(-(tc - tHit) / 0.16) : 0;            // the impact, felt in the camera
-    const zoom = 1 + 0.012 * sm(0, tHit, tc) + 0.07 * orb + bump, camX = -60 * orb;
-    // ---- the world behind them, each layer with its own parallax, at zoom 1
+    // camera (24 fps): static wide, the impact felt as a small push, then a slow orbit (parallax) and push-in to the faces
+    const orb = PV.ease.inOut(clamp((tc - 1.95) / (d - 1.95)));
+    const bump = tc >= tHit ? 0.014 * Math.exp(-(tc - tHit) / 0.16) : 0;
+    const zoom = 1 + 0.012 * sm(0, tHit, tc) + 0.55 * orb + bump, camX = -200 * orb, camY = 20 * orb;
+    // warmth (on twos, it belongs to the drawing): a burst at the impact (M11's climax), then a held glow
+    const burst = hit ? Math.exp(-Math.pow((tq - (tHit + 0.1)) / 0.34, 2)) : 0, hug = 0.45 * sm(tHit, tHit + 0.6, tq) + 0.55 * burst;
+    // ---- the world behind them at zoom 1, each layer with its own parallax (per frame: smooth)
     const WB = PV.buffer('g06:c20world', W + 160, H), w = WB.ctx;
-    const B = bayStatic('c20bay', C20.bay, 3.2), bx = Math.round(46 * orb);
+    const B = bayStatic('c20bay', C20.bay, 3.2), bx = 46 * orb;
     w.fillStyle = '#070b1f'; w.fillRect(0, 0, W + 160, H);
-    w.save(); w.imageSmoothingEnabled = false; w.drawImage(B.img, bx, 0); w.restore();
-    w.save(); w.translate(bx, 0); w.translate(960, 560); w.scale(1.045, 1.045); w.translate(-960, -560);
-    bayWater(w, tq, B, 730, 'c20', [0, 552, W + 160, 744]);
-    w.restore();
+    w.drawImage(B.img, bx, 0);
+    w.save(); w.imageSmoothingEnabled = true; w.imageSmoothingQuality = 'low'; w.drawImage(c20Water(tq, B), 0, 0, (W + 160) * 0.5, H * 0.5, bx, 0, W + 160, H); w.restore();
     w.save(); w.translate(bx, 0);
-    L.bokeh(w, t, { seed: 2003, count: 34, rmin: 14, rmax: 46, x0: -40, x1: W + 40, y0: 380, y1: 600, alpha: 0.3 + 0.15 * hug, mode: 'lighter', colors: ['#d98a2e', '#e8b25a', '#fff1d6', '#d2607e', '#d98a2e'], vx: 0 });
+    L.bokeh(w, tq, { seed: 2003, count: 34, rmin: 14, rmax: 46, x0: -40, x1: W + 40, y0: 380, y1: 600, alpha: 0.3 + 0.15 * hug, mode: 'lighter', colors: ['#d98a2e', '#e8b25a', '#fff1d6', '#d2607e', '#d98a2e'], vx: 0 });
     w.restore();
     // promenade edge + railing silhouette
-    w.save(); w.translate(Math.round(22 * orb), 0);
+    w.save(); w.translate(22 * orb, 0);
     w.fillStyle = '#0b1020'; w.fillRect(-100, 716, W + 360, 16);
     w.fillStyle = 'rgba(200,170,190,0.25)'; w.fillRect(-100, 716, W + 360, 2);
     w.fillStyle = '#070a14'; w.fillRect(-100, 662, W + 360, 5);
     for (let x = -60; x < W + 280; x += 128) w.fillRect(x, 662, 5, 56);
     w.fillStyle = 'rgba(255,210,150,0.2)'; w.fillRect(-100, 662, W + 360, 1.5);
     w.restore();
-    w.save(); w.imageSmoothingEnabled = false; w.drawImage(c20Ground(), -C20M, 0); w.restore();
+    w.drawImage(c20Ground(), -C20M, 0);
     ctx.save();
-    PV.camera(ctx, { zoom, cx: C20.cam.cx, cy: C20.cam.cy, x: camX });
+    PV.camera(ctx, { zoom, cx: C20.cam.cx, cy: C20.cam.cy, x: camX, y: camY });
     ctx.imageSmoothingQuality = 'low';
     ctx.drawImage(WB.canvas, 0, 0);
     // the light behind the pair swells as she lands in his arms
+    const P0 = c20Anchor(C20.fLand);
     if (hug > 0.004) lightPass(ctx, (c) => {
-      L.glow(c, 1170, 560, 680, '#ffe2b8', 0.34 * hug);
-      if (burst > 0.01) { L.glow(c, 1190, 520, 1150, '#ffd2a0', 0.26 * burst); L.glow(c, 1190, 540, 330, '#fff1d6', 0.45 * burst); }
+      L.glow(c, P0.x, 560, 680, '#ffe2b8', 0.34 * hug);
+      if (burst > 0.01) { L.glow(c, P0.x + 20, 520, 1150, '#ffd2a0', 0.26 * burst); L.glow(c, P0.x + 20, 470, 330, '#fff1d6', 0.45 * burst); }
     }, 'c20warm', [0, 0, W, H]);
-    ctx.save(); ctx.fillStyle = 'rgba(2,4,10,0.55)';
-    ctx.beginPath(); ctx.ellipse(hit ? boyX - 0.64 * u : boyX, gy + 6, 74, 11, 0, 0, TAU); ctx.fill(); ctx.restore();
-    const fig = { scale: s, light: -0.4, rimColor: '#ffdcae', backlight: 0.17 + 0.16 * hug, glow: 0.5 + 0.3 * burst };
+    const Tf = Tq;                      // the figures' clock: quantised global seconds (on twos)
+    const common = { T: Tf, light: 'night', rimDir: -1.0, camPitch: C20.camPitch };
+    const boyP = g20(C20.boy.X, C20.boy.Z);
+    let heads = null;
     if (!hit) {
-      // she runs in from the left: cycles accelerate (heels quicken), ground speed matched to the stride (~6u per cycle);
-      // he has turned to her, a step forward, his arm opening as she comes (the night wind in his shirt)
-      const cyc = (x) => 1.2 * x + 0.13 * x * x, tEnd = tHit - 1 / 12;
-      const gx = (boyX - 2.6 * u) - 6.0 * u * (cyc(tEnd) - cyc(Math.min(tq, tEnd)));
-      L.boyReaching(ctx, tq, Object.assign({}, fig, { x: boyX, y: gy, flip: true, reach: 0.04 + 0.76 * sm(0.55, 1.6, tq), wind: 0.6, outfit: 'shirt' }));
-      ctx.save(); ctx.fillStyle = 'rgba(2,4,10,0.5)'; ctx.beginPath(); ctx.ellipse(gx, gy + 6, 55, 9, 0, 0, TAU); ctx.fill(); ctx.restore();
-      L.girlRunning(ctx, tq, Object.assign({}, fig, { x: gx, y: gy, speed: 0, phase: cyc(tq) + 0.15, wind: 1.25, outfit: 'dress' }));
+      // ---- the run. He waits in profile facing her (surprised); on her last strides his arms open to catch her
+      // (body space: +x his left, y down, z forward)
+      const k = sm(1.2, 1.62, tq), kk = sm(0.25, 0.7, tq);
+      groundShadow(ctx, boyP.x - 6, boyP.y + 4, 0.95 * boyP.s, 0.16 * boyP.s, 0.55);
+      A.figure(ctx, Object.assign({}, common, { who: 'boy', outfit: 'uniform', costume: { shoes: 'loafer_dark' }, pose: 'hug', facing: C20.fLand,
+        x: boyP.x, y: boyP.y, scale: boyP.s * 1.06,
+        params: { headSide: 0, nod: lerp(0.12, 0.02, kk), lean: -0.04 * k, leanBack: 0.15 * k, dip: 0,
+          WL: lerpV([0.8, -3.55, 0.2], [0.95, -4.5, 0.5], k), WR: lerpV([-0.8, -3.55, 0.2], [-0.95, -4.5, 0.5], k),
+          poleL: [1, 0.2, -0.6], poleR: [-1, 0.2, -0.6],
+          handL: { f: lerpV([-0.1, 1, 0.16], [0.45, -0.25, 0.8], k), palm: lerpV([-1, 0, -0.3], [-0.4, -0.2, 0.9], k), curl: 0.3 - 0.1 * k, spread: 0.1 + 0.25 * k },
+          handR: { f: lerpV([0.1, 1, 0.16], [-0.45, -0.25, 0.8], k), palm: lerpV([1, 0, -0.3], [0.4, -0.2, 0.9], k), curl: 0.3 - 0.1 * k, spread: 0.1 + 0.25 * k } },
+        head: kk > 0.5 ? { expr: 'surprise', eyes: { look: [-0.2, -0.05] } } : { expr: 'neutral', eyes: { look: [-0.3, -0.1] } } }));
+      // ---- her: the run (on twos): a bounce on every stride (the flight between the heel strikes), the arms open for the
+      // leap on the last stride; a wide happy smile that reads at a distance
+      const R = c20Her(tq), P = g20(R.X, R.Z), ph = c20Phase(tq);
+      const fl = ((ph - 0.315) * 2 % 1 + 1) % 1, bob = 0.16 * Math.pow(Math.sin(PI * fl), 1.3) * P.s;
+      groundShadow(ctx, P.x, P.y + 2, 0.8 * P.s, 0.14 * P.s, 0.5 - 0.15 * bob / P.s / 0.16);
+      A.figure(ctx, Object.assign({}, common, { who: 'senpai', outfit: 'dress_cardigan', pose: 'run', facing: R.facing, x: P.x, y: P.y - bob, scale: P.s,
+        params: { speed: 0, phase: ph, stride: 0.95, arms: tq >= 1.5 ? 'open' : undefined },
+        head: { expr: 'smile', eyes: { open: 1.02, smile: 0.3 }, mouth: { shape: 'smile', open: 0.5 }, blush: 0.45 } }));
     } else {
-      L.embrace(ctx, tq, Object.assign({}, fig, { x: boyX - 0.64 * u, y: gy, progress: clamp((tq - tHit) / 1.6), outfit: 'dress', boyOutfit: 'shirt', wind: 0.3 }));
+      // ---- the leap: she lands in his arms (legs kicked up, he leans back), the twirl brings his face round
+      const u = tq - tHit, prog = sm(0, 1.15, u), tw = PV.ease.outCubic(clamp(u / 1.25));
+      const f = lerp(C20.fLand, C20.fEnd, tw), Pa = c20Anchor(f);
+      const soft = sm(0.45, 0.85, u);                           // his surprise melts
+      const lips = Math.max(0, Math.sin(clamp((u - 0.9) / 0.85) * PI * 2)) * 0.22;   // the lips part twice (words that never come)
+      groundShadow(ctx, Pa.x, Pa.y + 4, 1.15 * Pa.s, 0.2 * Pa.s, 0.6);
+      const r = A.pair(ctx, Object.assign({}, common, { pose: 'leap_embrace', x: Pa.x, y: Pa.y, scale: Pa.s, facing: f,
+        wind: 0.25 + 0.9 * Math.exp(-u / 0.35), windDir: 0.25,
+        params: { progress: prog },
+        senpai: { outfit: 'dress_cardigan', head: { expr: 'closed', eyes: { tears: 0.62 }, blush: 0.5 } },
+        boy: { outfit: 'uniform', costume: { shoes: 'loafer_dark' }, params: { headYaw: lerp(0.05, -0.35, tw) },
+          head: soft < 0.5 ? { expr: 'surprise' } : { expr: 'gentle', eyes: { open: 0.82, look: [0.35, 0.55] }, mouth: { shape: 'e', open: lips }, blush: 0.32 } } }));
+      heads = r;
     }
     ctx.restore();
-    // the impact: a soft warm streak across the lens through the two of them (at her head on his chest)
+    // the impact: a soft warm streak across the lens through the two of them (at her head on his shoulder)
     if (burst > 0.02) {
-      const X = (1190 - C20.cam.cx) * zoom + C20.cam.cx + camX, Y = (430 - C20.cam.cy) * zoom + C20.cam.cy;
+      const hx = heads && heads.senpai.head ? heads.senpai.head.neck[0] : P0.x, hy = heads && heads.senpai.head ? heads.senpai.head.neck[1] - 30 : 400;
+      const X = (hx - C20.cam.cx) * zoom + C20.cam.cx + camX, Y = (hy - C20.cam.cy) * zoom + C20.cam.cy + camY;
       lightPass(ctx, (c) => {
         for (const [hh, a, col] of [[120, 0.22, '255,200,140'], [26, 0.6, '255,236,206']]) {
           const g = c.createLinearGradient(X - 1200, 0, X + 1200, 0); g.addColorStop(0, `rgba(${col},0)`); g.addColorStop(0.5, `rgba(${col},${(a * burst).toFixed(3)})`); g.addColorStop(1, `rgba(${col},0)`);
@@ -320,9 +419,8 @@
       }, 'c20streak', [0, Math.max(0, Math.floor(Y - 160)), W, Math.min(H, Math.ceil(Y + 160))]);
     }
     // near: out-of-focus grass and light (slides left during the orbit)
-    ctx.save(); ctx.imageSmoothingEnabled = false; ctx.drawImage(c20Near(), Math.round(-110 * orb) - 160, 0); ctx.restore();
+    ctx.drawImage(c20Near(), -110 * orb - 160, 0);
   }
-
   /* ======================================================================= C21 */
   // her right hand (front, back of the hand toward us) and his left hand (behind, palm toward us).
   // A re-built handsInterlock with a progress k: 0 = the hands meet side by side (his hand to the little-finger side,

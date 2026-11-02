@@ -817,48 +817,15 @@
     },
   });
 
-  /* ------------------------------------------------------------ silhouette helpers (same shapes as figures.js) */
-  function spline(c, pts, closed) {
-    const n = pts.length; if (n < 2) return;
-    const P = (i) => (closed ? pts[((i % n) + n) % n] : pts[Math.max(0, Math.min(n - 1, i))]);
-    c.moveTo(pts[0][0], pts[0][1]);
-    const m = closed ? n : n - 1;
-    for (let i = 0; i < m; i++) {
-      const p0 = P(i - 1), p1 = P(i), p2 = P(i + 1), p3 = P(i + 2);
-      const s1 = p1[2] ? 0 : 1 / 6, s2 = p2[2] ? 0 : 1 / 6;
-      c.bezierCurveTo(p1[0] + (p2[0] - p0[0]) * s1, p1[1] + (p2[1] - p0[1]) * s1, p2[0] - (p3[0] - p1[0]) * s2, p2[1] - (p3[1] - p1[1]) * s2, p2[0], p2[1]);
-    }
-    if (closed) c.closePath();
-  }
-  const blob = (c, pts) => { c.beginPath(); spline(c, pts, true); c.fill(); };
-  // the boy's profile head (facing +x, head centre origin, no lips) and his hair in profile (bangs over the eyes)
-  const HEAD_BOY = [[-0.04, -0.54], [0.22, -0.49], [0.37, -0.32], [0.41, -0.1], [0.405, -0.02], [0.475, 0.13, 1], [0.41, 0.19], [0.405, 0.27], [0.375, 0.34], [0.37, 0.42], [0.3, 0.47], [0.1, 0.45], [-0.06, 0.33], [-0.3, 0.2], [-0.45, -0.05], [-0.4, -0.33]];
-  // his hair in profile for the bowed, backlit close-up: messier and longer than the library's (the silhouette is all
-  // there is to read): layered locks with pointed tips at the back and nape, bangs hanging over the eyes, a cowlick.
-  // Every tip hangs toward the world's down (the head is bowed by ht) and sways a little (sob).
-  function boyHairMessy(c, t, ht, sob) {
-    const gx = Math.sin(ht), gy = Math.cos(ht);          // world-down in head-local coordinates
-    const tp = (i, x, y, hang, sway) => { const n = N2(i * 2.3 + 5, t * 1.3), k = hang || 0; return [x + gx * k + (sway || 0.008) * n + (sob || 0) * 0.02 * k, y + gy * k + 0.004 * n, 1]; };
-    blob(c, [
-      [0.2, -0.62], [0.36, -0.53], [0.47, -0.36], [0.5, -0.2],
-      tp(0, 0.47, -0.05, 0.03), [0.43, -0.08], tp(1, 0.445, 0.04, 0.03), [0.39, -0.03],                // bangs over the brow (inside the face line: no stray rim)
-      [0.3, -0.1], [0.19, -0.08], tp(2, 0.16, 0.17, 0.06), [0.09, 0.05], tp(3, 0.05, 0.25, 0.04),      // lock before the ear, sideburn
-      [-0.06, 0.12], [-0.14, 0.2], tp(4, -0.17, 0.43, 0.08), [-0.27, 0.33], tp(5, -0.37, 0.49, 0.1),   // nape
-      [-0.45, 0.33], [-0.57, 0.17], tp(8, -0.66, 0.02, 0.05, 0.01), [-0.63, -0.1], [-0.665, -0.26], tp(6, -0.7, -0.43, 0.02, 0.012),   // back of the head: two soft locks
-      [-0.58, -0.52], [-0.45, -0.63], tp(7, -0.41, -0.79, 0.0, 0.016), [-0.29, -0.7], [-0.1, -0.725], [0.06, -0.69],   // crown + cowlick
-    ]);
-  }
-  function seg(c, p0, p1, r0, r1) {
-    const dx = p1[0] - p0[0], dy = p1[1] - p0[1], l = Math.hypot(dx, dy) || 1e-6, nx = -dy / l, ny = dx / l, ang = Math.atan2(dy, dx);
-    c.beginPath(); c.moveTo(p0[0] + nx * r0, p0[1] + ny * r0); c.lineTo(p1[0] + nx * r1, p1[1] + ny * r1);
-    c.arc(p1[0], p1[1], r1, ang + Math.PI / 2, ang - Math.PI / 2, true); c.lineTo(p0[0] - nx * r0, p0[1] - ny * r0);
-    c.arc(p0[0], p0[1], r0, ang - Math.PI / 2, ang + Math.PI / 2, true); c.closePath(); c.fill();
-  }
-
   /* ============================================================ C39 夜の部屋（彼の横顔） */
-  // His bowed profile against the window and the streetlight behind it; one thread of light runs down his cheek
-  // while he speaks (V17 0.3–6.9).  6.0: deep in the bokeh, her shoulders give way and her left hand covers her face.
-  const C39 = { head: [770, 420], scale: 3.25 };
+  // A close-up of his bowed profile (PV.anime, 彼, the silent days: a plain black long-sleeved T) against the window and
+  // the streetlight behind it.  He says V17 (154.3–160.4) through tears: his lips follow the real take (head.talk), they
+  // tremble where his voice breaks (the two "……"), the tears well, run down his cheek, and a drop falls from his jaw (≈158.8).
+  // Light: a dark room; her desk lamp across the table (right) draws a warm line along his profile (the library's rim), the
+  // streetlight behind him (upper left) a cool line along his hair, nape and shoulder (a second rim from the cel's silhouette).
+  // 160.0: deep in the bokeh her shoulders give way and her left hand comes up over her face (PV.anime, 先輩, the grey knit).
+  // The figures are cels on twos (held layers keyed by the drawing time); the camera, the light and the drop run at 24 fps.
+  const C39 = { T0: 154.0 };            // the cut's start on the film's clock: lip-sync and blinks need global seconds (--solo shifts env.T)
   // background: window (night, streetlight), sheer curtain, the lamp behind her — painted once, lens-blurred
   const C39LAMP = { x: 1722, y: 612 };          // shade centre of her desk lamp (it stands on the table, base at y 792)
   const c39bg = () => PV.cached('g10:C39:bg4', W + 120, H + 80, (c) => {
@@ -905,36 +872,89 @@
     L.godRays(c, 0, { x: 560, y: 230, angle: 0.55, spread: 0.5, count: 6, length: 1500, width: 120, flare: 3.2, color: '#cfe0ff', alpha: 0.055, seed: 39, flicker: 0 });
     c.restore();
   });
-
-  // his bowed profile bust (figure units; origin = base of the neck)
-  function boyBust(F, tq, o) {
-    const lean = o.lean, ht = o.ht, nl = lean + 0.32;
-    const N = [0, 0], nt = [Math.sin(nl) * 0.74 * 0.46, -Math.cos(nl) * 0.74 * 0.46];
-    const head = [nt[0] + Math.sin(ht) * 0.37 + Math.cos(ht) * 0.03, nt[1] - Math.cos(ht) * 0.37 + Math.sin(ht) * 0.03];
-    const sh = o.breath * 0.035;
-    F.layer({}, (c) => {
-      // back, shoulder and chest of a worn jacket (hunched), the collar standing behind the neck, the neck
-      blob(c, [[-0.14, -0.02 - sh], [-0.42, 0.12 - sh], [-0.64, 0.5 - sh], [-0.74, 1.05], [-0.78, 1.9], [-0.76, 2.8], [0.62, 2.8], [0.6, 1.8], [0.52, 1.1], [0.42, 0.62 - sh], [0.3, 0.26 - sh], [0.17, 0.02 - sh]]);
-      blob(c, [[-0.3, -0.06 - sh], [-0.16, -0.28 - sh], [0.0, -0.24 - sh], [0.06, 0.08 - sh], [-0.24, 0.12 - sh]]);
-      seg(c, [N[0], N[1] - sh], nt, 0.2, 0.18);
-    });
-    F.layer({ inner: 0.5 }, (c) => {
-      c.save(); c.translate(head[0], head[1]); c.rotate(ht); c.scale(1.06, 1.06);
-      blob(c, HEAD_BOY); boyHairMessy(c, tq, ht, o.sob || 0);
-      c.restore();
-    });
-    // a faint warm wash on the face side from the lamp (inside the silhouette only)
-    F.raw((c) => {
-      c.save(); c.globalCompositeOperation = 'source-atop';
-      const g = c.createLinearGradient(head[0] + 0.15, 0, head[0] + 0.55, 0); g.addColorStop(0, 'rgba(232,184,120,0)'); g.addColorStop(1, 'rgba(232,184,120,0.16)');
-      c.fillStyle = g; c.fillRect(head[0] - 0.2, head[1] - 0.8, 1.2, 1.8); c.restore();
-    });
-    return { head, ht };
+  // his voice breaks (the two "……" of V17, local seconds) and the sobs that catch his breath
+  const c39brk = (u) => Math.max(PV.window(u, 0.78, 0.95, 1.42, 1.6), PV.window(u, 4.42, 4.6, 5.28, 5.45));
+  const c39hitch = (u) => Math.exp(-Math.pow((u - 1.35) / 0.18, 2)) + 1.4 * Math.exp(-Math.pow((u - 4.85) / 0.22, 2));
+  // his acting at local time u (on twos): bowed, eyes down, the tears from welling to streaming; at the breaks the eyes
+  // squeeze and the lips quiver; "決まってるだろ" he forces out with the eyes a little more open; after it he sinks lower
+  function c39boyArgs(u) {
+    const brk = c39brk(u), hitch = c39hitch(u);
+    const firm = PV.window(u, 5.32, 5.5, 6.05, 6.35), sink = smooth(5.9, 6.9, u);
+    const L = C39.light;
+    return {
+      who: 'boy', outfit: 'year2', costume: { top: 'tee_black' }, pose: 'stand', facing: Math.PI / 2, camPitch: 0.15,
+      x: C39.boyX, y: C39.boyY - 5 * hitch, scale: C39.boyS, T: C39.T0 + u, light: 'lamp', rimDir: 0.15, keyDir: L.key,
+      params: { weight: 0.15, bow: 0.3, nod: 0.6 + 0.06 * hitch - 0.1 * firm + 0.08 * sink },
+      head: { yaw: C39.yaw, expr: 'cry', talk: true, lightDir: L.key, shade: L.shade, rim: 1.1, faceLift: L.lift,
+        eyes: { open: lerp(0.55, 0.32, brk) + 0.1 * firm - 0.15 * sink, squeeze: 0.3 + 0.45 * brk, sad: 0.65, tears: 0.45 + 0.47 * smooth(0.5, 4.3, u), look: [0.3, 0.6] },
+        brows: { inner: 0.7 + 0.3 * brk, outer: -0.3, furrow: 0.55 + 0.3 * brk - 0.1 * firm },
+        mouth: { shape: 'frown', open: 0, tremble: 0.25 + 0.6 * brk }, blush: 0.4 },
+    };
+  }
+  C39.boyX = 526; C39.boyY = 2966; C39.boyS = 400;
+  C39.light = { key: -2.55, shade: 0.5, lift: 0.32 };
+  C39.yaw = 0.8;
+  // a second, cool rim from the streetlight: the band of the layer's own silhouette on the light side (union minus the union
+  // shifted away from the light), tinted, laid inside the figure (source-atop).  box = the region the cel covers.
+  function silRim(c, box, dir, w, col, alpha, key, fall) {
+    const B = PV.buffer('g10:silrim:' + key), b = B.ctx, dx = Math.cos(dir) * w, dy = Math.sin(dir) * w;
+    b.save(); b.setTransform(1, 0, 0, 1, 0, 0); b.beginPath(); b.rect(box.x, box.y, box.w, box.h); b.clip();
+    b.globalCompositeOperation = 'copy'; b.drawImage(c.canvas, 0, 0);
+    b.globalCompositeOperation = 'destination-out'; b.drawImage(c.canvas, -dx, -dy);
+    b.globalCompositeOperation = 'source-in'; b.fillStyle = col; b.fillRect(box.x, box.y, box.w, box.h);
+    if (fall) {   // the light falls off away from its source (fall = {x, y, r0, r1, min})
+      const g = b.createRadialGradient(fall.x, fall.y, fall.r0, fall.x, fall.y, fall.r1); g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(1, `rgba(0,0,0,${fall.min})`);
+      b.globalCompositeOperation = 'destination-in'; b.fillStyle = g; b.fillRect(box.x, box.y, box.w, box.h);
+    }
+    b.restore();
+    c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.globalCompositeOperation = 'source-atop'; c.globalAlpha = alpha;
+    c.drawImage(B.canvas, box.x, box.y, box.w, box.h, box.x, box.y, box.w, box.h); c.restore();
   }
 
+  // light inside his cel: the darkness of the room takes the body below the face (the lamp and the window reach the head),
+  // and her lamp's warm bounce creeps onto the front of his face — a soft fill so the face reads in the window's shade
+  function c39boyLight(c, box, hd) {
+    const e = hd.eyeL, ch = hd.chin, n = hd.nose, fx = (e[0] + ch[0]) / 2, fy = (e[1] + ch[1]) / 2;
+    c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.globalCompositeOperation = 'source-atop';
+    let g = c.createRadialGradient(fx, fy, 170, fx, fy, 760); g.addColorStop(0, 'rgba(9,10,17,0)'); g.addColorStop(1, 'rgba(9,10,17,0.62)');
+    c.fillStyle = g; c.fillRect(box.x, box.y, box.w, box.h);
+    const bx = n[0] + 40, by = n[1] - 10;
+    g = c.createRadialGradient(bx, by, 0, bx, by, 230); g.addColorStop(0, 'rgba(255,206,150,0.2)'); g.addColorStop(0.55, 'rgba(255,206,150,0.08)'); g.addColorStop(1, 'rgba(255,206,150,0)');
+    c.fillStyle = g; c.fillRect(bx - 230, by - 230, 460, 460);
+    c.restore();
+  }
+  // where his tear stream ends on the jaw (the library draws the stream; the drop that falls from it is drawn here)
+  const c39tearEnd = (hd) => [hd.chin[0] + 0.12 * (hd.eyeL[0] - hd.chin[0]) + 0.15 * (hd.mouth[0] - hd.chin[0]), hd.chin[1] + 0.12 * (hd.eyeL[1] - hd.chin[1]) + 0.15 * (hd.mouth[1] - hd.chin[1])];
+
+  // her, across the table, seated, facing him (a 3/4 toward the camera's left), lit from behind by her lamp.  u = local time
+  // on twos.  From 5.1 she holds it in (lips pressed, shoulders trembling); at 6.0 she gives way: she folds forward and her
+  // left hand comes up over her face; then she sobs.
+  function c39herArgs(u) {
+    const brk = ease.outCubic(smooth(6.0, 6.45, u)), hold = smooth(5.1, 5.7, u) * (1 - smooth(6.0, 6.2, u));
+    const sob = smooth(6.3, 6.6, u) * 0.5 * (1 + Math.sin(u * 13.5)) + hold * 0.5 * (1 + Math.sin(u * 21.0));
+    const hu = ease.inOutCubic(smooth(6.02, 6.48, u));                       // the hand rises to her face
+    const slump = 0.2 * brk + 0.02 * sob;
+    // the wrist: on the table edge in front of her (gripping her right wrist, as in C37/C38) -> just below her eyes (the 'cover'
+    // arm of the library: the wrist under the eye, the hand up over the brow); her eye comes forward and down as she folds
+    const W0 = [0.02, -0.34, 0.72], W1 = [0.05, -2.64 + 1.0 * slump, 0.035 + 1.9 * slump];
+    const WL = [lerp(W0[0], W1[0], hu), lerp(W0[1], W1[1], hu) - 0.2 * Math.sin(Math.PI * hu), lerp(W0[2], W1[2], hu) + 0.3 * Math.sin(Math.PI * hu)];
+    const handL = hu < 0.5 ? { f: [-0.3, 0.2, 1], palm: [0, 1, 0], curl: 0.45 } : { f: [-0.5, -1, 0.1], palm: [0, 0, -1], curl: 0.25, spread: 0.2 };
+    return {
+      who: 'senpai', outfit: 'home', pose: 'sit_ground', facing: -0.72, camPitch: 0.04,
+      x: C39.herX, y: C39.herY + 3 * sob, scale: C39.herS, T: C39.T0 + u, light: 'lamp', rimDir: 0.55, keyDir: 0.55,
+      params: { sofa: true, knees: 'down', arms: 'lap', slump, nod: 0.1 + 0.25 * brk, tilt: 0.06 - 0.1 * brk, look: -0.25 * (1 - brk),
+        armL: { W: WL, pole: [1, 0.6, -0.2], hand: handL } },
+      head: { expr: brk > 0.3 ? 'cry' : 'teary', undereye: 0.3, lightDir: 0.6, shade: 0.5, faceLift: 0.5, rim: 1.0,
+        eyes: brk > 0.3 ? { tears: 1 } : { tears: 0.55 + 0.2 * hold, open: 0.9 - 0.3 * hold, look: [-0.5, 0.1] },
+        mouth: brk > 0.3 ? { shape: 'frown', open: 0.6 } : { shape: 'frown', open: 0.08 * (1 - hold), tremble: hold },
+        brows: { inner: 0.7 + 0.3 * Math.max(hold, brk), outer: -0.25, furrow: 0.3 + 0.5 * Math.max(hold, brk) } },
+    };
+  }
+  C39.herX = 1470; C39.herY = 900; C39.herS = 120;
+
   PV.shot('C39', {
-    draw(ctx, t, d) {
-      const tc = clamp(t, 0, d), tq = q12(tc), Hc = C39.head;
+    draw(ctx, t, d, S) {
+      const tc = clamp(t, 0, d), tq = q12(tc);
       const push = ease.sine(tc / d);
       // ---- background (window, streetlight, her lamp), slower than the foreground (parallax)
       ctx.save();
@@ -947,112 +967,48 @@
       // motes in the window light
       L.dust(ctx, t, { seed: 391, count: 50, x0: 380, y0: 120, x1: 1500, y1: 900, size: 2.0, alpha: 0.3, color: '#dfe9ff', drift: 50, vx: 4, vy: -2 });
 
-      // ---- her, deep in the bokeh: seated across the table facing him, rim-lit by her lamp.  From 5.1 her shoulders
-      // tremble (holding it in); 6.0 they give way, she folds forward and her left hand comes up over her face.
-      const tqH = tq < 5.05 ? 0 : tq;
-      const brk = ease.outCubic(smooth(6.0, 6.45, tqH)), hold = smooth(5.1, 5.7, tqH) * (1 - smooth(6.0, 6.2, tqH));
-      const sob = smooth(6.3, 6.6, tqH) * 0.016 * Math.sin(tqH * 13.5) + hold * 0.009 * Math.sin(tqH * 21.0);
-      // her cel: still until she starts to hold it in (5.1), then on twos
-      const HER = held('C39her', tq < 5.05 ? 'still' : tq, (c) => { lowResBlur(c, 'C39her', 0.5, 7, (c) => {
-        // figure units (1u = 138px), origin = head centre at rest; the table top (y 790) hides everything below her chest
-        const hu = ease.outCubic(smooth(6.05, 6.5, tqH));                    // the hand rises to her face
-        const lean = 0.24 * brk + sob * 2.2, sink = 0.16 * brk + sob * 0.6;  // she folds forward, shoulders sink
-        const drop = [0.26 * brk, 0.36 * brk];                               // the head falls forward into the hand
-        L.figureRender(c, { x: 1470, y: 452, scale: 1.5, flip: true, style: 'silhouette', light: 0.12, rimColor: '#ffd49a', backlight: 0.75, glow: 0.6, rimWidth: 1.6, fill: '#0b0a0c' }, null, (F) => {
-          const hip = [0.0, 2.95], rot = (p, a, o) => { const dx = p[0] - o[0], dy = p[1] - o[1], ca = Math.cos(a), sa = Math.sin(a); return [o[0] + dx * ca - dy * sa, o[1] + dx * sa + dy * ca]; };
-          const T = (p) => { const q = rot(p, lean, hip); return [q[0], q[1] + sink * smooth(2.9, 0.4, p[1])]; };   // torso lean about the hips + sinking shoulders
-          const head = T([drop[0], drop[1] * 0.6]), neck = T([0.02, 0.62]);
-          F.layer({}, (cc) => {
-            // long hair down her back (behind the body), a few strands swinging forward as she folds
-            blob(cc, [T([0.1, -0.64]), T([-0.34, -0.6]), T([-0.58, -0.28]), T([-0.62, 0.3]), T([-0.6, 1.1]), T([-0.64, 1.9]), T([-0.5, 2.3]), T([-0.3, 2.35]), T([-0.24, 1.7]), T([-0.18, 0.9]), T([-0.02, 0.4])]);
-            // shoulders and torso (rounded back when she breaks)
-            blob(cc, [T([-0.12, 0.62]), T([-0.5 - 0.06 * brk, 0.92]), T([-0.58 - 0.08 * brk, 1.5]), T([-0.5, 2.6]), [-0.45, 3.2], [0.55, 3.2], T([0.52, 2.3]), T([0.44, 1.4]), T([0.38, 0.98]), T([0.16, 0.7])]);
-            seg(cc, neck, head, 0.13, 0.12);
-            // head (profile) + fringe, and the side hair falling forward past her cheek as the head bows
-            cc.save(); cc.translate(head[0], head[1]); cc.rotate(lean + 0.18 + 0.32 * brk);
-            blob(cc, [[-0.04, -0.53], [0.22, -0.47], [0.36, -0.3], [0.395, -0.1], [0.385, -0.01], [0.465, 0.125, 1], [0.39, 0.175], [0.4, 0.23], [0.35, 0.36], [0.29, 0.44], [0.1, 0.42], [-0.04, 0.3], [-0.28, 0.2], [-0.44, -0.05], [-0.38, -0.33]]);
-            blob(cc, [[0.33, -0.4], [0.2, -0.56], [-0.05, -0.62], [-0.32, -0.55], [-0.5, -0.33], [-0.55, -0.05], [-0.4, 0.3], [-0.2, 0.15], [0.12, -0.12], [0.42, -0.05], [0.44, -0.25]]);
-            if (brk > 0.02) blob(cc, [[0.0, -0.3], [0.12, 0.1 + 0.4 * brk, 1], [0.04, 0.16], [-0.1, 0.62 * brk + 0.1, 1], [-0.16, -0.1]]);
-            cc.restore();
-            // the near (left) arm: elbow on the table, the forearm toward him; it rises and the hand covers her face
-            const sh = T([0.04, 1.02]), el = [0.62 - 0.26 * hu, 2.46 - 0.24 * hu];
-            const wr0 = [1.5, 2.48], wr1 = [head[0] + 0.2, head[1] + 0.3];
-            const wr = [lerp(wr0[0], wr1[0], hu), lerp(wr0[1], wr1[1], hu) - 0.12 * Math.sin(Math.PI * hu)];
-            seg(cc, sh, el, 0.16, 0.13); seg(cc, el, wr, 0.13, 0.095);
-            if (hu > 0.02) { cc.beginPath(); cc.moveTo(sh[0], sh[1]); cc.lineTo(el[0], el[1]); cc.lineTo(wr[0], wr[1]); cc.lineTo(head[0] + 0.1, head[1] + 0.5); cc.closePath(); cc.fill(); }   // the chest behind the raised arm
-            const ha = Math.atan2(wr[1] - el[1], wr[0] - el[0]);
-            cc.save(); cc.translate(wr[0], wr[1]); cc.rotate(ha - 0.5 * hu);
-            // the hand: fingers together on the table, spread over the brow and eyes at the face
-            const sp = 0.06 * hu;
-            blob(cc, [[0, -0.11], [0.14, -0.14 - sp], [0.36, -0.12 - 1.4 * sp, 1], [0.3, -0.05 - 0.5 * sp], [0.42, -0.01, 1], [0.32, 0.05 + 0.4 * sp], [0.38, 0.11 + 1.2 * sp, 1], [0.16, 0.13 + sp], [0, 0.11]]);
-            cc.restore();
-          });
+      // ---- her, deep in the bokeh: still until she starts to hold it in (5.1), then on twos
+      const HER = held('C39her', tq < 5.05 ? 'still' : tq, (c) => {
+        lowResBlur(c, 'C39her', 0.5, 4, (cc) => {
+          PV.anime.figure(cc, c39herArgs(tq < 5.05 ? 0 : tq));
+          // the table top in front of her (it hides her below the chest), the lamp's pool on it, the lamp's foot
+          cc.fillStyle = PV.linGrad(cc, 0, 790, 0, H + 40, [[0, '#231d17'], [1, '#100d0b']]); cc.fillRect(1156, 789, W, 400);
+          cc.fillStyle = 'rgba(232,184,120,0.22)'; cc.fillRect(1156, 787, W, 3);
+          { const g = cc.createRadialGradient(C39LAMP.x, 800, 10, C39LAMP.x, 800, 420); g.addColorStop(0, 'rgba(255,214,150,0.32)'); g.addColorStop(1, 'rgba(255,214,150,0)');
+            cc.save(); cc.beginPath(); cc.rect(1156, 789, W, 400); cc.clip(); cc.translate(0, 800); cc.scale(1, 0.25); cc.translate(0, -800); cc.fillStyle = g; cc.fillRect(1156, 380, W, 840); cc.restore(); }
+          cc.fillStyle = '#2a211a'; cc.beginPath(); cc.ellipse(C39LAMP.x, 792, 46, 8, 0, 0, TAU); cc.fill();
         });
-        // the table top in front of her (it hides her below the chest), the lamp's pool on it, the lamp's foot
-        c.fillStyle = PV.linGrad(c, 0, 790, 0, H + 40, [[0, '#231d17'], [1, '#100d0b']]); c.fillRect(1156, 789, W, 400);
-        c.fillStyle = 'rgba(232,184,120,0.22)'; c.fillRect(1156, 787, W, 3);
-        { const g = c.createRadialGradient(C39LAMP.x, 800, 10, C39LAMP.x, 800, 420); g.addColorStop(0, 'rgba(255,214,150,0.32)'); g.addColorStop(1, 'rgba(255,214,150,0)');
-          c.save(); c.beginPath(); c.rect(1156, 789, W, 400); c.clip(); c.translate(0, 800); c.scale(1, 0.25); c.translate(0, -800); c.fillStyle = g; c.fillRect(1156, 380, W, 840); c.restore(); }
-        c.fillStyle = '#2a211a'; c.beginPath(); c.ellipse(C39LAMP.x, 792, 46, 8, 0, 0, TAU); c.fill();
-      }); return { x: 1100, y: 200, w: W - 1100, h: H - 200 }; });
-      ctx.drawImage(HER.canvas, HER.box.x, HER.box.y, HER.box.w, HER.box.h, HER.box.x, HER.box.y, HER.box.w, HER.box.h);
+        return { x: 1100, y: 200, w: W - 1100, h: H - 200 };
+      });
+      layHeld(ctx, HER);
       ctx.restore();
 
-      // ---- him: the bowed profile, backlit by the street; tiny sobs at the breaks in his voice
+      // ---- him: the bowed profile on twos (layout space; the camera is applied when it is laid in)
       ctx.save();
-      PV.camera(ctx, { zoom: 1 + 0.032 * push, cx: Hc[0], cy: Hc[1] });
-      const t8 = Math.floor(tc * 8 + 1e-6) / 8;                              // his breathing on threes (8 fps)
-      const hitch = Math.exp(-Math.pow((t8 - 1.35) / 0.18, 2)) + Math.exp(-Math.pow((t8 - 4.85) / 0.22, 2)) * 1.4;
-      const breath = 0.5 + 0.5 * Math.sin(t8 * 3.1 + 0.4) + 0.4 * hitch;
-      const ht = 0.5 + 0.035 * Math.sin(t8 * 1.7) + 0.05 * hitch + 0.04 * smooth(5.6, 6.8, t8);
-      const sc = C39.scale, U = 92 * sc, ox = Hc[0] - 0.42 * U, oy = Hc[1] + 0.7 * U;
-      // his cel on twos (layout space; the camera is applied when it is laid in)
-      const HIM = held('C39him', t8, (c) => {
-        L.figureRender(c, { x: ox, y: oy, scale: sc, style: 'silhouette', light: -2.55, rimColor: '#dbe7ff', backlight: 0.14, glow: 0.6, rimWidth: 1.2, fill: '#07080c' }, null, (F) => {
-          C39.headInfo = boyBust(F, t8, { lean: 0.28, ht, breath });
-        });
-        return { x: 0, y: 0, w: 1360, h: H };
+      PV.camera(ctx, { zoom: 1 + 0.032 * push, cx: 860, cy: 470 });
+      const HIM = held('C39him', tq, (c) => {
+        C39.boyInfo = PV.anime.figure(c, c39boyArgs(tq));
+        const box = { x: 0, y: 0, w: 1400, h: H };
+        c39boyLight(c, box, C39.boyInfo.head);
+        silRim(c, box, -2.3, 4, '#d4e0ff', 0.5, 'C39', { x: 548, y: 250, r0: 200, r1: 900, min: 0.1 });
+        return box;
       });
-      const headInfo = C39.headInfo;
-      ctx.drawImage(HIM.canvas, HIM.box.x, HIM.box.y, HIM.box.w, HIM.box.h, HIM.box.x, HIM.box.y, HIM.box.w, HIM.box.h);
-      // ---- backlit flyaway hairs at the crown, and the phone's faint underlight along the jaw
-      if (headInfo) {
-        const toH = (q) => { const c0 = Math.cos(headInfo.ht), s0 = Math.sin(headInfo.ht), x = q[0] * 1.06, y = q[1] * 1.06; return [ox + U * (headInfo.head[0] + x * c0 - y * s0), oy + U * (headInfo.head[1] + x * s0 + y * c0)]; };
-        ctx.save(); ctx.globalCompositeOperation = 'screen'; ctx.lineCap = 'round';
-        const fly = [[-0.3, -0.66, -0.42, -0.74, -0.52, -0.68], [-0.55, -0.5, -0.66, -0.52, -0.74, -0.42], [-0.1, -0.7, -0.2, -0.79, -0.32, -0.77], [-0.6, -0.18, -0.71, -0.16, -0.78, -0.06],
-          [-0.62, 0.05, -0.72, 0.12, -0.76, 0.22], [-0.45, -0.62, -0.5, -0.76, -0.6, -0.8], [0.02, -0.7, 0.0, -0.8, -0.08, -0.86]];
-        fly.forEach((q, i) => {
-          const w = 0.015 * N2(i * 5.3, tc * 0.9), a0 = toH([q[0], q[1]]), a1 = toH([q[2] + w, q[3]]), a2 = toH([q[4] + w * 1.6, q[5] + w]);
-          ctx.strokeStyle = `rgba(214,228,255,${0.26 - 0.025 * i})`; ctx.lineWidth = 0.9; ctx.beginPath(); ctx.moveTo(a0[0], a0[1]); ctx.quadraticCurveTo(a1[0], a1[1], a2[0], a2[1]); ctx.stroke();
-        });
-        const jaw = [[0.47, 0.14], [0.41, 0.2], [0.4, 0.27], [0.372, 0.34], [0.366, 0.42], [0.3, 0.47]].map(toH);
-        ctx.strokeStyle = 'rgba(143,179,217,0.22)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(jaw[0][0], jaw[0][1]); for (const q of jaw.slice(1)) ctx.lineTo(q[0], q[1]); ctx.stroke();
-        ctx.restore();
-      }
-      // ---- the tear: a thread of light down the cheek; the drop gathers at the jaw and falls (≈4.9)
-      if (headInfo) {
-        const toS = (q) => { const c0 = Math.cos(headInfo.ht), s0 = Math.sin(headInfo.ht), x = q[0] * 1.06, y = q[1] * 1.06; return [ox + U * (headInfo.head[0] + x * c0 - y * s0), oy + U * (headInfo.head[1] + x * s0 + y * c0)]; };
-        const path = [[0.352, 0.1], [0.36, 0.17], [0.356, 0.24], [0.344, 0.31], [0.326, 0.38], [0.306, 0.435]].map(toS);
-        const run = smooth(0.6, 4.3, tc), fall = smooth(4.75, 5.35, tc);
-        const total = path.length - 1, upto = run * total;
-        ctx.save(); ctx.globalCompositeOperation = 'screen'; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-        // the wet trail
-        ctx.beginPath(); ctx.moveTo(path[0][0], path[0][1]);
-        for (let i = 1; i <= Math.ceil(upto); i++) { const k = Math.min(1, upto - (i - 1)); ctx.lineTo(lerp(path[i - 1][0], path[i][0], k), lerp(path[i - 1][1], path[i][1], k)); }
-        ctx.strokeStyle = 'rgba(222,234,255,0.55)'; ctx.lineWidth = 2.4; ctx.stroke();
-        ctx.strokeStyle = 'rgba(214,228,255,0.13)'; ctx.lineWidth = 9; ctx.stroke();
-        // the drop: a bright bead travelling down, gathering at the jaw, then falling
-        const i0 = Math.min(total - 1, Math.floor(upto)), k0 = upto - i0;
-        let dx = lerp(path[i0][0], path[i0 + 1][0], Math.min(1, k0)), dy = lerp(path[i0][1], path[i0 + 1][1], Math.min(1, k0));
-        if (fall > 0) dy += 260 * fall * fall;
-        const tw = 0.75 + 0.25 * Math.sin(tc * 9.0);
-        const da = (fall > 0 ? 1 - smooth(0.6, 1, fall) : 1) * smooth(0.9, 1.6, tc) * 0.85;
+      layHeld(ctx, HIM);
+      // ---- the drop: it gathers at the end of the tear on his jaw and falls at the second break (≈158.8, 24 fps)
+      const hd = C39.boyInfo && C39.boyInfo.head;
+      if (hd) {
+        const gather = smooth(3.9, 4.6, tc), fall = smooth(4.72, 5.3, tc), e = c39tearEnd(hd);
+        const da = gather * (1 - smooth(0.75, 1, fall));
         if (da > 0.01) {
-          ctx.globalAlpha = 1; spriteGlow(ctx, dx, dy, 22, '#e6efff', 0.38 * da * tw); ctx.globalAlpha = 1;
-          ctx.fillStyle = `rgba(255,255,255,${0.8 * da})`; ctx.beginPath(); ctx.ellipse(dx, dy, 2.4, fall > 0 ? 4.6 : 3.4, 0.25, 0, TAU); ctx.fill();
-          if (fall > 0.05 && fall < 0.9) { ctx.strokeStyle = `rgba(230,240,255,${0.35 * da})`; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(dx, dy - 30 * fall); ctx.lineTo(dx, dy - 4); ctx.stroke(); }
+          const dx = e[0] - 3 * fall, dy = e[1] + 4 + 300 * fall * fall, r = 3.2 + 1.2 * gather;
+          ctx.save(); ctx.globalCompositeOperation = 'screen';
+          spriteGlow(ctx, dx, dy, 18, '#e6efff', 0.3 * da * (0.8 + 0.2 * Math.sin(tc * 9)));
+          ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+          ctx.fillStyle = `rgba(226,238,255,${0.75 * da})`; ctx.beginPath(); ctx.ellipse(dx, dy, r * 0.8, r * (fall > 0.02 ? 1.45 : 1.1), 0.2, 0, TAU); ctx.fill();
+          ctx.fillStyle = `rgba(255,255,255,${0.95 * da})`; ctx.beginPath(); ctx.arc(dx - r * 0.25, dy - r * 0.3, r * 0.32, 0, TAU); ctx.fill();
+          if (fall > 0.05 && fall < 0.85) { ctx.strokeStyle = `rgba(230,240,255,${0.3 * da})`; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(dx, dy - 34 * fall); ctx.lineTo(dx, dy - r); ctx.stroke(); }
+          ctx.restore();
         }
-        ctx.restore();
       }
       ctx.restore();
     },

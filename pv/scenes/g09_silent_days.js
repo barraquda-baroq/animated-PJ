@@ -290,9 +290,258 @@
   }
 
   /* ======================================================================
-   * C33 彼の部屋（沈黙の日々） 6.5s — static, very slow push-in
+   * The room seen from the FRONT of the sofa (anime layout, C33 day / C35 night).
+   * Same orthographic camera as PV.anime.pair (yaw = facing, pitch = camPitch), so the sofa, the floor and the light
+   * patches sit exactly under the figures. Room space = pair space in her head units: x right (his side), y down,
+   * z toward the front of the sofa (the big window is in the front wall, behind the camera). Seat top y=0, floor y=1.55.
    * ==================================================================== */
+  const RM = { FY: 1.55, BZ: -1.35, LX: -7.4, RX: 11, FZ: 6.0,
+    // the big window in the front wall (a three-panel 掃き出し窓 with a transom light above): its grid is cast into the room = the cage
+    win: { x0: -6.69, x1: 4.98, y0: -9.0, y1: 1.2, mull: [-2.8, 1.09], tran: [-7.9], bar: 0.2 },
+    Ld: [0.3, 0.6, -1],   // the direction the window light travels (right, down, back toward the back wall)
+    sofa: { ax: 3.5, sx: 2.95, armY: -1.0, backY: -1.95, backZ0: -1.28, backZ1: -0.88, seatY: -0.02, seatZ: 0.98, seatBZ: -0.55, baseZ: 1.0,
+      cushTopY: -1.72, cushTopZ: -0.86, legY: 1.3 },
+    table: { x: -4.45, z: -0.45, r: 0.8, y: -0.72 } };
+  function g9proj(facing, pitch, X, Y, s) {
+    const B = PV.anime.__body, M = B.mm(B.rot(0, pitch, 0), B.rot(facing, 0, 0));
+    const f = (x, y, z) => { const v = B.mv(M, [x, y, z]); return [X + v[0] * s, Y + v[1] * s, v[2]]; };
+    f.s = s; f.M = M; f.X = X; f.Y = Y;
+    f.n = (n) => B.mv(M, n);   // a direction in screen space (x, y, toward the camera)
+    return f;
+  }
+  const poly = (c, P, pts) => { c.beginPath(); pts.forEach((p, i) => { const q = P(p[0], p[1], p[2]); i ? c.lineTo(q[0], q[1]) : c.moveTo(q[0], q[1]); }); c.closePath(); };
+  const LDN = (() => { const d = RM.Ld, l = Math.hypot(d[0], d[1], d[2]); return [-d[0] / l, -d[1] / l, -d[2] / l]; })();   // toward the light
+  const lambert = (n) => { const l = Math.hypot(n[0], n[1], n[2]) || 1; return Math.max(0, (n[0] * LDN[0] + n[1] * LDN[1] + n[2] * LDN[2]) / l); };
+  // a soft quad: corners a,b,c,d (3D, in order round the face) with each edge bowed by a 3D offset at its middle
+  function softQuad(c, P, Q, bows, n = 10) {
+    c.beginPath(); let first = true;
+    for (let e = 0; e < 4; e++) {
+      const A = Q[e], B = Q[(e + 1) % 4], bw = (bows && bows[e]) || [0, 0, 0];
+      for (let i = 0; i < n; i++) {
+        const u = i / n, k = Math.sin(Math.PI * u);
+        const q = P(A[0] + (B[0] - A[0]) * u + bw[0] * k, A[1] + (B[1] - A[1]) * u + bw[1] * k, A[2] + (B[2] - A[2]) * u + bw[2] * k);
+        if (first) { c.moveTo(q[0], q[1]); first = false; } else c.lineTo(q[0], q[1]);
+      }
+    }
+    c.closePath();
+  }
+
+  // walls + floor, ambient-lit (the window's direct light is painted by litPass)
+  function paintFrontRoom(c, P, night) {
+    const { FY, BZ, LX, RX } = RM, top = -16;
+    poly(c, P, [[LX, top, BZ], [RX, top, BZ], [RX, FY, BZ], [LX, FY, BZ]]);
+    const a = P(0, -6, BZ), b = P(0, FY, BZ);
+    c.fillStyle = PV.linGrad(c, 0, a[1], 0, b[1], night ? [[0, '#0d0b0a'], [0.7, '#161310'], [1, '#12100d']] : [[0, '#3f3a35'], [0.5, '#4e4841'], [1, '#4a443e']]);
+    c.fill();
+    c.save(); c.clip();
+    c.globalAlpha = 0.045; c.fillStyle = '#1e1b18';
+    for (let x = -200; x < W + 200; x += 34) c.fillRect(x, 0, 2, H);   // faint vertical wallpaper stripes
+    c.globalAlpha = 1; grain(c, 0, 0, W, H, 6000, 7, '#1e1b18', night ? 0.06 : 0.08, 2);
+    c.restore();
+    // skirting board
+    poly(c, P, [[LX, FY - 0.42, BZ + 0.01], [RX, FY - 0.42, BZ + 0.01], [RX, FY, BZ + 0.01], [LX, FY, BZ + 0.01]]);
+    c.fillStyle = night ? '#0c0a09' : '#342e28'; c.fill();
+    poly(c, P, [[LX, FY - 0.42, BZ + 0.02], [RX, FY - 0.42, BZ + 0.02], [RX, FY - 0.37, BZ + 0.02], [LX, FY - 0.37, BZ + 0.02]]);
+    c.fillStyle = night ? '#1a1612' : '#5a4f43'; c.fill();
+    // left wall (in shade: the window light runs away from it)
+    poly(c, P, [[LX, top, BZ], [LX, top, 14], [LX, FY, 14], [LX, FY, BZ]]);
+    const lw0 = P(LX, 0, BZ), lw1 = P(LX, 0, 5);
+    c.fillStyle = PV.linGrad(c, lw0[0], 0, lw1[0], 0, night ? [[0, '#0b0a09'], [1, '#050404']] : [[0, '#36322d'], [1, '#26231f']]); c.fill();
+    const k0 = P(LX, top, BZ), k1 = P(LX, FY, BZ);
+    c.strokeStyle = night ? 'rgba(0,0,0,0.6)' : 'rgba(20,18,15,0.5)'; c.lineWidth = 3; c.beginPath(); c.moveTo(k0[0], k0[1]); c.lineTo(k1[0], k1[1]); c.stroke();
+    // floor: wooden planks running front-to-back
+    poly(c, P, [[LX, FY, BZ], [RX, FY, BZ], [RX, FY, 16], [LX, FY, 16]]);
+    const f0 = P(0, FY, BZ), f1 = P(0, FY, 8);
+    c.fillStyle = PV.linGrad(c, 0, f0[1], 0, f1[1], night ? [[0, '#100d0a'], [1, '#080605']] : [[0, '#3b332b'], [1, '#342c25']]); c.fill();
+    c.save(); c.clip();
+    const r = PV.rng(19); c.lineWidth = 1.3;
+    for (let x = LX; x < RX; x += 0.52) {
+      const tone = (r() - 0.5) * 0.08;
+      poly(c, P, [[x, FY, BZ], [x + 0.52, FY, BZ], [x + 0.52, FY, 16], [x, FY, 16]]);
+      c.fillStyle = tone > 0 ? `rgba(255,236,210,${tone})` : `rgba(0,0,0,${-tone})`; c.fill();
+      const p0 = P(x, FY, BZ), p1 = P(x, FY, 16);
+      c.strokeStyle = night ? 'rgba(0,0,0,0.45)' : 'rgba(20,16,12,0.34)'; c.beginPath(); c.moveTo(p0[0], p0[1]); c.lineTo(p1[0], p1[1]); c.stroke();
+      let z = BZ + r() * 3;
+      while (z < 16) { const q0 = P(x, FY, z), q1 = P(x + 0.52, FY, z); c.beginPath(); c.moveTo(q0[0], q0[1]); c.lineTo(q1[0], q1[1]); c.stroke(); z += 3.2 + r() * 2.4; }
+    }
+    grain(c, 0, 0, W, H, 3000, 9, '#000', 0.08, 2);
+    c.restore();
+  }
+
+  /* --- the sofa: soft BG-art cushions. Each piece = a face list {Q (4 corners), bows, n (normal), mat}; drawn far to near. */
+  function sofaPieces(night) {
+    const S = RM.sofa, F = RM.FY, out = [];
+    const add = (Q, n, bows, k, name) => out.push({ Q, n, bows, k: k ?? 1, name });
+    const third = (2 * S.sx) / 3;
+    // back panel top (the frame behind the back cushions) and its front strip above the cushions
+    add([[-S.ax, S.backY, S.backZ0], [S.ax, S.backY, S.backZ0], [S.ax, S.backY, S.backZ1], [-S.ax, S.backY, S.backZ1]], [0, -1, 0], [[0, -0.03, 0], 0, [0, -0.03, 0], 0], 0.95, 'backTop');
+    add([[-S.ax, S.backY, S.backZ1], [S.ax, S.backY, S.backZ1], [S.ax, 0.2, S.backZ1], [-S.ax, 0.2, S.backZ1]], [0, 0, 1], null, 0.7, 'backFront');
+    // back cushions, leaning back, puffy
+    for (let i = 0; i < 3; i++) {
+      const x0 = -S.sx + i * third + 0.02, x1 = -S.sx + (i + 1) * third - 0.02;
+      add([[x0, S.cushTopY, S.cushTopZ], [x1, S.cushTopY, S.cushTopZ], [x1, S.cushTopY + 0.02, S.backZ1 - 0.05], [x0, S.cushTopY + 0.02, S.backZ1 - 0.05]], [0, -1, 0.15], [[0, -0.1, 0], 0, [0, -0.06, 0], 0], 1, 'cushTop' + i);
+      add([[x0, S.seatY + 0.06, S.seatBZ], [x1, S.seatY + 0.06, S.seatBZ], [x1, S.cushTopY, S.cushTopZ], [x0, S.cushTopY, S.cushTopZ]], [0, -0.16, 0.99],
+        [[0, 0, 0.06], [0.06, 0, 0.05], [0, -0.1, 0.05], [-0.06, 0, 0.05]], 1, 'cush' + i);
+    }
+    // the far arm (her side): top, inner face, front
+    add([[-S.ax, S.armY, S.backZ0], [-S.sx, S.armY, S.backZ0], [-S.sx, S.armY, S.baseZ + 0.04], [-S.ax, S.armY, S.baseZ + 0.04]], [0, -1, 0], [0, [0.03, -0.05, 0], 0, [-0.03, -0.05, 0]], 1, 'armLTop');
+    add([[-S.sx, S.armY, S.backZ1], [-S.sx, S.armY, S.baseZ + 0.04], [-S.sx, 0.5, S.baseZ + 0.04], [-S.sx, 0.5, S.backZ1]], [1, 0, 0], [[0.03, -0.04, 0], 0, 0, 0], 0.85, 'armLIn');
+    add([[-S.ax, S.armY, S.baseZ + 0.04], [-S.sx, S.armY, S.baseZ + 0.04], [-S.sx, S.legY, S.baseZ + 0.04], [-S.ax, S.legY, S.baseZ + 0.04]], [0, 0, 1], [[0, -0.07, 0], 0, 0, 0], 1, 'armLF');
+    // seat cushions: top + rounded front
+    for (let i = 0; i < 3; i++) {
+      const x0 = -S.sx + i * third + 0.015, x1 = -S.sx + (i + 1) * third - 0.015;
+      add([[x0, S.seatY + 0.07, S.seatBZ], [x1, S.seatY + 0.07, S.seatBZ], [x1, S.seatY, S.seatZ], [x0, S.seatY, S.seatZ]], [0, -1, 0.05], [0, [0.04, 0, 0], [0, -0.03, 0.04], [-0.04, 0, 0]], 1, 'seat' + i);
+      add([[x0, S.seatY, S.seatZ], [x1, S.seatY, S.seatZ], [x1, 0.5, S.seatZ], [x0, 0.5, S.seatZ]], [0, 0, 1], [[0, -0.02, 0.05], [0.03, 0, 0.02], [0, 0.03, 0.03], [-0.03, 0, 0.02]], 1, 'seatF' + i);
+    }
+    // base (plinth) under the seat cushions
+    add([[-S.sx, 0.5, S.baseZ], [S.sx, 0.5, S.baseZ], [S.sx, S.legY, S.baseZ], [-S.sx, S.legY, S.baseZ]], [0, 0, 1], null, 0.62, 'base');
+    return out;
+  }
+  function sofaNearPieces() {
+    const S = RM.sofa, out = [], add = (Q, n, bows, k, name) => out.push({ Q, n, bows, k: k ?? 1, name });
+    add([[S.ax, S.backY, S.backZ0], [S.ax, S.backY, S.backZ1], [S.ax, S.armY, S.backZ1], [S.ax, S.armY, S.backZ0]], [1, 0, 0], null, 0.7, 'backREnd');
+    add([[S.ax, S.armY, S.backZ0], [S.ax, S.armY, S.baseZ + 0.04], [S.ax, S.legY, S.baseZ + 0.04], [S.ax, S.legY, S.backZ0]], [1, 0, 0], [[0.03, -0.05, 0], 0, 0, 0], 0.7, 'armROut');
+    add([[S.sx, S.armY, S.backZ0], [S.ax, S.armY, S.backZ0], [S.ax, S.armY, S.baseZ + 0.04], [S.sx, S.armY, S.baseZ + 0.04]], [0, -1, 0], [0, [0.03, -0.05, 0], 0, [-0.03, -0.05, 0]], 1, 'armRTop');
+    add([[S.sx, S.armY, S.baseZ + 0.04], [S.ax, S.armY, S.baseZ + 0.04], [S.ax, S.legY, S.baseZ + 0.04], [S.sx, S.legY, S.baseZ + 0.04]], [0, 0, 1], [[0, -0.07, 0], 0, 0, 0], 1, 'armRF');
+    return out;
+  }
+  const SOFA_COL = { day: { amb: [58, 51, 45], lit: [150, 134, 116] }, night: { amb: [26, 22, 19], lit: [110, 86, 62] } };
+  // ambient painting of pieces: tone by orientation (no direct light), occlusion toward the bottom, fabric grain
+  function paintPieces(c, P, pieces, night) {
+    const col = night ? SOFA_COL.night : SOFA_COL.day;
+    for (const f of pieces) {
+      const nv = P.n(f.n); if (nv[2] < -0.02) continue;
+      const k = (0.3 + 0.25 * Math.max(0, -f.n[1]) + 0.12 * Math.max(0, f.n[2])) * f.k;
+      const rgb = col.amb.map((v, i) => Math.round(v + (col.lit[i] - v) * Math.min(1, k * 0.55)));
+      softQuad(c, P, f.Q, f.bows); c.fillStyle = `rgb(${rgb.join(',')})`; c.fill();
+      c.save(); softQuad(c, P, f.Q, f.bows); c.clip();
+      if (Math.abs(f.n[1]) < 0.5) { const q0 = P(...f.Q[0]), q2 = P(...f.Q[2]);
+        c.fillStyle = PV.linGrad(c, 0, Math.min(q0[1], q2[1]), 0, Math.max(q0[1], q2[1]), [[0, '#000', 0], [0.6, '#000', 0.05], [1, '#000', night ? 0.4 : 0.28]]); c.fillRect(0, 0, W, H); }
+      else { const q0 = P(...f.Q[0]), q2 = P(...f.Q[2]);   // tops: darker toward the back
+        c.fillStyle = PV.linGrad(c, 0, Math.min(q0[1], q2[1]), 0, Math.max(q0[1], q2[1]), [[0, '#000', night ? 0.25 : 0.16], [1, '#000', 0]]); c.fillRect(0, 0, W, H); }
+      c.restore();
+      // edge: a dark seam all round (the gap between pieces), thin
+      softQuad(c, P, f.Q, f.bows); c.strokeStyle = night ? 'rgba(0,0,0,0.5)' : 'rgba(22,18,15,0.42)'; c.lineWidth = 1.6; c.stroke();
+    }
+  }
+  // the window's direct light on a set of planar surfaces (cast through the window grid), painted as a soft brightening.
+  // surf: {Q (3D polygon on the plane), n (normal), bows?}. occl: blobs [x,y,r] in screen px cut from the light (cast shadows).
+  function litPass(c, P, surfs, o) {
+    o = o || {};
+    const Wn = RM.win, d = RM.Ld, b2 = Wn.bar / 2;
+    const tb = PV.makeCanvas(W, H), g = tb.ctx;
+    for (const sf of surfs) {
+      const N = sf.n, dn = d[0] * N[0] + d[1] * N[1] + d[2] * N[2]; if (dn >= -1e-6) continue;   // faces away from the light
+      const Q0 = sf.Q[0], P0 = sf.plane || Q0;
+      const onPlane = (wx, wy) => { const t = ((P0[0] - wx) * N[0] + (P0[1] - wy) * N[1] + (P0[2] - RM.FZ) * N[2]) / dn; return P(wx + d[0] * t, wy + d[1] * t, RM.FZ + d[2] * t); };
+      const quad = (x0, y0, x1, y1) => { const a = onPlane(x0, y0), b = onPlane(x1, y0), e = onPlane(x1, y1), f = onPlane(x0, y1); g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.lineTo(e[0], e[1]); g.lineTo(f[0], f[1]); g.closePath(); };
+      g.save();
+      if (sf.bows) softQuad(g, P, sf.Q, sf.bows); else poly(g, P, sf.Q);
+      g.clip();
+      g.globalCompositeOperation = 'destination-out'; g.fillStyle = '#000'; g.fillRect(0, 0, W, H);   // nearer surfaces hide the light behind them
+      g.globalCompositeOperation = 'source-over';
+      g.fillStyle = `rgba(255,255,255,${(sf.k ?? 1) * lambert(N)})`; quad(Wn.x0, Wn.y0, Wn.x1, Wn.y1); g.fill();
+      g.globalCompositeOperation = 'destination-out'; g.fillStyle = '#000';
+      for (const m of Wn.mull) { quad(m - b2, Wn.y0, m + b2, Wn.y1); g.fill(); }
+      for (const tr of Wn.tran) { quad(Wn.x0, tr - b2, Wn.x1, tr + b2); g.fill(); }
+      g.restore();
+    }
+    // cast shadows of the people (soft) cut from the light
+    if (o.occl) { g.save(); g.globalCompositeOperation = 'destination-out'; for (const [x, y, rx, ry, a] of o.occl) { const rg = g.createRadialGradient(x, y, 0, x, y, rx); rg.addColorStop(0, `rgba(0,0,0,${a ?? 0.85})`); rg.addColorStop(0.65, `rgba(0,0,0,${(a ?? 0.85) * 0.7})`); rg.addColorStop(1, 'rgba(0,0,0,0)'); g.save(); g.translate(x, y); g.scale(1, (ry || rx) / rx); g.translate(-x, -y); g.fillStyle = rg; g.fillRect(x - rx, y - rx, 2 * rx, 2 * rx); g.restore(); } g.restore(); }
+    // soft edges (overcast light through the lace), then brighten
+    const sb = PV.makeCanvas(W, H); sb.ctx.filter = `blur(${o.blur ?? 5}px)`; sb.ctx.drawImage(tb.canvas, 0, 0); sb.ctx.filter = 'none';
+    sb.ctx.globalCompositeOperation = 'source-in'; sb.ctx.fillStyle = o.color || '#fff4e6'; sb.ctx.fillRect(0, 0, W, H);
+    c.save(); c.globalCompositeOperation = 'soft-light'; c.globalAlpha = o.soft ?? 0.9; c.drawImage(sb.canvas, 0, 0);
+    c.globalCompositeOperation = 'screen'; c.globalAlpha = o.screen ?? 0.32; c.drawImage(sb.canvas, 0, 0); c.restore();
+    return sb.canvas;
+  }
+  const wallSurfs = () => [
+    { Q: [[RM.LX, -16, RM.BZ], [RM.RX, -16, RM.BZ], [RM.RX, RM.FY, RM.BZ], [RM.LX, RM.FY, RM.BZ]], n: [0, 0, 1], k: 1 },
+    { Q: [[RM.LX, RM.FY, RM.BZ], [RM.RX, RM.FY, RM.BZ], [RM.RX, RM.FY, 16], [RM.LX, RM.FY, 16]], n: [0, -1, 0], k: 1 },
+  ];
+  const piecesAsSurfs = (pieces) => pieces.map(f => ({ Q: f.Q, n: f.n, bows: f.bows, k: 0.95 }));
+
+  // the side table at her end of the sofa, the small table lamp (on at night) and the little desk clock
+  function paintTableLamp(c, P, on) {
+    const T = RM.table, F = RM.FY;
+    const ell = (cx, y, cz, r, fill, stroke) => { c.beginPath(); for (let i = 0; i <= 32; i++) { const a = i / 32 * TAU, q = P(cx + Math.cos(a) * r, y, cz + Math.sin(a) * r); i ? c.lineTo(q[0], q[1]) : c.moveTo(q[0], q[1]); } c.closePath(); if (fill) { c.fillStyle = fill; c.fill(); } if (stroke) { c.strokeStyle = stroke; c.lineWidth = 1.5; c.stroke(); } };
+    // contact shadow, legs, top
+    c.save(); const sh = P(T.x, F, T.z); c.translate(sh[0], sh[1]); c.scale(1, 0.25); c.fillStyle = PV.radGrad(c, 0, 0, 0, T.r * P.s * 1.1, [[0, '#000', on ? 0.4 : 0.35], [1, '#000', 0]]); c.fillRect(-300, -300, 600, 600); c.restore();
+    c.save(); c.strokeStyle = on ? '#0e0b09' : '#2a241e'; c.lineWidth = 5; c.lineCap = 'round';
+    for (const a of [0.6, 2.2, 3.9, 5.3]) { const p = P(T.x + Math.cos(a) * T.r * 0.75, T.y + 0.08, T.z + Math.sin(a) * T.r * 0.75), q = P(T.x + Math.cos(a) * T.r * 0.82, F, T.z + Math.sin(a) * T.r * 0.82); c.beginPath(); c.moveTo(p[0], p[1]); c.lineTo(q[0], q[1]); c.stroke(); }
+    c.restore();
+    ell(T.x, T.y + 0.07, T.z, T.r, on ? '#120e0b' : '#2c2621');
+    ell(T.x, T.y, T.z, T.r, on ? '#241b13' : '#4a4038', on ? 'rgba(255,190,120,0.25)' : 'rgba(210,196,176,0.3)');
+    // the lamp: a small ceramic base, a drum shade
+    const lx = T.x - 0.15, lz = T.z - 0.15, b0 = T.y, b1 = T.y - 0.75, s0 = T.y - 0.62, s1 = T.y - 1.55, rTop = 0.42, rBot = 0.55;
+    ell(lx, b0 - 0.02, lz, 0.28, on ? '#2a1d12' : '#5a5048');
+    const pb = P(lx, b0, lz), pt = P(lx, b1, lz);
+    c.fillStyle = on ? '#3a2a1c' : '#6a5f55'; c.beginPath(); c.ellipse((pb[0] + pt[0]) / 2, (pb[1] + pt[1]) / 2, 0.22 * P.s, Math.abs(pb[1] - pt[1]) / 2, 0, 0, TAU); c.fill();
+    const L0 = P(lx - rBot, s0, lz), R0 = P(lx + rBot, s0, lz), L1 = P(lx - rTop, s1, lz), R1 = P(lx + rTop, s1, lz);
+    c.beginPath(); c.moveTo(L1[0], L1[1]); c.lineTo(R1[0], R1[1]); c.lineTo(R0[0], R0[1]); c.lineTo(L0[0], L0[1]); c.closePath();
+    const sg = c.createLinearGradient(L0[0], 0, R0[0], 0);
+    if (on) { sg.addColorStop(0, '#c88d52'); sg.addColorStop(0.45, '#fbe0ae'); sg.addColorStop(1, '#b97a42'); }
+    else { sg.addColorStop(0, '#6c6157'); sg.addColorStop(0.45, '#8f8274'); sg.addColorStop(1, '#5d544b'); }
+    c.fillStyle = sg; c.fill();
+    if (on) { const m = P(lx, s0, lz); c.fillStyle = 'rgba(255,238,200,0.7)'; c.beginPath(); c.ellipse(m[0], m[1], rBot * P.s * 0.93, rBot * P.s * 0.2, 0, 0, TAU); c.fill(); }
+    c.strokeStyle = on ? 'rgba(90,50,20,0.6)' : 'rgba(40,35,30,0.5)'; c.lineWidth = 1.4; c.beginPath(); c.moveTo(L1[0], L1[1]); c.lineTo(R1[0], R1[1]); c.lineTo(R0[0], R0[1]); c.lineTo(L0[0], L0[1]); c.closePath(); c.stroke();
+  }
+  // the desk clock face (static) + hands (per frame); ticks with the SFX: 124.0 + n s
+  const CLK = { x: -4.0, y: -1.02, z: -0.05, r: 0.3 };
+  function drawDeskClock(c, P, Tglobal, night) {
+    const { x, y, z, r } = CLK, ex = P.n([1, 0, 0]), ey = P.n([0, 1, 0]);
+    const o = P(x, y, z), s = P.s;
+    const pt = (u, v) => [o[0] + (ex[0] * u + ey[0] * v) * s, o[1] + (ex[1] * u + ey[1] * v) * s];   // the face plane (facing +z)
+    const ring = (rr) => { c.beginPath(); for (let i = 0; i <= 40; i++) { const a = i / 40 * TAU, q = pt(Math.cos(a) * rr, Math.sin(a) * rr); i ? c.lineTo(q[0], q[1]) : c.moveTo(q[0], q[1]); } c.closePath(); };
+    // body (a little depth toward the back), feet
+    c.save(); c.translate(-ex[0] * 0.0, 0);
+    const bk = P(x, y, z - 0.22); c.fillStyle = night ? '#0e0b09' : '#2e2924'; c.beginPath(); c.ellipse(bk[0], bk[1], r * s * 0.95, r * s * 1.02, 0, 0, TAU); c.fill();
+    ring(r); c.fillStyle = night ? '#1c1612' : '#4a443d'; c.fill();
+    ring(r * 0.86); c.fillStyle = night ? '#4a3a2a' : '#d6d0c4'; c.fill();
+    c.strokeStyle = night ? '#1c1612' : '#5e5951'; c.lineCap = 'round';
+    for (let i = 0; i < 12; i++) { const a = i / 12 * TAU, p = pt(Math.cos(a) * r * 0.74, Math.sin(a) * r * 0.74), q = pt(Math.cos(a) * r * (i % 3 ? 0.66 : 0.6), Math.sin(a) * r * (i % 3 ? 0.66 : 0.6)); c.lineWidth = i % 3 ? 1 : 2; c.beginPath(); c.moveTo(p[0], p[1]); c.lineTo(q[0], q[1]); c.stroke(); }
+    const tick = Math.floor(Tglobal - 124.0 + 1e-6), sec = (night ? 41 : 7) + tick, kick = clamp((Tglobal - 124.0 - tick) / 0.06);
+    const sa = (sec - 1 + PV.ease.outBack(kick)) / 60 * TAU - Math.PI / 2;
+    const hh = night ? 1 : 2, mm = night ? 12 : 37;
+    const ha = (hh + mm / 60) / 12 * TAU - Math.PI / 2, ma = mm / 60 * TAU - Math.PI / 2;
+    const hand = (a, len, w, col, back) => { const p = pt(-Math.cos(a) * r * (back || 0), -Math.sin(a) * r * (back || 0)), q = pt(Math.cos(a) * r * len, Math.sin(a) * r * len); c.strokeStyle = col; c.lineWidth = w; c.beginPath(); c.moveTo(p[0], p[1]); c.lineTo(q[0], q[1]); c.stroke(); };
+    hand(ha, 0.42, 2.6, night ? '#120f0d' : '#2e2b27'); hand(ma, 0.64, 2, night ? '#120f0d' : '#2e2b27'); hand(sa, 0.72, 1, night ? '#5a2a1e' : '#7a3a2c', 0.16);
+    c.restore();
+  }
+
+  /* ======================================================================
+   * C33 彼の部屋（沈黙の日々） 6.5s — static, very slow push-in.  The camera is the one of C22 / C42 (front-oblique,
+   * facing -0.42, camPitch 0.2): the change of their places (she on his left → on his RIGHT with a person's gap → back on his
+   * left) reads in the same frame.  The window (in the front wall, behind the camera) throws its grid on the back wall,
+   * the sofa and the floor: the cage.  She stares at nothing (empty eyes, no highlight), says V12 with barely moving
+   * lips; he looks at the empty seat between them, tired; after her line his head sinks a little more.
+   * ==================================================================== */
+  const C33V = { facing: -0.42, pitch: 0.2, X: 960, Y: 690, s: 138, ax: -0.05, az: -0.12, gap: 2.6 };
   PV.shot('C33', { draw(ctx, t, d, S) {
+    const tt = clamp(t, -0.5, d + 0.5), T = 123.5 + t, A = PV.anime;
+    const P = g9proj(C33V.facing, C33V.pitch, C33V.X, C33V.Y, C33V.s);
+    const sofaP = sofaPieces(false), nearP = sofaNearPieces();
+    const room = PV.cached('g09_frontRoomD', W, H, (c) => {
+      paintFrontRoom(c, P, false);
+      paintPieces(c, P, sofaP, false);
+      litPass(c, P, wallSurfs().concat(piecesAsSurfs(sofaP)), {});
+      paintTableLamp(c, P, false);
+    });
+    const near = PV.cached('g09_frontNearD', W, H, (c) => { paintPieces(c, P, nearP, false); litPass(c, P, piecesAsSurfs(nearP), {}); });
+    ctx.save();
+    PV.camera(ctx, { zoom: 1 + 0.045 * PV.ease.inOut(clamp(tt / d)), cx: 960, cy: 600 });
+    ctx.drawImage(room, 0, 0);
+    drawDeskClock(ctx, P, T, false);
+    const an = P(C33V.ax, 0, C33V.az);
+    A.pair(ctx, { pose: 'sit_side', x: an[0], y: an[1], scale: C33V.s, T, light: 'room_gray', facing: C33V.facing, camPitch: C33V.pitch, keyDir: -2.58, rimDir: -2.58,
+      params: { side: 'right', gap: C33V.gap, seat: 'sofa', sofa: false },
+      senpai: { outfit: 'home', head: { expr: 'empty', mouth: { shape: 'flat', open: 0.55 * A.mouth(T, 'senpai').open } } },
+      boy: { outfit: 'year2', costume: { shoes: 'slipper' }, head: { expr: 'neutral', undereye: 0.3, eyes: { open: 0.62, look: [-0.4, 0.5] } } } });
+    ctx.drawImage(near, 0, 0);
+    ctx.restore();
+  } });
+
+  PV.shot('C33_old', { draw(ctx, t, d, S) {
     const tt = clamp(t, -0.5, d + 0.5), T = 123.5 + tt;
     // the room with the window light (and its lattice) on the floor baked in; the light's breathing stays on the window
     const room = PV.cached('g09_roomD2', W, H, (c) => { paintRoom(c, false); paintLamp(c, false); c.globalAlpha = 0.82; paintFloorLight(c); c.globalAlpha = 1; });

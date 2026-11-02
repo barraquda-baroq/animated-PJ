@@ -8,7 +8,7 @@
  */
 (function () {
   'use strict';
-  const PV = window.PV, L = PV.lib, W = PV.W, H = PV.H, TAU = Math.PI * 2;
+  const PV = window.PV, L = PV.lib, A = PV.anime, W = PV.W, H = PV.H, TAU = Math.PI * 2;
   const clamp = PV.clamp, lerp = PV.lerp, sm = PV.smooth, N2 = PV.noise2, R1 = PV.rand1;
 
   /* =================================================================== utils */
@@ -323,14 +323,24 @@
   }
 
   /* ===================================================== the music room set */
-  const PIANO = { x: 6.75, z: 2.75, yaw: Math.PI / 2 - 0.3 };
-  const benchW = (p) => [p.x - 1.46 * Math.cos(p.yaw), 0.5, p.z + 1.46 * Math.sin(p.yaw)];
+  // Anime rework (faces shown): the grand piano is turned so that she sits facing into the room, the blackboard side to her
+  // left. The camera still looks at the window wall (same back light, same room plates), but now sees her face 3/4 from the
+  // treble end (C02) / close (C04), with the window behind her. The boy's seat by the first pier stays at her back-left:
+  // she cannot see him (C04: his claps come from behind her; C05 turns to him).
+  // PIANO: room point of the piano's anchor and its rotY (instruments.js grandPiano), her bench in piano-local x.
+  const PIANO = { at: [7.46, 4.77], yaw: -0.52, benchX: -0.5 };
+  const pianoL2R = (p) => { const a = PIANO.yaw, c = Math.cos(a), s = Math.sin(a), x = p[0] - 0.84, z = p[2] - 0.745; return [PIANO.at[0] + x * c + z * s, p[1], PIANO.at[1] - x * s + z * c]; };
+  const BENCH = pianoL2R([PIANO.benchX, 0.495, 0.745]);           // top centre of her bench: the keys are one of her heads above it
+  const HER_DIR = [Math.cos(PIANO.yaw), -Math.sin(PIANO.yaw)];     // the room direction she faces (x, z)
+  const KEY_Z = (-0.15 - PIANO.benchX) / 0.23 + 0.06;             // pose 'piano' keyZ: the key front edge in her head units
   const ppmAt = (R, w) => Math.abs(R.project([w[0], w[1], w[2]])[1] - R.project([w[0], w[1] + 1, w[2]])[1]);
-  const BOY_SEAT = [4.25, 0.45, 0.85];      // in front of the first pier (窓間壁), where the sun does not reach (原作311)
+  const BOY_SEAT = [4.25, 0.427, 0.85];     // his chair seat (1.75 of his heads), in front of the first pier (窓間壁), where the sun does not reach (原作311)
+  const BOY_DIR = (() => { const dx = BENCH[0] - BOY_SEAT[0], dz = BENCH[2] - BOY_SEAT[2], l = Math.hypot(dx, dz); return [dx / l, dz / l]; })();   // he watches her
   const ROOM = {
-    c02: { view: 'windows', time: 'noon', furniture: 'none', wind: 0.6, cam: { eye: [5.75, 1.5, 8.3], target: [6.2, 1.12, 0], fov: 58 }, shaft: 0.55, dust: false },
-    c04: { view: 'windows', time: 'noon', furniture: 'none', wind: 0.5, cam: { eye: [5.45, 1.3, 6.1], target: [5.84, 1.02, 2.12], fov: 60 }, shaft: 0.5, dust: false },
+    c02: { view: 'windows', time: 'noon', furniture: 'none', wind: 0.6, cam: { eye: [6.0, 1.3, 7.6], target: [5.7, 1.12, 0], fov: 50 }, shaft: 0.55, dust: false },
+    c04: { view: 'windows', time: 'noon', furniture: 'none', wind: 0.5, cam: { eye: [6.64, 1.25, 5.97], target: [5.52, 1.08, 2.13], fov: 40 }, shaft: 0.5, dust: false },
   };
+  const pianoOpts = (R, extra) => R.piano(PIANO.at[0], PIANO.at[1], PIANO.yaw, Object.assign({ lidOpen: 1, bench: false, rimLit: true, desk: false }, extra || {}));
   const ROOM_R = {};
   // the room's projection (and R.piano()) for a camera, without drawing anything every frame
   function roomR(k) {
@@ -377,35 +387,31 @@
     ctx.restore();
   }
 
-  // foreground spectators (out of focus head-and-shoulder silhouettes, backlit). Each is cached once, pre-blurred.
-  function spectator(c, kind) {
-    c.beginPath(); c.ellipse(0, 0, 1.0, 1.15, 0, 0, TAU); c.fill();
-    if (kind === 0) { c.beginPath(); c.ellipse(0, 0.3, 1.34, 1.32, 0, 0, TAU); c.fill(); c.fillRect(-1.34, 0.3, 2.68, 1.1); }   // bob cut
-    if (kind === 1) { c.beginPath(); c.ellipse(0.15, -0.45, 1.16, 0.95, 0.3, 0, TAU); c.fill(); }                                // short messy (boy)
-    if (kind === 2) { c.beginPath(); c.ellipse(-1.05, 0.6, 0.42, 1.25, 0.45, 0, TAU); c.fill(); c.beginPath(); c.ellipse(0, -0.2, 1.12, 1.1, 0, 0, TAU); c.fill(); } // ponytail
-    if (kind === 3) { c.beginPath(); c.ellipse(0, -0.35, 1.12, 0.95, 0, 0, TAU); c.fill(); }
-    c.fillRect(-0.42, 0.8, 0.84, 1.0);   // neck
-    c.beginPath(); c.moveTo(-3.7, 5.5); c.bezierCurveTo(-3.5, 2.5, -1.7, 1.85, 0, 1.75); c.bezierCurveTo(1.7, 1.85, 3.5, 2.5, 3.7, 5.5); c.lineTo(3.7, 9); c.lineTo(-3.7, 9); c.closePath(); c.fill();
-  }
-  function spectatorSprite(kind, col, blur) {
-    const S = 40, w = Math.round(9 * S), h = Math.round(12 * S);
-    return PV.cached('g01:spec:' + kind + col + blur, w, h, (c) => {
+  // foreground spectators: anime-style students seen from behind (3/4 back, turned toward her), right at the lens. Each one is
+  // drawn once with PV.anime.figure at its size in the frame into a cached canvas and pre-blurred (bokeh); per frame only a
+  // slow bob on twos. sp: id, who, outfit, facing, s (head px), (x, y) = screen position of the neck point, hair, amb
+  const SPEC_BLUR = 12;
+  const specNeckY = (s) => Math.round(s * 1.3);
+  function spectatorSprite(sp) {
+    const s = sp.s, w = Math.round(s * 5.2), h = Math.round(s * 3.8), nx = w / 2, ny = specNeckY(s);
+    return PV.cached('g01:aspec:' + sp.id, w, h, (c) => {
       const b = PV.makeCanvas(w, h), cc = b.ctx;
-      cc.translate(w / 2, 1.8 * S); cc.scale(S, S); cc.fillStyle = col; spectator(cc, kind);
-      cc.globalCompositeOperation = 'source-atop';           // warm window rim across the top of the head and shoulders
-      const g = cc.createLinearGradient(0, -1.3, 0, 2.6); g.addColorStop(0, 'rgba(255,228,186,0.62)'); g.addColorStop(0.25, 'rgba(255,228,186,0.14)'); g.addColorStop(0.5, 'rgba(255,228,186,0)');
-      cc.fillStyle = g; cc.fillRect(-5, -3, 10, 13);
-      c.filter = 'blur(' + blur + 'px)'; c.drawImage(b.canvas, 0, 0);
+      const up = (sp.who === 'boy' ? 7.3 : 7.0) - 0.88;      // the neck point above the feet (head units)
+      A.figure(cc, { who: sp.who, outfit: sp.outfit, pose: 'stand', facing: sp.facing, camPitch: 0.04, x: nx, y: ny + up * s, scale: s, T: 3.2 + sp.ph,
+        light: 'window', rimDir: sp.rimDir === undefined ? -1.5 : sp.rimDir, amb: sp.amb === undefined ? 0.5 : sp.amb,
+        params: { arms: 'relax', weight: sp.weight || 0 }, head: Object.assign({ hair: { still: true } }, sp.head || {}) });
+      c.filter = 'blur(' + SPEC_BLUR + 'px)'; c.drawImage(b.canvas, 0, 0); c.filter = 'none';
     });
   }
   function spectators(ctx, t, list, push) {
-    for (const s of list) {
-      if (s.a <= 0.01) continue;
-      const spr = spectatorSprite(s.kind, s.col, 11), k = s.s / 40 * (1 + push);
-      const bob = Math.sin(t * 0.9 + s.ph) * 4 + N2(s.ph, t * 0.5) * 3;
-      ctx.save(); ctx.globalAlpha = s.a;
-      ctx.translate(s.x + (s.x - 960) * push, s.y + bob + (s.y - 540) * push * 0.6); ctx.rotate(s.rot || 0); ctx.scale(k, k);
-      ctx.drawImage(spr, -spr.width / 2, -1.8 * 40); ctx.restore();
+    const tq = q12(t);
+    for (const sp of list) {
+      if (sp.a <= 0.01) continue;
+      const spr = spectatorSprite(sp), k = 1 + push;
+      const bob = Math.sin(tq * 0.9 + sp.ph) * 4 + N2(sp.ph, tq * 0.5) * 3;
+      ctx.save(); ctx.globalAlpha = sp.a;
+      ctx.translate(sp.x + (sp.x - 960) * push, sp.y + bob + (sp.y - 540) * push * 0.6); ctx.rotate(sp.rot || 0); ctx.scale(k, k);
+      ctx.drawImage(spr, -spr.width / 2, -specNeckY(sp.s)); ctx.restore();
     }
   }
 
@@ -468,55 +474,115 @@
     ctx.restore();
   }
 
-  /* ====================================================== the pianist */
-  // girlAtPianoBack is one flat silhouette, so her white blouse would read as black as her hair. She is drawn in
-  // two passes: the figure with a blouse-white fill (shaded toward the waist; skirt, bench and legs sunk to navy),
-  // then her long black hair on top with hairLong -- the same locks, at the head position girlAtPianoBack computes
-  // (mirrored below from figures.js). A hash guard falls back to the plain silhouette if the library changes.
-  const GIRL_SIG = 2736191307, GIRL_SP = { torso: 2.18, neck: 0.7 };
-  let girlSigOK = null;
-  function girlHair(t, o) {
-    const tq = Math.floor(t * 12 + 1e-6) / 12;
-    const I = o.intensity === undefined ? 0.3 : o.intensity, seed = o.seed || 21, turn = o.turn === undefined ? 0.35 : o.turn;
-    const ph = tq * (1.4 + I * 1.8);
-    const swayX = I * (0.2 * Math.sin(ph * 0.7) + 0.08 * N2(seed, tq * 1.3)) + 0.015 * Math.sin(tq * 0.8);
-    const surge = Math.pow(Math.max(0, Math.sin(ph * 0.45 + 1)), 2);
-    const fwd = 0.08 + I * (0.12 + 0.2 * surge), lean = swayX * 0.38;
-    const P = [swayX * 0.4, -0.24], up = [Math.sin(lean), -Math.cos(lean)], tl = GIRL_SP.torso * (1 - fwd * 1.6 * 0.08);
-    const N = [P[0] + up[0] * tl, P[1] + up[1] * tl];
-    const ht = lean * 0.6 + I * 0.12 * Math.sin(ph * 0.9) + turn * 0.08 + lean * 0.5;
-    const head = [N[0] + Math.sin(ht) * GIRL_SP.neck + 0.07 * turn, N[1] - Math.cos(ht) * GIRL_SP.neck + fwd * 0.6];
-    const swing = -lean * 1.8 - I * 0.24 * Math.cos(ph * 0.7);
-    return { head, hair: { view: 'back', len: o.hairLen || 2.5, wind: (o.wind || 0.05) + I * 0.12 * surge, windDir: o.windDir === undefined ? (swing > 0 ? Math.PI : 0) : o.windDir, seed: seed + 3, tilt: ht * 0.7, swing, spread: 0.1 } };
+  /* ====================================================== the characters (PV.anime) */
+  const HEAD_M = { senpai: 0.23, boy: 0.244 };    // head height chin -> crown in metres (161 cm / 7.0 heads, 178 cm / 7.3)
+  // a figure whose pose anchor is at room point p, facing the room direction fd [x, z], seen by the room camera of R: its screen
+  // anchor, head size in px, facing relative to the line of sight (+ toward screen right) and the camera's pitch toward its chest
+  function figPlace(R, p, fd, who, chestH) {
+    const cam = R.cam, a = R.project(p), s = cam.scaleAt(p) * HEAD_M[who];
+    let tx = cam.eye[0] - p[0], tz = cam.eye[2] - p[2]; const tl = Math.hypot(tx, tz); tx /= tl; tz /= tl;
+    let rx = cam.r[0], rz = cam.r[2]; const rl = Math.hypot(rx, rz) || 1; rx /= rl; rz /= rl;
+    return { x: a[0], y: a[1], scale: s, facing: Math.atan2(fd[0] * rx + fd[1] * rz, fd[0] * tx + fd[1] * tz),
+      camPitch: Math.atan2(cam.eye[1] - p[1] - (chestH || 0.45), tl) };
   }
-  function pianoGirl(ctx, t, o) {
-    if (girlSigOK === null) {
-      girlSigOK = PV.hash(L.girlAtPianoBack.toString()) === GIRL_SIG && typeof L.hairLong === 'function';
-      if (!girlSigOK) console.warn('g01: girlAtPianoBack changed; the pianist falls back to a plain silhouette');
+  // 先輩 at the grand piano, seen by the room camera (her own bench; the keys are the scene's piano: keyH / keyZ match it).
+  // o: intensity, play, hands, look, breathe, lean, tilt, neckYaw, rimDir, head (PV.anime.head options). Returns the figure info.
+  function drawPianist(c, R, T, o) {
+    const P = figPlace(R, BENCH, HER_DIR, 'senpai', 0.42);
+    return A.figure(c, {
+      who: 'senpai', outfit: 'uniform', pose: 'piano', facing: P.facing, camPitch: P.camPitch, x: P.x, y: P.y, scale: P.scale, T,
+      light: 'window', rimDir: o.rimDir === undefined ? -1.25 : o.rimDir,
+      params: { intensity: o.intensity, play: o.play === undefined ? 1 : o.play, hands: o.hands || 'keys', look: o.look || 'keys', breathe: o.breathe || 0,
+        lean: o.lean || 0, tilt: o.tilt || 0, neckYaw: o.neckYaw || 0, keys: false, bench: true, benchH: 2.15, keyH: 1.0, keyZ: KEY_Z },
+      head: o.head || {},
+    });
+  }
+  // 彼 takes the straw from his mouth, stands the pack on his thigh and claps: one continuous action. The library's chair pose has
+  // 'juice' (sip) and 'clap' as separate variants; this local pose blends their body and arm targets (prm.k 0 = juice, 1 = clap;
+  // prm.hold = the pack still in his hand). It is put in PV.anime.FIG_POSES under a g01_ name only for the duration of the call.
+  function lerpDeep(a, b, k) {
+    if (typeof a === 'number' && typeof b === 'number') return a + (b - a) * k;
+    if (Array.isArray(a) && Array.isArray(b)) return a.map((v, i) => lerpDeep(v, b[i], k));
+    if (a && b && typeof a === 'object' && typeof b === 'object') { const o = {}; for (const key in a) o[key] = key in b ? lerpDeep(a[key], b[key], k) : a[key]; for (const key in b) if (!(key in o)) o[key] = b[key]; return o; }
+    return k < 0.5 ? a : b;
+  }
+  const G01_CLAP = 'g01_juiceClap';
+  const juiceClapPose = {
+    facing: '3q_left', anchor: 'top centre of the chair seat', armsFront: true,
+    body(sp, prm, tq, o, OF) {
+      const B = A.FIG_POSES.seated_chair;
+      return lerpDeep(B.body(sp, Object.assign({}, prm, { variant: 'juice' }), tq, o, OF), B.body(sp, Object.assign({}, prm, { variant: 'clap' }), tq, o, OF), prm.k || 0);
+    },
+    limbs(J, sp, prm, tq, o, OF) {
+      const B = A.FIG_POSES.seated_chair, k = prm.k || 0;
+      const a = B.limbs(J, sp, Object.assign({}, prm, { variant: 'juice' }), tq, o, OF), b = B.limbs(J, sp, Object.assign({}, prm, { variant: 'clap' }), tq, o, OF);
+      const arms = { L: lerpDeep(a.arms.L, b.arms.L, k), R: lerpDeep(a.arms.R, b.arms.R, k) };
+      if (!prm.hold && arms.R.hand) delete arms.R.hand.kind;        // the hand lets go of the pack
+      return { legs: a.legs, arms };
+    },
+    props(G, prm, tq, o) { A.FIG_POSES.seated_chair.props(G, Object.assign({}, prm, { variant: prm.hold ? 'juice' : 'idle' }), tq, o); },
+  };
+  function withPose(name, fn) {
+    if (name !== G01_CLAP) return fn();
+    const P = A.FIG_POSES, had = Object.prototype.hasOwnProperty.call(P, name), old = P[name];
+    P[name] = juiceClapPose;
+    try { return fn(); } finally { if (had) P[name] = old; else delete P[name]; }
+  }
+  // 彼 on a school chair by the pier, in its shade (window light with a deeper ambient and a soft rim; no head rim: he is small)
+  function drawBoy(c, R, T, o) {
+    const P = figPlace(R, BOY_SEAT, BOY_DIR, 'boy', 0.5), pose = o.pose || 'seated_chair';
+    return withPose(pose, () => A.figure(c, {
+      who: 'boy', outfit: 'uniform', pose, facing: P.facing, camPitch: P.camPitch, x: P.x, y: P.y, scale: P.scale, T,
+      light: 'window', rimDir: o.rimDir === undefined ? -1.9 : o.rimDir, amb: o.amb, rimA: o.rimA,
+      params: o.params || {}, head: Object.assign({ rim: 0 }, o.head || {}),
+    }));
+  }
+  // the juice pack standing on his thigh once he has let go of it (the library draws it only in his hand): an orange carton with
+  // two white bands and the straw, drawn in screen space at (x, y) = the pack centre, h = its height in px
+  function juicePack(c, x, y, h, light, tilt) {
+    const mB = A.mat('carton_band', light), mW = A.mat('carton', light), mS = A.mat('straw', light);
+    const w = h * 0.6, dx = h * 0.2, dy = -h * 0.1, lw = Math.max(0.8, h * 0.035);
+    c.save(); c.translate(x, y); c.rotate(tilt || 0); c.lineJoin = 'round';
+    const quad = (pts, fill) => { c.beginPath(); pts.forEach((p, i) => (i ? c.lineTo(p[0], p[1]) : c.moveTo(p[0], p[1]))); c.closePath(); c.fillStyle = fill; c.fill(); };
+    const x0 = -w / 2, x1 = w / 2, y0 = -h / 2, y1 = h / 2;
+    quad([[x1, y0], [x1 + dx, y0 + dy], [x1 + dx, y1 + dy], [x1, y1]], mB.shade);                 // side (away from the window)
+    quad([[x0, y0], [x1, y0], [x1, y1], [x0, y1]], mB.base);                                       // front
+    for (const [a, b] of [[0.06, 0.3], [0.58, 0.78]]) {                                             // the white bands round the carton
+      quad([[x0, y0 + h * a], [x1, y0 + h * a], [x1, y0 + h * b], [x0, y0 + h * b]], mW.base);
+      quad([[x1, y0 + h * a], [x1 + dx, y0 + h * a + dy], [x1 + dx, y0 + h * b + dy], [x1, y0 + h * b]], mW.shade);
     }
-    const u = 92 * o.scale, box = devBox(ctx, o.x - 2.9 * u, o.y - 5.3 * u, o.x + 3.4 * u, o.y + 2.6 * u);
-    if (!girlSigOK) { L.girlAtPianoBack(ctx, t, o); return box; }
-    const m = ctx.getTransform();
-    // device-space box around the figure (bench to the crown, the reaching arm), for a cheap clear / blit
-    const pts = [[o.x - 2.9 * u, o.y - 5.3 * u], [o.x + 3.4 * u, o.y + 2.6 * u]].map(([x, y]) => [m.a * x + m.c * y + m.e, m.b * x + m.d * y + m.f]);
-    const bx = Math.max(0, Math.floor(Math.min(pts[0][0], pts[1][0]))), by = Math.max(0, Math.floor(Math.min(pts[0][1], pts[1][1])));
-    const bw = Math.min(W, Math.ceil(Math.max(pts[0][0], pts[1][0]))) - bx, bh = Math.min(H, Math.ceil(Math.max(pts[0][1], pts[1][1]))) - by;
-    if (bw < 2 || bh < 2) return box;
-    const b = PV.buffer('g01:girlbody'), c = b.ctx; c.clearRect(0, 0, W, H);
-    c.setTransform(m);
-    L.girlAtPianoBack(c, t, Object.assign({}, o, { fill: o.blouse || '#e2d8d6' }));
-    c.globalCompositeOperation = 'source-atop';
-    const y0 = o.y - 4.8 * u, y1 = o.y + 2.4 * u, f = (y) => clamp((y - y0) / (y1 - y0)), yw = o.y - 0.96 * u;
-    const g = c.createLinearGradient(0, y0, 0, y1);
-    g.addColorStop(0, 'rgba(90,72,84,0)'); g.addColorStop(f(o.y - 2.8 * u), 'rgba(90,72,88,0.2)'); g.addColorStop(f(yw - 0.14 * u), 'rgba(70,60,84,0.46)');
-    g.addColorStop(f(yw + 0.1 * u), 'rgba(24,28,48,0.93)'); g.addColorStop(f(o.y + 0.3 * u), 'rgba(16,19,32,0.95)'); g.addColorStop(1, 'rgba(10,12,20,0.97)');
-    c.fillStyle = g; c.fillRect(o.x - 4 * u, y0, 8 * u, y1 - y0);
-    c.globalCompositeOperation = 'source-over'; c.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(b.canvas, bx, by, bw, bh, bx, by, bw, bh); ctx.restore();
-    const hp = girlHair(t, o);
-    L.hairLong(ctx, t, Object.assign({}, hp.hair, { x: o.x + hp.head[0] * u, y: o.y + hp.head[1] * u, scale: o.scale, style: 'silhouette',
-      light: o.light, rimColor: o.rimColor, rim: o.rim, backlight: o.backlight, glow: o.glow, fps: o.fps }));
-    return box;
+    quad([[x0, y0], [x0 + dx, y0 + dy], [x1 + dx, y0 + dy], [x1, y0]], mB.hi);                     // top
+    c.strokeStyle = mB.line; c.lineWidth = lw; c.beginPath();
+    c.moveTo(x0, y1); c.lineTo(x0, y0); c.lineTo(x0 + dx, y0 + dy); c.lineTo(x1 + dx, y0 + dy); c.lineTo(x1 + dx, y1 + dy); c.lineTo(x1, y1); c.closePath(); c.moveTo(x1, y0); c.lineTo(x1, y1); c.moveTo(x0, y0); c.lineTo(x1, y0); c.stroke();
+    c.strokeStyle = mS.line; c.lineWidth = lw * 2.2; c.lineCap = 'round'; c.beginPath(); c.moveTo(x1 - w * 0.2, y0 + dy * 0.5); c.lineTo(x1 - w * 0.05, y0 - h * 0.42); c.stroke();
+    c.strokeStyle = mS.base; c.lineWidth = lw * 1.3; c.stroke();
+    c.restore();
+  }
+  // beads of sweat (張り詰めた演奏の顔：額に大粒の汗, design sheet 2-4): small clear drops on the forehead between the bangs and on
+  // the near temple, placed from the head's anchors; the temple drop slides down the cheek line over time. k = amount 0..1
+  function sweat(c, Hd, k, t, light) {
+    if (!Hd || !Hd.eyeL || k <= 0.01) return;
+    const s = Hd.size, eL = Hd.eyeL, eR = Hd.eyeR, cr = Hd.crown;
+    const mx = (eL[0] + eR[0]) / 2, my = (eL[1] + eR[1]) / 2;
+    let ux = eR[0] - eL[0], uy = eR[1] - eL[1]; const ul = Math.hypot(ux, uy) || 1; ux /= ul; uy /= ul;      // along the eyes
+    let vx = cr[0] - mx, vy = cr[1] - my; const vl = Math.hypot(vx, vy) || 1; vx /= vl; vy /= vl;            // up the forehead
+    const skin = A.mat('skin', A.faceLight ? A.faceLight(light) : light);
+    const drop = (px, py, r, a) => {
+      c.save(); c.translate(px, py); c.globalAlpha = a;
+      c.beginPath(); c.moveTo(0, -r * 1.7); c.bezierCurveTo(r * 0.55, -r * 0.9, r, -r * 0.1, r, r * 0.25); c.arc(0, r * 0.25, r, 0, Math.PI); c.bezierCurveTo(-r, -r * 0.1, -r * 0.55, -r * 0.9, 0, -r * 1.7); c.closePath();
+      c.fillStyle = 'rgba(255,255,255,0.32)'; c.fill();
+      c.strokeStyle = skin.line; c.globalAlpha = a * 0.55; c.lineWidth = Math.max(0.6, r * 0.28); c.stroke();
+      c.globalAlpha = a; c.fillStyle = '#ffffff'; c.beginPath(); c.ellipse(-r * 0.35, r * 0.05, r * 0.28, r * 0.42, -0.3, 0, TAU); c.fill();
+      c.restore();
+    };
+    const r = Math.max(1.2, s * 0.02);
+    const F = (a, b) => [mx + vx * s * a + ux * s * b, my + vy * s * a + uy * s * b];
+    let p = F(0.3, 0.02); drop(p[0], p[1], r, k);
+    p = F(0.36, 0.17); drop(p[0], p[1], r * 0.8, k * 0.85);
+    // the near temple: just outside the near eye, sliding down toward the jaw (on twos)
+    const u = (q12(t) * 0.35) % 1;
+    p = [eL[0] - ux * s * 0.13 - vx * s * (0.02 + 0.22 * u), eL[1] - uy * s * 0.13 - vy * s * (0.02 + 0.22 * u)];
+    drop(p[0], p[1], r * 1.1, k * (1 - 0.6 * u));
   }
 
   /* ============================================================== C01 */
@@ -662,160 +728,11 @@
     if (FL.fin > 0) { ctx.save(); ctx.fillStyle = `rgba(255,255,255,${0.85 * FL.fin})`; ctx.fillRect(0, 0, W, H); ctx.restore(); }
   } });
 
-  /* ============================================== the clapping boy (side view) */
-  // boySeated has only 'juice' / 'guitar' poses: this is the same boy (same proportions, hair and silhouette
-  // pipeline via L.figureRender) who can take the juice from his mouth, set it on his thigh and clap.
-  const BOY = { torso: 2.42, neck: 0.74, head: 1.06, upArm: 1.3, foreArm: 1.12, hand: 0.82, armR: 0.155, thigh: 1.95, shin: 1.88, legR: 0.3, waistH: 0.8 };
-  const S_UPARM = [[0, 0.155, 0.155], [0.2, 0.15, 0.128], [0.5, 0.122, 0.112], [1, 0.09, 0.088]];
-  const S_FOREARM = [[0, 0.09, 0.088], [0.25, 0.1, 0.094], [0.82, 0.074, 0.07], [0.85, 0.058, 0.056], [1, 0.055, 0.054]];
-  const S_TTHIGH = [[0, 0.38, 0.38], [0.5, 0.31, 0.29], [1, 0.242, 0.236]];
-  const S_TSHIN = [[0, 0.242, 0.236], [0.6, 0.226, 0.222], [1, 0.222, 0.22]];
-  const v2 = { add: (a, b) => [a[0] + b[0], a[1] + b[1]], mix: (a, b, k) => [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k] };
-  function spline(c, pts, closed) {
-    const n = pts.length; if (n < 2) return;
-    const P = (i) => (closed ? pts[((i % n) + n) % n] : pts[Math.max(0, Math.min(n - 1, i))]);
-    c.moveTo(pts[0][0], pts[0][1]);
-    const m = closed ? n : n - 1;
-    for (let i = 0; i < m; i++) {
-      const p0 = P(i - 1), p1 = P(i), p2 = P(i + 1), p3 = P(i + 2), s1 = p1[2] ? 0 : 1 / 6, s2 = p2[2] ? 0 : 1 / 6;
-      c.bezierCurveTo(p1[0] + (p2[0] - p0[0]) * s1, p1[1] + (p2[1] - p0[1]) * s1, p2[0] - (p3[0] - p1[0]) * s2, p2[1] - (p3[1] - p1[1]) * s2, p2[0], p2[1]);
-    }
-    if (closed) c.closePath();
-  }
-  const blob = (c, pts) => { c.beginPath(); spline(c, pts, true); c.fill(); };
-  function smoothPoly(c, P, move) {
-    const n = P.length; if (move) c.moveTo(P[0][0], P[0][1]); else c.lineTo(P[0][0], P[0][1]);
-    for (let i = 1; i < n - 1; i++) c.quadraticCurveTo(P[i][0], P[i][1], (P[i][0] + P[i + 1][0]) / 2, (P[i][1] + P[i + 1][1]) / 2);
-    c.lineTo(P[n - 1][0], P[n - 1][1]);
-  }
-  function limb(c, p0, p1, prof, n = 14) {
-    const dx = p1[0] - p0[0], dy = p1[1] - p0[1], l = Math.hypot(dx, dy) || 1e-6, ux = dx / l, uy = dy / l, ax = uy, ay = -ux;
-    const at = (f) => { for (let i = 0; i < prof.length - 1; i++) if (f <= prof[i + 1][0]) { const a = prof[i], b = prof[i + 1]; const k = clamp((f - a[0]) / ((b[0] - a[0]) || 1)); const e = k * k * (3 - 2 * k); return [lerp(a[1], b[1], e), lerp(a[2], b[2], e)]; } const z = prof[prof.length - 1]; return [z[1], z[2]]; };
-    const A = [], B = [];
-    for (let i = 0; i <= n; i++) { const f = i / n, w = at(f), px = p0[0] + dx * f, py = p0[1] + dy * f; A.push([px + ax * w[0], py + ay * w[0]]); B.push([px - ax * w[1], py - ay * w[1]]); }
-    const ang = Math.atan2(uy, ux), w0 = at(0), w1 = at(1), r1 = (w1[0] + w1[1]) / 2, o1 = (w1[0] - w1[1]) / 2, r0 = (w0[0] + w0[1]) / 2, o0 = (w0[0] - w0[1]) / 2;
-    c.beginPath(); smoothPoly(c, A, true);
-    c.arc(p1[0] + ax * o1, p1[1] + ay * o1, Math.max(1e-4, r1), ang - Math.PI / 2, ang + Math.PI / 2, false);
-    smoothPoly(c, B.reverse(), false);
-    c.arc(p0[0] + ax * o0, p0[1] + ay * o0, Math.max(1e-4, r0), ang + Math.PI / 2, ang + 1.5 * Math.PI, false);
-    c.closePath(); c.fill();
-  }
-  const scaleP = (P, k) => P.map(([f, a, b]) => [f, a * k, b * k]);
-  const dirDeg = (p, deg, len) => [p[0] + Math.sin(deg * Math.PI / 180) * len, p[1] + Math.cos(deg * Math.PI / 180) * len];
-  function local(c, p, a, k, fn) { c.save(); c.translate(p[0], p[1]); c.rotate(a); c.scale(k, k); fn(c); c.restore(); }
-  function ik(a, cpt, l1, l2, bend) {
-    const d = [cpt[0] - a[0], cpt[1] - a[1]]; let D = Math.hypot(d[0], d[1]); D = clamp(D, Math.abs(l1 - l2) + 1e-4, l1 + l2 - 1e-4);
-    const base = Math.atan2(d[1], d[0]), cosA = (l1 * l1 + D * D - l2 * l2) / (2 * l1 * D), ang = base + bend * Math.acos(clamp(cosA, -1, 1));
-    return [a[0] + Math.cos(ang) * l1, a[1] + Math.sin(ang) * l1];
-  }
-  function boyRig(lean, headTilt) {
-    const P = [-0.3, -0.3], up = [Math.sin(lean), -Math.cos(lean)];
-    const F = (x, h) => [P[0] - up[1] * x + up[0] * h, P[1] + up[0] * x + up[1] * h];
-    const N = F(0, BOY.torso), S = F(-0.04, BOY.torso - 0.27), nl = lean + 0.14;
-    const nt = [N[0] + Math.sin(nl) * BOY.neck * 0.42, N[1] - Math.cos(nl) * BOY.neck * 0.42];
-    const ht = lean * 0.5 + headTilt;
-    const head = [nt[0] + Math.sin(ht) * BOY.neck * 0.5 + Math.cos(ht) * 0.03, nt[1] - Math.cos(ht) * BOY.neck * 0.5 + Math.sin(ht) * 0.03];
-    return { P, up, F, N, S, nt, ht, head, Lt: BOY.torso };
-  }
-  // a point given in head units of the profile (x forward, y down) -> rig units
-  const headPt = (R, p) => { const c = Math.cos(R.ht), s = Math.sin(R.ht), k = BOY.head; return [R.head[0] + (p[0] * c - p[1] * s) * k, R.head[1] + (p[0] * s + p[1] * c) * k]; };
-  function boyHead(c, t, R) {
-    c.save(); c.translate(R.head[0], R.head[1]); c.rotate(R.ht); c.scale(BOY.head, BOY.head);
-    // profile (no lips: the face is never acted)
-    blob(c, [[-0.04, -0.54], [0.22, -0.49], [0.37, -0.32], [0.41, -0.1], [0.405, -0.02], [0.475, 0.13, 1], [0.41, 0.19], [0.405, 0.27], [0.375, 0.34], [0.37, 0.42], [0.3, 0.47], [0.1, 0.45], [-0.06, 0.33], [-0.3, 0.2], [-0.45, -0.05], [-0.4, -0.33]]);
-    // slightly long, messy hair: bangs over the eyes, tufts at the nape
-    const tl = R.ht, G = { 0: 0.45, 1: 0.45, 2: 0.5, 3: 0.75, 4: 0.75, 5: 0.7 };
-    const tf = (i, x, y) => { const n = N2(3 + i * 1.7, t * 1.4), g = (G[i] || 0) * tl, cg = Math.cos(-g), sg = Math.sin(-g), bx = x * 0.72, by = y * 0.72, dx = x - bx, dy = y - by; return [bx + dx * cg - dy * sg - 0.01 * n, by + dx * sg + dy * cg + 0.006 * n, 1]; };
-    blob(c, [[0.16, -0.62], [0.34, -0.53], [0.45, -0.38], [0.475, -0.22], tf(0, 0.475, -0.01), [0.43, -0.1], tf(1, 0.44, 0.05), [0.39, -0.04],
-      [0.28, -0.12], [0.17, -0.09], tf(2, 0.1, 0.19), [0.03, 0.06], [-0.1, 0.1], [-0.15, 0.25], tf(3, -0.17, 0.47), [-0.25, 0.36],
-      tf(4, -0.33, 0.49), [-0.4, 0.33], tf(5, -0.5, 0.42), [-0.56, 0.17], [-0.62, -0.05], [-0.635, -0.26], [-0.6, -0.45],
-      tf(7, -0.5, -0.66), [-0.38, -0.66], [-0.18, -0.695], [0.02, -0.68]]);
-    c.restore();
-  }
-  function boyTorso(c, R) {
-    const F = R.F, Lt = R.Lt;
-    blob(c, [F(-0.17, Lt + 0.16), F(-0.25, Lt - 0.05), F(-0.42, 1.78), F(-0.4, 1.25), F(-0.31, 0.82), F(-0.36, 0.36), F(-0.43, 0.02), F(-0.34, -0.32),
-      F(0.2, -0.32), F(0.32, 0.08), F(0.33, 0.52), F(0.32, 0.88), F(0.37, 1.32), F(0.41, 1.62), F(0.35, 1.98), F(0.19, Lt - 0.04), F(0.16, Lt + 0.16)]);
-    blob(c, [F(-0.44, -0.12, 1), F(-0.4, 0.85), F(-0.42, 1.7), F(0.0, Lt), F(0.4, 1.6), F(0.38, 0.85), F(0.4, -0.1, 1), F(0, -0.16)]);  // loose shirt
-    const N = R.N, nt = R.nt; c.beginPath(); c.moveTo(N[0] - 0.2, N[1]); c.lineTo(nt[0] - 0.18, nt[1]); c.lineTo(nt[0] + 0.2, nt[1]); c.lineTo(N[0] + 0.22, N[1]); c.closePath(); c.fill();
-  }
-  function shoeSide(c) { blob(c, [[-0.12, -0.06], [-0.2, 0.08], [-0.2, 0.27, 1], [0.1, 0.29], [0.7, 0.29], [0.86, 0.24], [0.83, 0.12], [0.58, 0.04], [0.3, -0.02], [0.08, -0.08]]); }
-  function schoolChair(c) {
-    c.beginPath(); c.roundRect(-0.85, -0.02, 1.72, 0.12, 0.04); c.fill();
-    const leg = (a, b) => limb(c, a, b, [[0, 0.045, 0.045], [1, 0.04, 0.04]], 3);
-    leg([-0.78, 0.08], [-0.82, 2.0]); leg([0.76, 0.08], [0.8, 2.0]); leg([-0.82, 0.1], [-0.92, -1.75]);
-    c.beginPath(); c.roundRect(-1.0, -1.72, 0.2, 0.62, 0.05); c.fill(); leg([-0.8, 1.55], [0.8, 1.55]);
-  }
-  // an open hand seen from the thumb side (fingers together, slightly cupped: the clapping hand)
-  function handClap(c) {
-    blob(c, [[0, -0.1], [0.18, -0.13], [0.36, -0.12], [0.55, -0.1], [0.7, -0.07], [0.78, -0.02], [0.77, 0.03], [0.62, 0.07], [0.42, 0.1], [0.2, 0.11], [0, 0.09]]);
-    limb(c, [0.06, -0.06], [0.3, -0.16], [[0, 0.06, 0.06], [1, 0.042, 0.042]], 4);
-  }
-  // a hand closed round the juice pack (seen from the thumb side)
-  function handGrip(c) {
-    blob(c, [[-0.02, -0.1], [0.12, -0.14], [0.24, -0.12], [0.3, -0.04], [0.3, 0.06], [0.24, 0.12], [0.1, 0.13], [-0.02, 0.09]]);
-    limb(c, [0.06, -0.08], [0.22, -0.2], [[0, 0.055, 0.055], [1, 0.04, 0.04]], 4);
-  }
-  // the 200ml pack: x/y = centre (rig units), a = tilt; the straw comes out of the top toward `to` (or straight up)
-  function juicePack(c, x, y, a, to) {
-    local(c, [x, y], a, 1, (cc) => { cc.beginPath(); cc.roundRect(-0.13, -0.22, 0.26, 0.44, 0.03); cc.fill(); });
-    const top = [x + Math.sin(a) * 0.22 + Math.cos(a) * 0.06, y - Math.cos(a) * 0.22 + Math.sin(a) * 0.06];
-    const end = to || [top[0] + Math.cos(a - 1.9) * 0.3, top[1] + Math.sin(a - 1.9) * 0.3];
-    c.lineWidth = 0.035; c.beginPath(); c.moveTo(top[0], top[1]); c.lineTo(end[0], end[1]); c.stroke();
-  }
-  // o: x, y (seat top), scale, light, rimColor, backlight, glow, lean, headTilt,
-  //    pose {sep 0..1 (hands apart), lift, rest 0..1 (hands on the lap), hold 0..1 (the pack in his near hand),
-  //          pk 0..2 (where the held pack is: 0 at his mouth, 1 at his chest, 2 on his thigh)}
-  // returns the clapping point in the canvas' device space (for the light that spreads from his hands)
-  function boyClapping(ctx, t, o) {
-    const cl = o.pose, lean = (o.lean === undefined ? 0.1 : o.lean) - 0.06 * clamp(1 - cl.pk) + 0.01 * Math.sin(t * 1.4);
-    const R = boyRig(lean, (o.headTilt === undefined ? 0.08 : o.headTilt) - 0.1 * clamp(1 - cl.pk));   // chin up while he drinks
-    const P = R.P, KN = dirDeg(P, 84, BOY.thigh), AN = dirDeg(KN, 18, BOY.shin), KF = dirDeg(P, 78, BOY.thigh * 0.97), AF = dirDeg(KF, -6, BOY.shin);
-    // the pack: at his mouth (straw in), at his chest, then standing on his thigh
-    const mouth = headPt(R, [0.43, 0.2]);
-    const atMouth = [mouth[0] + 0.2, mouth[1] + 0.42], atChest = R.F(0.62, 1.45), onThigh = v2.add(v2.mix(P, KN, 0.62), [0, -0.52]);
-    const pk = clamp(cl.pk, 0, 2), e1 = PV.ease.inOutCubic(clamp(pk)), e2 = PV.ease.inOutCubic(clamp(pk - 1));
-    const packP = pk <= 1 ? v2.mix(atMouth, atChest, e1) : v2.mix(atChest, onThigh, e2);
-    const packA = pk <= 1 ? lerp(-0.42, -0.1, e1) : lerp(-0.1, 0.05, e2);
-    // clapping point in front of the chest; the hands rest on the lap before the applause
-    const C = v2.mix(R.F(0.9, 1.5), v2.add(KN, [-0.55, -0.42]), cl.rest);
-    const Wf = v2.add(C, [0.12 - 0.06 * cl.sep, -0.06 + 0.02 * cl.sep - cl.lift * 0.4]);
-    const grip = [packP[0] - 0.12, packP[1] + 0.08];
-    const Wn = v2.mix(v2.add(C, [-0.08 + 0.08 * cl.sep, 0.04 - 0.22 * cl.sep - cl.lift]), grip, cl.hold);
-    const Sf = v2.add(R.S, [0.06, -0.02]);
-    const Ef = ik(Sf, Wf, BOY.upArm, BOY.foreArm, 1), En = ik(R.S, Wn, BOY.upArm, BOY.foreArm, 1);
-    const k = BOY.armR / 0.125;
-    L.figureRender(ctx, o, null, (F) => {
-      F.layer({ fill: F.tone(0.06) }, (c) => { // far side: chair, far leg, far arm
-        schoolChair(c);
-        limb(c, P, KF, scaleP(S_TTHIGH, 1)); limb(c, KF, AF, scaleP(S_TSHIN, 1)); local(c, AF, 0, 1.08, shoeSide);
-        limb(c, Sf, Ef, scaleP(S_UPARM, k)); limb(c, Ef, Wf, scaleP(S_FOREARM, k));
-        local(c, Wf, Math.atan2(Wf[1] - Ef[1], Wf[0] - Ef[0]) - 0.25 - cl.sep * 0.3, BOY.hand / 0.78, handClap);
-      });
-      F.layer({ inner: 0.35 }, (c) => { // near leg, body, head
-        limb(c, P, KN, scaleP(S_TTHIGH, 1)); limb(c, KN, AN, scaleP(S_TSHIN, 1)); local(c, AN, -0.04, 1.08, shoeSide);
-        blob(c, [R.F(-0.42, BOY.waistH), R.F(-0.46, 0.05), R.F(-0.32, -0.36), KN, R.F(0.35, 0.12), R.F(0.34, BOY.waistH)]);
-        boyTorso(c, R); boyHead(c, t, R);
-      });
-      F.layer({ fill: F.tone(0.12, '#c9b48e'), inner: 0.5 }, (c) => { // the juice pack (a touch lighter than him)
-        juicePack(c, packP[0], packP[1], packA, pk < 0.35 ? mouth : null);
-      });
-      F.layer({ inner: 0.6 }, (c) => { // near arm across the body
-        limb(c, R.S, En, scaleP(S_UPARM, k)); limb(c, En, Wn, scaleP(S_FOREARM, k));
-        const ha = Math.atan2(Wn[1] - En[1], Wn[0] - En[0]);
-        if (cl.hold > 0.5) local(c, Wn, ha - 0.2, BOY.hand / 0.78, handGrip);
-        else local(c, Wn, ha + 0.1 + cl.sep * 0.35, BOY.hand / 0.78, handClap);
-      });
-    });
-    const m = ctx.getTransform(), u = 92 * (o.scale || 1), hx = o.x + C[0] * u, hy = o.y + (C[1] - 0.05) * u;
-    return { x: m.a * hx + m.c * hy + m.e, y: m.b * hx + m.d * hy + m.f };
-  }
-
   /* ============================================================== C02 */
   // the days go by: each change of the light takes one spectator away (cut-local seconds)
   const C02_DAYS = [0.95, 1.72, 2.48, 3.18];
   const c02Day = (t) => C02_DAYS.reduce((n, s) => n + (t >= s ? 1 : 0), 0);
-  const C02_F = { x: 1040, y: 600 };       // push-in centre (on her)
+  const C02_F = { x: 1180, y: 600 };       // push-in centre (on her face)
   const c02Zoom = (t, d) => 1 + 0.075 * PV.ease.inOut(clamp(t / d));
   const c02DayStart = (day) => (day ? C02_DAYS[day - 1] : 0);
   // each day's room is one held plate (clouds and curtains jump from day to day: time-lapse) with that day's light,
@@ -830,18 +747,25 @@
       dayLight(c, 0, R, day, 1, 'c02', 0.95);
       pierShade(c, R, 1);
       roomHaze(c, R, 1);
-      L.grandPiano(c, R.piano(PIANO.x, PIANO.z, PIANO.yaw, { lidOpen: 1, bench: false, rimLit: true }));
+      L.grandPiano(c, pianoOpts(R));
       c.restore();
     }) };
   }
+  // the students who came to watch: seen from behind at the lens, turned toward her; they stop coming one by one
   const C02_SP = [
-    { x: 95, y: 870, s: 38, kind: 0, col: '#2c2830', ph: 1.2 },
-    { x: 1330, y: 925, s: 40, kind: 1, col: '#27232c', ph: 2.7 },
-    { x: 455, y: 955, s: 45, kind: 2, col: '#231f28', ph: 4.1, rot: 0.05 },
-    { x: 790, y: 995, s: 39, kind: 3, col: '#2b262f', ph: 5.6 },
+    { id: 0, who: 'boy', outfit: 'uniform', facing: 2.55, s: 170, x: 150, y: 935, ph: 1.2 },
+    { id: 1, who: 'senpai', outfit: 'blazer', facing: -2.5, s: 158, x: 1360, y: 965, ph: 2.7, head: { hair: { style: 'updo', still: true } } },
+    { id: 2, who: 'senpai', outfit: 'uniform', facing: 2.65, s: 172, x: 480, y: 995, ph: 4.1, rot: 0.04, head: { hair: { style: 'loose', still: true } } },
+    { id: 3, who: 'boy', outfit: 'blazer', facing: 2.85, s: 164, x: 830, y: 1012, ph: 5.6 },
   ];
-  PV.shot('C02', { draw(ctx, tIn, d) {
-    const t = cutT(tIn, d);
+  // 〈雪あらし〉 at full force: her hair lags behind the surge of her body into the keys (the piano pose's own sway, on twos)
+  function c02HairWind(T, I) {
+    const tq = A.onTwos(T), sg = (x) => { const ph = x * (1.2 + I * 1.6); return Math.pow(Math.max(0, Math.sin(ph * 0.45 + 1)), 2) * I; };
+    const v = (sg(tq + 1 / 12) - sg(tq - 1 / 12)) * 6;
+    return { wind: clamp(0.28 + Math.abs(v) * 0.9 + 0.12 * N2(7.7, tq * 3.1), 0, 1.3), windDir: v > 0 ? Math.PI - 0.35 : 0.25 };
+  }
+  PV.shot('C02', { draw(ctx, tIn, d, S) {
+    const t = cutT(tIn, d), T0 = S ? S.start : 3.0;
     const zoom = c02Zoom(t, d), e = PV.ease.inOut(clamp(t / d));
     const day = c02Day(t), tr = day > 0 ? sm(0, 0.2, t - C02_DAYS[day - 1]) : 1;
     // ---- the room: today's plate (dissolving from yesterday's at a day change). All five are built on the first frame
@@ -849,31 +773,36 @@
     const today = c02Room(day, d), R = roomR('c02');
     if (tr < 1 && day > 0) { const p = c02Room(day - 1, d); blitZ(ctx, p.cv, p.z0, zoom, C02_F.x, C02_F.y); }
     blitZ(ctx, today.cv, today.z0, zoom, C02_F.x, C02_F.y, tr < 1 && day > 0 ? tr : 1);
-    // ---- the boy in the shade by the pier: he is there every day (on twos, half a step out of phase with her)
+    // ---- the boy in the shade by the pier, juice at his lips, half-lidded: he is there every day (on twos, half a step out of
+    // phase with her). One day he listens with his eyes closed.
     const qb = Math.floor(t * 12 - 0.5 + 1e-6) / 12 + 1 / 24, zb = c02Zoom(qb, d);
     blitZ(ctx, plate('c02boy', qb + ':' + day, (c) => {
       PV.camera(c, { zoom: zb, cx: C02_F.x, cy: C02_F.y });
-      const bs = R.project(BOY_SEAT), sc = ppmAt(R, BOY_SEAT) / 417, u = 92 * sc;
-      L.boySeated(c, (qb + day * 41.3) * 0.4, { x: bs[0], y: bs[1], scale: sc, pose: 'juice', chair: true, light: -1.45, rimColor: '#ffe6c2', rim: 0.85, backlight: 0.22, glow: 0.35 });
+      const P = figPlace(R, BOY_SEAT, BOY_DIR, 'boy', 0.5), s = P.scale;
+      const sip = [1, 0.82, 1, 0.35, 1][day] - 0.04 * Math.sin(qb * 2.3 + day);
+      drawBoy(c, R, T0 + qb, { amb: 0.42, rimA: 0.55, params: { variant: 'juice', sip }, head: day === 2 ? { expr: 'sleep' } : { expr: 'neutral', eyes: { look: [0.35, 0.1] } } });
       hazeOn(c, R, 1);
-      return devBox(c, bs[0] - 2.8 * u, bs[1] - 6.4 * u, bs[0] + 4.0 * u, bs[1] + 2.8 * u);
+      return devBox(c, P.x - 3.2 * s, P.y - 5.4 * s, P.x + 3.2 * s, P.y + 2.4 * s);
     }), zb, zoom, C02_F.x, C02_F.y);
-    // ---- the pianist (white blouse, long black hair), 〈雪あらし〉 at full force (on twos; her pose jumps each day)
+    // ---- 先輩 at the piano, 〈雪あらし〉 at full force: the tense, cold face (focus, knitted brows, lips pressed, eyes on the
+    // keys, sweat on the forehead), hair swinging with the strokes (on twos; her pose jumps each day)
     const q = q12(t), zq = c02Zoom(q, d);
     blitZ(ctx, plate('c02girl', q + ':' + day, (c) => {
       PV.camera(c, { zoom: zq, cx: C02_F.x, cy: C02_F.y });
-      const bw = benchW(PIANO), bp = R.project(bw), ppm = ppmAt(R, bw);
-      return pianoGirl(c, q + day * 3.7, { x: bp[0], y: bp[1], scale: ppm / 418, intensity: 0.95, turn: 0.32, outfit: 'blouse', light: -1.3, rimColor: '#fff0d4', backlight: 0.42, glow: 0.55 });
+      const P = figPlace(R, BENCH, HER_DIR, 'senpai', 0.42), s = P.scale, Tq = T0 + q + day * 3.7;
+      const info = drawPianist(c, R, Tq, { intensity: 0.95, rimDir: -1.15, head: { expr: 'focus', brows: { furrow: 0.8, inner: -0.5 }, eyes: { open: 0.74, look: [0.42, 0.62] }, mouth: { shape: 'flat', open: 0 }, hair: c02HairWind(Tq, 0.95) } });
+      sweat(c, info && info.head, 1, q, 'window');
+      return devBox(c, P.x - 3.8 * s, P.y - 5.0 * s, P.x + 4.4 * s, P.y + 2.6 * s);
     }), zq, zoom, C02_F.x, C02_F.y);
     // a time-lapse exposure pulse at each day change
     for (const s of C02_DAYS) { const k = Math.exp(-Math.pow((t - s) / 0.05, 2)); if (k > 0.01) { ctx.save(); ctx.globalCompositeOperation = 'screen'; ctx.fillStyle = `rgba(255,242,220,${0.26 * k})`; ctx.fillRect(0, 0, W, H); ctx.restore(); } }
-    // ---- the blizzard of notes, blown from the piano across the room toward the people watching (right -> left)
-    const pp = R.project([PIANO.x - 0.2, 1.05, PIANO.z]);
+    // ---- the blizzard of notes, blown out of the open piano across the room toward the people watching (right -> left)
+    const pp = R.project(pianoL2R([0.9, 1.15, 0.9]));
     const ex = C02_F.x + (pp[0] - C02_F.x) * zoom, ey = C02_F.y + (pp[1] - C02_F.y) * zoom;
     gusts(ctx, t, { n: 8, y0: 110, y1: 880, alpha: 0.34, speed: 1800 });
     hail(ctx, t, { seed: 21, n: 430, nf: 0.12, blue: true, em: { x: ex - 20, y: ey - 40, w: 680, h: 560 }, cx: ex - 80, cy: ey - 60, vx: 1050, vz: 0.62, life: [1.0, 1.7], size: 14, noteK: 1.7, zFocus: 0.9, dof: 5, fall: 46, ambient: 0.45, streak: 0.13, streakA: 1, streakMax: 340, batch: 20 });
     hail(ctx, t, { mode: 'field', seed: 23, n: 14, nf: 0, zr: [0.2, 0.32], vx: 900, size: 10, zFocus: 0.9, dof: 4, fall: 60, streak: 0.05, streakA: 0.45, alpha: 0.75 });  // grains right at the lens
-    // ---- foreground: spectators (they leave one by one) and the curtain in shade
+    // ---- foreground: the students (they stop coming one by one) and the curtain in shade
     const sp = C02_SP.map((s, i) => Object.assign({}, s, { a: 1 - sm(C02_DAYS[i] - 0.04, C02_DAYS[i] + 0.32, t) }));
     spectators(ctx, t, sp, 0.25 * e);
     fgCurtain(ctx, t, 1468 + 26 * e);

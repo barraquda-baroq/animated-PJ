@@ -1,20 +1,33 @@
 /* g05_competition — ACT2「予選」C16–C19 (49.5–63.0)
- *   C16 白い世界: 左肩越しの後ろ姿（夜会巻き・うなじ・濃紺のドレス）、鍵盤の上で凍りついた手。51.4 咳払い→艶のある黒い鍵盤蓋に
- *       最前列の小さな人影が映り、頭がわずかに左へ（頬にホールの琥珀＝原作3384『赤み』）、白(1→0.6)が温まる。腕を解き、52.4 の吸気で
- *       肩が上がる。static→slow push-in。
- *   C17 〈別れの曲〉: 一本のスポットライト、真後ろからの後ろ姿（同じドレス・同じ夜会巻き）、ゆっくり動く肩、天屋根を開けたグランド
- *       ピアノ。白が暖かい光へ。光芒と微粒子、ドリーイン。右側は縦書きモノローグのために暗く保つ。
+ *   C16 白い世界: 客席の側（最前列やや左＝彼の席＝彼女の右）から見た先輩の寄り。輪郭のない白の中に、黒いグランドピアノ
+ *       （手前の側板と、開いた大屋根）だけが浮かぶ。濃紺のドレス、首の付け根の低いシニヨン、白い顔。焦点の合わない瞳（光は
+ *       小さく鈍く、両目が平行に鍵盤の方へ）、浅く速い息、肩の小さな震え。51.4 咳払い→瞳が先に、続いて頭がわずかに左（彼＝
+ *       カメラの方）へ向き、瞬き一つで瞳に光が戻る（目が合う。原作3384「顔が、向いた。こっちを見た」）。頬に赤み、白い世界に
+ *       ホールの琥珀が差す。腕を解き（51.85–52.75）、52.4 目を閉じて息を吸い、肩が上がる（原作3386）。static→slow push-in。
+ *   C17 〈別れの曲〉: 同じ客席側から、一本のスポットライトの中で弾く先輩（3/4→横顔）。肩がゆったり動き（原作3406）、
+ *       モノローグ（右の縦書き 53.4–56.9）の間に眉間に力が入り、瞳が潤み、瞬きで一筋だけ涙が頬を伝う（泣き顔にはせず、
+ *       「力強い顔」原作3408 のまま）。白が暖かいホールの光へ、光芒と微粒子、ドリーイン。右側（縦書きの列）は大屋根の内側と
+ *       暗いホールで静かに保つ。
  *   C18 〈木枯らし〉: 高音から駆け下りる右手（モーションブラー）＋枯葉の突風（右→左）。pan_left→static。57.2 記憶の声＝音楽室の窓光、
  *       59.4 最終和音で手が止まり、枯葉が散って光（燠）になる。
  *   C19 帰りの電車: 流れる街灯のボケ、彼女の手の中のスマホ。60.3「――おめでとう。」と夏の写真、61.6/62.25 涙が落ちて写真の彼が
  *       光の中ににじんで見えなくなる。
- * Shared (C16/C17): one 3-D figure (torso cross-sections, IK arms, a projected head with the chignon) seen through the hand rig's
- *   camera, so keys, hands, arms, body and piano always agree in perspective. LIT16 switches white-void / spotlight lighting.
+ * C16/C17: the pianist is a PV.anime figure (anime_body.js + anime_head.js). The grand piano is built in the SAME body space
+ *   (head units; the bench seat = origin; y down; +x = her LEFT = the bass end; +z = toward the keyboard) and projected with the
+ *   figure's own orthographic camera (facing, camPitch), so the case, the lid and her body always agree. Seen from the audience
+ *   side, the case wall hides her hands (as in a real hall): the face, the shoulders and the upper arms act.
+ *   The piano pose is the library's 'piano' wrapped in a local variant (g05_piano: arms released toward the lap, shoulder lift
+ *   for the breath, frozen tremble), registered under its own name in PV.anime.FIG_POSES (the library file is not edited).
  * The C15 photo: C19 uses PV.summerPhoto(ctx, w, h, layer) ('bg' | 'him') published by g04 (falls back to its own drawing).
  */
 (function () {
   const PV = window.PV, L = PV.lib, W = PV.W, H = PV.H, TAU = Math.PI * 2;
   const clamp = PV.clamp, lerp = PV.lerp, sm = PV.smooth, smr = PV.smoother, N2 = PV.noise2;
+  const SB_START = { C16: 49.5, C17: 53.0, C18: 57.0, C19: 60.0 };
+  // the film's global time of local t (lip-sync, blinks, on-twos); solo previews fall back to the storyboard start
+  const absT = (S, id, t) => ((S && S.start > 0.01) ? S.start : SB_START[id]) + t;
+  const tw = (T) => PV.anime.onTwos(T);
+  const mixH = (a, b, k) => PV.anime.mixHex(a, b, clamp(k));
 
   /* ================================================================== shared stage pieces */
   // dim warm hall behind the stage light (cached): back-wall panels far away, out of focus
@@ -33,378 +46,217 @@
     });
   }
 
-  /* C17 is defined after C16 (it re-uses C16's 3-D figure with its own camera and a spotlight) */
+  /* ================================================================== the grand piano, in the pianist's body space
+   * Same camera as PV.anime.figure: VM = Rx(camPitch)·Ry(facing); screen = anchor + scale·(VM·p).xy, depth = (VM·p).z
+   * (+ toward the camera). Proportions of a 7-ft concert grand in her head units (1 H = 23 cm): keys 1.0 H over the seat,
+   * the rim 1.22 H over the keys, 6.7 H wide, 10.7 H long; the lid hinged on the straight bass side, open on the full stick. */
+  function gcam(th, ph, x, y, s) { return { th, ph, x, y, s, ct: Math.cos(th), st: Math.sin(th), cp: Math.cos(ph), sp: Math.sin(ph) }; }
+  function gp(c, X, Y, Z) { const x1 = c.ct * X + c.st * Z, z1 = -c.st * X + c.ct * Z; return [c.x + c.s * x1, c.y + c.s * (c.cp * Y + c.sp * z1), -c.sp * Y + c.cp * z1]; }
+  const GP = { rimY: -2.22, botY: -0.74, armY: -1.14, frontZ: 0.98, fallZ: 1.86, hinge: 3.35, lidA: 0.6, plateY: -1.84, lidT: 0.075, rimW: 0.1 };
+  // top view of the case: from the treble end of the fallboard round the bentside and the tail, then the straight bass side
+  const GP_OUT = (() => {
+    const key = [[-3.35, 1.86], [-3.35, 2.9], [-3.27, 3.9], [-2.95, 4.9], [-2.38, 5.9], [-1.6, 6.9], [-0.76, 7.9], [0.04, 8.85], [0.8, 9.72], [1.55, 10.38], [2.4, 10.68], [3.05, 10.45], [3.35, 9.85]];
+    const out = [], n = key.length, P = (i) => key[Math.max(0, Math.min(n - 1, i))];
+    for (let i = 0; i < n - 1; i++) {
+      const p0 = P(i - 1), p1 = P(i), p2 = P(i + 1), p3 = P(i + 2);
+      for (let k = 0; k < 5; k++) {
+        const t = k / 5, t2 = t * t, t3 = t2 * t;
+        out.push([0, 1].map((j) => 0.5 * (2 * p1[j] + (-p0[j] + p2[j]) * t + (2 * p0[j] - 5 * p1[j] + 4 * p2[j] - p3[j]) * t2 + (-p0[j] + 3 * p1[j] - 3 * p2[j] + p3[j]) * t3)));
+      }
+    }
+    out.push(key[n - 1].slice()); out.push([3.35, 1.86]);
+    return out;
+  })();
+  // the same outline moved inward by the rim's thickness (the inner edge of the rim top)
+  const GP_IN = GP_OUT.map((p, i, O) => {
+    const n = O.length, a = O[(i - 1 + n) % n], b = O[(i + 1) % n];
+    let tx = b[0] - a[0], tz = b[1] - a[1]; const l = Math.hypot(tx, tz) || 1; tx /= l; tz /= l;
+    return [p[0] + tz * GP.rimW, p[1] - tx * GP.rimW];
+  });
+  // a point of the open lid above outline point (x, z); off > 0 moves toward the lid's top face
+  function gLid(x, z, off = 0) { const d = GP.hinge - x, ca = Math.cos(GP.lidA), sa = Math.sin(GP.lidA); return [GP.hinge - d * ca + off * sa, GP.rimY - d * sa - off * ca, z]; }
+  // the longest z of the case along x (for the strings reflected in the lid)
+  function gTailZ(x) {
+    let z = GP.fallZ; const O = GP_OUT;
+    for (let i = 0; i < O.length - 1; i++) { const a = O[i], b = O[i + 1]; if ((a[0] - x) * (b[0] - x) <= 0 && a[0] !== b[0]) { const u = (x - a[0]) / (b[0] - a[0]); z = Math.max(z, lerp(a[1], b[1], u)); } }
+    return z;
+  }
+  const faceCam = (c, nx, nz) => -c.st * nx + c.ct * nz;   // > 0: a vertical face with outward normal (nx, 0, nz) is seen
+  function polyPath(c, pts) { const p = new Path2D(); pts.forEach((q, i) => { const s = gp(c, q[0], q[1], q[2]); i ? p.lineTo(s[0], s[1]) : p.moveTo(s[0], s[1]); }); p.closePath(); return p; }
+  function segNormal(a, b) { const dx = b[0] - a[0], dz = b[1] - a[1], l = Math.hypot(dx, dz) || 1; return [-dz / l, dx / l]; }   // outward (the outline runs clockwise in the x-z plane)
+
+  // inside the case (behind her): the plate and the strings at the bottom of the rim, the inner faces of the far rim, its top
+  function pianoBack(ctx, c, pal) {
+    const O = GP_OUT, I = GP_IN, n = O.length;
+    ctx.save();
+    const floor = polyPath(c, I.map(([x, z]) => [x, GP.plateY, z]));
+    ctx.fillStyle = pal.inner; ctx.fill(floor);
+    ctx.save(); ctx.clip(floor);
+    // the cast-iron plate (a dim gold shape) and the strings running toward the tail
+    const pl = polyPath(c, I.map(([x, z]) => [x * 0.86 + 0.25, GP.plateY - 0.01, GP.fallZ + (z - GP.fallZ) * 0.9 + 0.35]));
+    ctx.fillStyle = pal.plate; ctx.fill(pl);
+    ctx.lineWidth = Math.max(0.6, c.s * 0.004); ctx.strokeStyle = pal.strings;
+    for (let k = 0; k < 26; k++) { const x = lerp(-3.05, 3.1, k / 25), z1 = gTailZ(x) - 0.25; if (z1 < GP.fallZ + 0.6) continue; const a = gp(c, x, GP.plateY - 0.02, GP.fallZ + 0.35), b = gp(c, x * 0.94 + 0.12, GP.plateY - 0.02, z1); ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke(); }
+    ctx.restore();
+    // the inner faces of the rim that face the camera (the far side), and the top of the far rim
+    for (let i = 0; i < n; i++) {
+      const a = O[i], b = O[(i + 1) % n], ai = I[i], bi = I[(i + 1) % n], nn = segNormal(a, b);
+      if (faceCam(c, nn[0], nn[1]) > 0) continue;
+      ctx.fillStyle = pal.innerWall; ctx.fill(polyPath(c, [[ai[0], GP.rimY, ai[1]], [bi[0], GP.rimY, bi[1]], [bi[0], GP.plateY, bi[1]], [ai[0], GP.plateY, ai[1]]]));
+    }
+    for (let i = 0; i < n; i++) {
+      const a = O[i], b = O[(i + 1) % n], ai = I[i], bi = I[(i + 1) % n], nn = segNormal(a, b);
+      if (faceCam(c, nn[0], nn[1]) > 0) continue;
+      const p = polyPath(c, [[a[0], GP.rimY, a[1]], [b[0], GP.rimY, b[1]], [bi[0], GP.rimY, bi[1]], [ai[0], GP.rimY, ai[1]]]);
+      ctx.fillStyle = pal.top; ctx.fill(p); ctx.strokeStyle = pal.top; ctx.lineWidth = 0.8; ctx.stroke(p);
+    }
+    // the bass-side cheek block beside the keyboard (far)
+    ctx.fillStyle = pal.side; ctx.fill(polyPath(c, [[2.66, GP.armY, GP.frontZ], [3.35, GP.armY, GP.frontZ], [3.35, GP.armY, GP.fallZ], [2.66, GP.armY, GP.fallZ]]));
+    ctx.restore();
+  }
+  // the near side of the case (in front of her): the outer faces of the rim that face the camera as ONE lacquered shape (no
+  // facets: one fill, a soft reflection of the room, one crisp highlight under the rounded top edge), the near rim's top band,
+  // and the treble cheek block beside the keyboard
+  function pianoFront(ctx, c, pal) {
+    const O = GP_OUT, I = GP_IN, n = O.length, segs = [];
+    for (let i = 0; i < n - 1; i++) { const a = O[i], b = O[i + 1], nn = segNormal(a, b); if (faceCam(c, nn[0], nn[1]) > 0.01) segs.push(i); }
+    if (!segs.length) return;
+    ctx.save();
+    // one silhouette for the visible wall run(s)
+    const wall = new Path2D();
+    for (const i of segs) { const a = O[i], b = O[i + 1]; wall.addPath(polyPath(c, [[a[0], GP.rimY, a[1]], [b[0], GP.rimY, b[1]], [b[0], GP.botY, b[1]], [a[0], GP.botY, a[1]]])); }
+    // treble cheek block (the case's arm beside the keys) and its top
+    const arm = polyPath(c, [[-3.35, GP.armY, GP.frontZ], [-3.35, GP.armY, GP.fallZ], [-3.35, GP.botY, GP.fallZ], [-3.35, GP.botY, GP.frontZ]]);
+    const armTop = polyPath(c, [[-3.35, GP.armY, GP.frontZ], [-2.66, GP.armY, GP.frontZ], [-2.66, GP.armY, GP.fallZ], [-3.35, GP.armY, GP.fallZ]]);
+    // the step from the arm up to the full rim at the fallboard
+    const step = polyPath(c, [[-3.35, GP.rimY, GP.fallZ], [-3.35, GP.armY, GP.fallZ], [-2.66, GP.armY, GP.fallZ], [-2.66, GP.rimY, GP.fallZ]]);
+    ctx.fillStyle = pal.side; ctx.fill(arm); ctx.fill(wall); ctx.fillStyle = pal.top; ctx.fill(armTop);
+    if (faceCam(c, 0, -1) > 0) { ctx.fillStyle = pal.side; ctx.fill(step); }
+    // reflections: the room above mirrored in the upper part of the wall, darker toward the bottom; vertical sheen streaks
+    ctx.save(); ctx.clip(wall);
+    const t0 = gp(c, -3.3, GP.rimY, 3), b0 = gp(c, -3.3, GP.botY, 3);
+    let g = ctx.createLinearGradient(t0[0], t0[1], b0[0], b0[1]);
+    g.addColorStop(0, PV.rgba(pal.refl, pal.reflA)); g.addColorStop(0.35, PV.rgba(pal.refl, pal.reflA * 0.25)); g.addColorStop(1, PV.rgba(pal.refl, 0)); ctx.fillStyle = g; ctx.fillRect(-2000, -2000, 6000, 6000);
+    for (const [zc, wq, aq] of pal.streaks) {   // soft vertical bands where the curve of the bentside turns to the light
+      let k0 = 0; for (let i = 0; i < n; i++) if (Math.abs(O[i][1] - zc) < Math.abs(O[k0][1] - zc) && O[i][0] < 0) k0 = i;
+      const p = O[k0], q0 = gp(c, p[0], GP.rimY, p[1] - wq), q1 = gp(c, p[0], GP.rimY, p[1] + wq);
+      g = ctx.createLinearGradient(q0[0], q0[1], q1[0], q1[1]); g.addColorStop(0, PV.rgba(pal.refl, 0)); g.addColorStop(0.5, PV.rgba(pal.refl, aq)); g.addColorStop(1, PV.rgba(pal.refl, 0));
+      ctx.fillStyle = g; ctx.fillRect(-2000, -2000, 6000, 6000);
+    }
+    ctx.restore();
+    // the near rim's top band (a thin lit surface) and the highlight under its rounded edge
+    for (const i of segs) {
+      const a = O[i], b = O[i + 1], ai = I[i], bi = I[i + 1];
+      const p = polyPath(c, [[a[0], GP.rimY, a[1]], [b[0], GP.rimY, b[1]], [bi[0], GP.rimY, bi[1]], [ai[0], GP.rimY, ai[1]]]);
+      ctx.fillStyle = pal.top; ctx.fill(p); ctx.strokeStyle = pal.top; ctx.lineWidth = 0.8; ctx.stroke(p);
+    }
+    const run = segs.map((i) => O[i]).concat([O[segs[segs.length - 1] + 1]]);
+    const hl = (dy, w, col, a) => { ctx.strokeStyle = PV.rgba(col, a); ctx.lineWidth = w; ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.beginPath(); run.forEach(([x, z], k) => { const q = gp(c, x, GP.rimY + dy, z); k ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]); }); ctx.stroke(); };
+    hl(0.035, Math.max(1.2, c.s * 0.011), pal.edge, pal.edgeA);
+    hl(0.0, Math.max(0.8, c.s * 0.004), pal.line, 0.9);
+    // outline of the wall: ink in the lacquer's own dark colour (anime line art), lighter where it meets the light
+    ctx.strokeStyle = pal.line; ctx.lineWidth = Math.max(1, c.s * 0.006); ctx.lineJoin = 'round';
+    ctx.stroke(arm);
+    { const a = gp(c, -3.35, GP.rimY, GP.fallZ), b = gp(c, -3.35, GP.botY, GP.fallZ); ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke(); }
+    { const a = gp(c, -3.35, GP.armY, GP.frontZ), b = gp(c, -3.35, GP.armY, GP.fallZ); ctx.strokeStyle = PV.rgba(pal.edge, pal.edgeA * 0.8); ctx.lineWidth = Math.max(1, c.s * 0.007); ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke(); }
+    ctx.restore();
+  }
+  // the open lid: its lacquered underside (the strings and the light mirrored in it), the edge of the board, the prop stick
+  function pianoLid(ctx, c, pal) {
+    const O = GP_OUT;
+    ctx.save();
+    const under = polyPath(c, O.map(([x, z]) => gLid(x, z)));
+    ctx.fillStyle = pal.lid; ctx.fill(under);
+    ctx.save(); ctx.clip(under);
+    // the strings and the plate mirrored (lines along z), fading toward the free edge
+    ctx.lineWidth = Math.max(0.7, c.s * 0.005);
+    for (let k = 0; k < 24; k++) {
+      const x = lerp(-3.0, 3.15, k / 23), z1 = gTailZ(x) - 0.3; if (z1 < GP.fallZ + 0.6) continue;
+      const a = gp(c, ...gLid(x, GP.fallZ + 0.3)), b = gp(c, ...gLid(x, z1));
+      ctx.strokeStyle = PV.rgba(pal.lidRefl, pal.lidReflA * (0.45 + 0.55 * (x + 3) / 6.2)); ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+    }
+    // a broad soft sheen across the board (the light source mirrored)
+    const s0 = gp(c, ...gLid(1.2, 3.0)), s1 = gp(c, ...gLid(-2.6, 6.5));
+    const g = ctx.createLinearGradient(s0[0], s0[1], s1[0], s1[1]); g.addColorStop(0, PV.rgba(pal.lidSheen, 0)); g.addColorStop(0.5, PV.rgba(pal.lidSheen, pal.lidSheenA)); g.addColorStop(1, PV.rgba(pal.lidSheen, 0));
+    ctx.fillStyle = g; ctx.fillRect(-2000, -2000, 6000, 6000);
+    ctx.restore();
+    // the thickness of the board along its free edge (bentside + tail), lit along its outer corner
+    const free = O.filter((p) => p[0] < GP.hinge - 0.02);
+    const band = new Path2D();
+    for (let i = 0; i < free.length - 1; i++) {
+      const a = free[i], b = free[i + 1];
+      band.addPath(polyPath(c, [gLid(a[0], a[1]), gLid(b[0], b[1]), gLid(b[0], b[1], GP.lidT), gLid(a[0], a[1], GP.lidT)]));
+    }
+    ctx.fillStyle = pal.lidEdge; ctx.fill(band);
+    ctx.strokeStyle = PV.rgba(pal.edge, pal.edgeA * 0.9); ctx.lineWidth = Math.max(1, c.s * 0.006); ctx.lineJoin = 'round'; ctx.beginPath();
+    free.forEach(([x, z], k) => { const q = gp(c, ...gLid(x, z, GP.lidT * 0.5)); k ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]); }); ctx.stroke();
+    // ink round the board
+    ctx.strokeStyle = pal.line; ctx.lineWidth = Math.max(1, c.s * 0.005); ctx.stroke(under);
+    // the front edge of the lid catches a thin line of light
+    { const a = gp(c, ...gLid(GP.hinge, GP.fallZ)), b = gp(c, ...gLid(-3.35, GP.fallZ)); ctx.strokeStyle = PV.rgba(pal.edge, pal.edgeA * 0.7); ctx.lineWidth = Math.max(1, c.s * 0.005); ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke(); }
+    // the prop stick from the bentside rim up to the board
+    { const r = gp(c, -2.86, GP.rimY, 5.05), l = gp(c, ...gLid(-2.95, 5.05)); const k = 0.82, top = [lerp(r[0], l[0], k), lerp(r[1], l[1], k)];
+      ctx.strokeStyle = pal.line; ctx.lineWidth = Math.max(2, c.s * 0.034); ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(r[0], r[1]); ctx.lineTo(top[0], top[1]); ctx.stroke();
+      ctx.strokeStyle = PV.rgba(pal.edge, pal.edgeA * 0.6); ctx.lineWidth = Math.max(1, c.s * 0.008); ctx.beginPath(); ctx.moveTo(r[0] - c.s * 0.01, r[1]); ctx.lineTo(top[0] - c.s * 0.01, top[1]); ctx.stroke(); }
+    ctx.restore();
+  }
+
+  /* ================================================================== the pianist: a local variant of the library's piano pose
+   * params (besides the library's): rel 0..1 (the arms leave the keys and come down to the lap, with a small lift), lift
+   * (shoulders up: the breath), trem 0..1 (frozen tremble of the arms / shoulders), neckPitch (absolute nod), keys/bench false */
+  function ensurePose() {
+    const P = PV.anime && PV.anime.FIG_POSES; if (!P || P.g05_piano || !P.piano) return;
+    const base = P.piano;
+    P.g05_piano = {
+      facing: base.facing, anchor: base.anchor,
+      body(sp, prm, tq, o, OF) {
+        const B = base.body(sp, prm, tq, o, OF), lift = prm.lift || 0, tr = prm.trem || 0;
+        B.shrugL = (B.shrugL || 0) + lift + tr * 0.004 * N2(tq * 7.1, 2.2); B.shrugR = (B.shrugR || 0) + lift + tr * 0.004 * N2(tq * 6.3, 5.4);
+        if (prm.breathK !== undefined) B.breath = prm.breathK;
+        B.neck = Object.assign({}, B.neck);
+        if (prm.neckPitch !== undefined) B.neck.pitch = prm.neckPitch;
+        if (prm.neckRoll !== undefined) B.neck.roll = (B.neck.roll || 0) + prm.neckRoll;
+        B.spine = Object.assign({}, B.spine); B.spine.bend = (B.spine.bend || 0) + (prm.bendAdd || 0) - lift * 0.4;
+        return B;
+      },
+      limbs(J, sp, prm, tq, o, OF) {
+        const K = base.limbs(J, sp, Object.assign({}, prm, { hands: 'keys' }), tq, o, OF);
+        const rel = prm.rel || 0, tr = prm.trem || 0;
+        if (tr > 0) for (const s of ['L', 'R']) { const a = K.arms[s], m = s === 'L' ? 1 : -1; a.W = [a.W[0] + tr * 0.012 * N2(tq * 8.3, m * 3), a.W[1] + tr * 0.012 * N2(m * 5, tq * 7.7), a.W[2]]; }
+        if (rel <= 0) return K;
+        const Lp = base.limbs(J, sp, Object.assign({}, prm, { hands: 'lap' }), tq, o, OF), u = PV.ease.inOutCubic(clamp(rel)), up = Math.sin(Math.PI * clamp(rel * 1.15)) * 0.16;
+        const mixV = (a, b) => (a && b ? a.map((v, j) => lerp(v, b[j], u)) : b || a);
+        for (const s of ['L', 'R']) {
+          const a = K.arms[s], b = Lp.arms[s], W = mixV(a.W, b.W);
+          K.arms[s] = { W: [W[0], W[1] - up, W[2]], pole: mixV(a.pole, b.pole), hand: Object.assign({}, b.hand, { f: mixV(a.hand.f, b.hand.f), palm: mixV(a.hand.palm, b.hand.palm), curl: lerp(a.hand.curl ?? 0.5, b.hand.curl ?? 0.3, u), spread: lerp(a.hand.spread ?? 0.2, b.hand.spread ?? 0.1, u) }) };
+        }
+        return K;
+      },
+      props(G, prm, tq, o) { if (base.props) base.props(G, Object.assign({}, prm, { keys: false, bench: prm.bench ?? false }), tq, o); },
+    };
+  }
 
   /* ================================================================== C16 予選・白い世界
-   * 49.5–53.0 (3.5s, dip from white). A white world without outlines; only the black piano floats in it. Over her left
-   * shoulder from behind: the hair up (chignon), the nape, the navy dress, her hands frozen above the keys.
-   * 49.5–51.4 tinnitus only (a heartbeat pulse in the white, the fingers tremble). 51.4 a small cough from the front row,
-   * a little left: his small figure appears in the black lacquer of the fallboard, her head turns slightly left (the cheek
-   * catches the hall's amber = 原作3384 の『赤み』), the white warms. She lets the arms go and breathes with her shoulders
-   * (inhale 52.4). Camera: static -> slow push-in from the cough.
-   * Everything (keys, hands, arms, body, head, fallboard, reflection) is projected through ONE 3-D camera (the hand rig's
-   * camera), so the arms come out of the shoulders, bend at the elbow and reach the keys in a consistent perspective.
-   * World = the keyboard frame of PV.lib.handOnKeys: x -> treble (her right), y down, z -> toward her; ~0.93 mm per unit.
+   * 49.5–53.0 (3.5 s, dip from white). The camera is his side of the hall (front row, a little left = her right side): her
+   * face in 3/4 looking down at the keys, the black piano floating in the white (the near case wall across the bottom, the
+   * open lid in the upper right). 49.5–51.4 tinnitus only: a slow heartbeat pulse in the white, the eyes unfocused (small dull
+   * highlights, both eyes parallel off toward the keys), quick shallow breaths, a faint tremble. 51.4 the cough: the eyes move
+   * first, then the head turns a little toward the camera (screen-left); one blink and the light is back in her eyes — she sees
+   * him (eye contact with the lens). A blush, the hall's amber warms the white. 51.85–52.75 she lets the arms go; 52.4 she
+   * closes her eyes and breathes in, the shoulders rise. Camera: static -> slow push-in from the cough.
    */
-  const C16 = { cough: 1.9, inhale: 2.9, rel0: 2.35, rel1: 3.25 };
-  const V3 = (x, y, z) => ({ x, y, z });
-  const va = (a, b) => V3(a.x + b.x, a.y + b.y, a.z + b.z), vs = (a, b) => V3(a.x - b.x, a.y - b.y, a.z - b.z), vm = (a, s) => V3(a.x * s, a.y * s, a.z * s);
-  const vl = (a) => Math.hypot(a.x, a.y, a.z), vn = (a) => vm(a, 1 / (vl(a) || 1)), vd = (a, b) => a.x * b.x + a.y * b.y + a.z * b.z;
-  const vmix = (a, b, u) => V3(lerp(a.x, b.x, u), lerp(a.y, b.y, u), lerp(a.z, b.z, u));
-  const CAM16 = { az: -0.78, el: 0.56, scale: 1.0, x: 860, y: 700, focal: 2000 };
-  const LOOK16 = V3(0, -22, 8);            // handOnKeys' default look-at
-  let CAMX = CAM16;                         // the camera the figure / piano are projected through (C16 or C17)
-  let LIT16 = { mode: 'side' };             // 'side': the white void lights her near side; 'top': a spotlight from above (rim)
-  function p16(p) {                         // world -> screen (identical to the hand rig's projection for an identity ctx)
-    const C = CAMX; if (!C._mv) C._mv = L._handLookCam(C.az, C.el, 0);
-    const M = C._mv, d = vs(p, LOOK16);
-    const qx = M[0] * d.x + M[1] * d.y + M[2] * d.z, qy = M[3] * d.x + M[4] * d.y + M[5] * d.z, qz = M[6] * d.x + M[7] * d.y + M[8] * d.z;
-    const k = C.focal / Math.max(C.focal * 0.25, C.focal - qz);
-    return { x: C.x + C.scale * qx * k, y: C.y + C.scale * qy * k, k: k * C.scale };
-  }
-  function ik2(S, Wr, a, b, pole) {         // two-bone IK: elbow from shoulder S, wrist Wr, bone lengths, pole direction
-    const d = vs(Wr, S), L0 = vl(d), c = Math.min(L0, a + b - 1e-3), u = vm(d, 1 / L0);
-    const x = (a * a - b * b + c * c) / (2 * c), h = Math.sqrt(Math.max(0, a * a - x * x));
-    return va(S, va(vm(u, x), vm(vn(vs(pole, vm(u, vd(pole, u)))), h)));
-  }
-  function hull2(pts) {
-    const p = pts.slice().sort((a, b) => a.x - b.x || a.y - b.y); if (p.length < 3) return p;
-    const crs = (o, a, b) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
-    const lo = [], up = [];
-    for (const q of p) { while (lo.length >= 2 && crs(lo[lo.length - 2], lo[lo.length - 1], q) <= 0) lo.pop(); lo.push(q); }
-    for (let i = p.length - 1; i >= 0; i--) { const q = p[i]; while (up.length >= 2 && crs(up[up.length - 2], up[up.length - 1], q) <= 0) up.pop(); up.push(q); }
-    lo.pop(); up.pop(); return lo.concat(up);
-  }
-  function smoothPath(pts) {                // closed Catmull-Rom path through hull points
-    const p = new Path2D(), n = pts.length; if (n < 3) return p;
-    const g = (i) => pts[(i + n) % n];
-    p.moveTo(g(0).x, g(0).y);
-    for (let i = 0; i < n; i++) { const p0 = g(i - 1), p1 = g(i), p2 = g(i + 1), p3 = g(i + 2); p.bezierCurveTo(p1.x + (p2.x - p0.x) / 6, p1.y + (p2.y - p0.y) / 6, p2.x - (p3.x - p1.x) / 6, p2.y - (p3.y - p1.y) / 6, p2.x, p2.y); }
-    p.closePath(); return p;
-  }
-  const quad16 = (c, pts, fill) => { c.beginPath(); pts.forEach((q, i) => (i ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y))); c.closePath(); if (fill) { c.fillStyle = fill; c.fill(); } };
-  const ALL = (c) => c.fillRect(-4000, -4000, 8000, 8000);
-  // palette of the white world: deep navy dress, pale skin, black hair (the darkest things besides the piano)
-  const P16_COLD = { dress: '#232d52', dressSh: '#141a33', dressHi: '#56648f', skin: '#f4e4d6', skinSh: '#d8b9a6', skinHi: '#fffaf4', line: '#9a7666', hair: '#1c1c23', hairHi: '#9aa0b4', hairSh: '#0c0c11', warm: '#ffbf86' };
-  const P16_WARM = { dress: '#2c2c4c', dressSh: '#1a1830', dressHi: '#7a6c86', skin: '#f6dcc4', skinSh: '#d9ad92', skinHi: '#fff2de', line: '#9a6a56', hair: '#221d22', hairHi: '#b9a48c', hairSh: '#100c0e', warm: '#ffbf86' };
-  const hex16 = (rgba) => { const m = rgba.match(/\d+/g); return '#' + m.slice(0, 3).map((v) => (+v).toString(16).padStart(2, '0')).join(''); };
-  let P16 = P16_COLD;
-  function palette16(k) { if (k <= 0.001) { P16 = P16_COLD; return; } const o = {}; for (const key in P16_COLD) o[key] = hex16(PV.mix(P16_COLD[key], P16_WARM[key], k)); P16 = o; }
-
-  // ---- her body (world units). CX = her centre line, between the hands
-  const CX16 = -70, UPPER = 290, FORE = 250, KW = 25.5;
-  const HANDS16 = {
-    L: { side: 'L', handX: -11, keys: [-9, -10, -11, -12, -13], wristY: -52, wristZ: 104, roll: 0.06 },
-    R: { side: 'R', handX: 4, keys: [2, 3, 4, 5, 6], wristY: -44, wristZ: 104, roll: -0.04 },
+  const C16 = { cough: 51.4 };
+  const CAM16 = { th: 0.86, ph: 0.15, x: 820, y: 1350, s: 340 };
+  const PAL16 = {   // the black lacquer in the white world: it mirrors the white (no outlines in this world: the ink is soft)
+    side: '#17161c', top: '#3a3a44', inner: '#16151a', innerWall: '#1d1c22', plate: '#2c2722', strings: 'rgba(120,112,100,0.35)',
+    lid: '#121116', lidEdge: '#2b2a32', lidRefl: '#d8dae2', lidReflA: 0.07, lidSheen: '#ffffff', lidSheenA: 0.08,
+    refl: '#e9eaf0', reflA: 0.3, streaks: [[3.2, 0.5, 0.12], [6.2, 0.7, 0.09]], edge: '#ffffff', edgeA: 0.75, line: '#0b0a0e',
   };
-  function body16(s) {
-    const lift = s.lift, drop = s.drop, lean = s.lean, sw = s.sway || 0, shY = -372 - lift + drop;
-    const wx = (y) => CX16 + sw * clamp((240 - y) / 610);           // sway grows from the seat up to the shoulders
-    return {
-      shL: V3(wx(shY) - 168, shY + 4 + (s.tiltSh || 0), 342 + lean * 0.6), shR: V3(wx(shY) + 168, shY - (s.tiltSh || 0), 342 + lean * 0.6),
-      neck: V3(wx(-414) + sw * 0.05, -414 - lift + drop * 0.5, 364 + lean * 0.7),
-      head: V3(wx(-572) + 2 + sw * 0.15, -572 - lift + drop * 0.4, 336 + lean),
-      secs: [[-424 - lift + drop * 0.5, 364 + lean * 0.7, 48, 44], [-400 - lift + drop * 0.8, 356 + lean * 0.68, 104, 56], [-374 - lift + drop, 348 + lean * 0.62, 158, 70], [-346 - lift + drop, 346 + lean * 0.6, 168, 80],
-        [-280 - lift * 0.6 + drop * 0.6, 352 + lean * 0.5, 152, 92], [-190 - lift * 0.3, 360 + lean * 0.35, 140, 94], [-40, 392, 112, 80], [120, 438, 158, 102], [240, 462, 166, 108]]
-        .map(([y, z, hw, hd]) => ({ x: wx(y), y, z, hw, hd })),
-    };
-  }
-  const ring16 = (sc, n) => { const P = []; for (let i = 0; i < n; i++) { const a = i / n * TAU; P.push(p16(V3(sc.x + Math.sin(a) * sc.hw, sc.y, sc.z + Math.cos(a) * sc.hd))); } return P; };
-  // tapered capsule between two projected spheres
-  function capsule16(c, A, ra, B, rb) {
-    const a = p16(A), b = p16(B), r0 = ra * a.k, r1 = rb * b.k;
-    const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 1e-6, ux = dx / d, uy = dy / d;
-    const s = clamp((r0 - r1) / d, -0.99, 0.99), ct = Math.sqrt(1 - s * s), nx = -uy, ny = ux, ang = Math.atan2(ny, nx), sa = Math.asin(s);
-    c.beginPath(); c.moveTo(a.x + (nx * ct - ux * s) * r0, a.y + (ny * ct - uy * s) * r0); c.lineTo(b.x + (nx * ct - ux * s) * r1, b.y + (ny * ct - uy * s) * r1);
-    c.arc(b.x, b.y, r1, ang - sa, ang + Math.PI + sa, true); c.lineTo(a.x + (-nx * ct - ux * s) * r0, a.y + (-ny * ct - uy * s) * r0);
-    c.arc(a.x, a.y, r0, ang + Math.PI + sa, ang - sa + TAU, true); c.closePath();
-    return { a, b, r0, r1, nx, ny };
-  }
-  function torso16(c, body) {
-    const secs = body.secs, rings = secs.map((s) => ring16(s, 28)), path = new Path2D(), top = LIT16.mode === 'top';
-    for (let i = 0; i < rings.length - 1; i++) { const h = hull2(rings[i].concat(rings[i + 1])); h.forEach((q, j) => (j ? path.lineTo(q.x, q.y) : path.moveTo(q.x, q.y))); path.closePath(); }
-    c.strokeStyle = top ? 'rgba(6,6,14,0.75)' : 'rgba(13,17,36,0.6)'; c.lineWidth = 3.4; c.lineJoin = 'round'; c.stroke(path);   // outer outline only: the fill covers the inner edges
-    c.fillStyle = P16.dress; c.fill(path);
-    const secAt = (y) => { for (let i = 0; i < secs.length - 1; i++) { const a = secs[i], b = secs[i + 1]; if (y >= a.y && y <= b.y) { const u = (y - a.y) / (b.y - a.y); return { x: lerp(a.x, b.x, u), y, z: lerp(a.z, b.z, u), hw: lerp(a.hw, b.hw, u), hd: lerp(a.hd, b.hd, u) }; } } return secs[secs.length - 1]; };
-    const neckline = [];
-    for (let i = -10; i <= 10; i++) { const u = i / 10, th = u * 1.25, y = lerp(-322, -396, Math.pow(Math.abs(u), 1.7)), sc = secAt(y); neckline.push(p16(V3(sc.x + Math.sin(th) * sc.hw * 0.98, y, sc.z + Math.cos(th) * sc.hd * 0.98))); }
-    c.save(); c.clip(path);
-    const sm1 = secs[5], lft = p16(V3(sm1.x - 170, -200, 360)), rgt = p16(V3(sm1.x + 170, -200, 360)), tp = p16(V3(secs[2].x, secs[2].y, secs[2].z)), bt = p16(V3(secs[8].x, secs[8].y, secs[8].z));
-    let g;
-    if (!top) {   // the near side lit by the white void, the far side sinks
-      g = c.createLinearGradient(lft.x, lft.y, rgt.x, rgt.y);
-      g.addColorStop(0, PV.rgba(P16.dressHi, 0.55)); g.addColorStop(0.18, PV.rgba(P16.dressHi, 0.12)); g.addColorStop(0.52, PV.rgba(P16.dressSh, 0)); g.addColorStop(0.6, PV.rgba(P16.dressSh, 0.7)); g.addColorStop(1, PV.rgba(P16.dressSh, 0.85));
-      c.fillStyle = g; ALL(c);
-      g = c.createLinearGradient(tp.x, tp.y, bt.x, bt.y); g.addColorStop(0, PV.rgba(P16.dressHi, 0.35)); g.addColorStop(0.25, 'rgba(0,0,0,0)'); g.addColorStop(0.75, PV.rgba(P16.dressSh, 0.25)); g.addColorStop(1, PV.rgba(P16.dressSh, 0.6));
-      c.fillStyle = g; ALL(c);
-    } else {      // one spotlight from above: satin sheen on the shoulder blades, the small of the back in shadow
-      g = c.createLinearGradient(tp.x, tp.y, bt.x, bt.y); g.addColorStop(0, PV.rgba(P16.dressHi, 0.55)); g.addColorStop(0.16, PV.rgba(P16.dressHi, 0.14)); g.addColorStop(0.45, 'rgba(0,0,0,0)'); g.addColorStop(1, PV.rgba(P16.dressSh, 0.9));
-      c.fillStyle = g; ALL(c);
-      for (const sg of [-1, 1]) {   // shoulder blades
-        const q = p16(V3(secs[4].x + sg * 70, -250, secs[4].z + secs[4].hd)), r = 110 * q.k;
-        g = c.createRadialGradient(q.x, q.y - r * 0.3, 0, q.x, q.y, r); g.addColorStop(0, PV.rgba(P16.dressHi, 0.3)); g.addColorStop(1, PV.rgba(P16.dressHi, 0)); c.fillStyle = g; ALL(c);
-      }
-      g = c.createLinearGradient(lft.x, lft.y, rgt.x, rgt.y); g.addColorStop(0, PV.rgba(P16.dressSh, 0.5)); g.addColorStop(0.2, 'rgba(0,0,0,0)'); g.addColorStop(0.8, 'rgba(0,0,0,0)'); g.addColorStop(1, PV.rgba(P16.dressSh, 0.5));
-      c.fillStyle = g; ALL(c);
-    }
-    // the open back above the scooped neckline
-    const sk = new Path2D(); sk.moveTo(neckline[0].x, neckline[0].y - 2000); neckline.forEach((q) => sk.lineTo(q.x, q.y)); sk.lineTo(neckline[20].x, neckline[20].y - 2000); sk.closePath();
-    c.fillStyle = P16.skin; c.fill(sk);
-    c.save(); c.clip(sk);
-    if (!top) { g = c.createLinearGradient(lft.x, lft.y, rgt.x, rgt.y); g.addColorStop(0, PV.rgba(P16.skinHi, 0.6)); g.addColorStop(0.5, PV.rgba(P16.skinSh, 0.1)); g.addColorStop(0.62, PV.rgba(P16.skinSh, 0.75)); g.addColorStop(1, PV.rgba(P16.skinSh, 0.9)); }
-    else { const nq = p16(V3(secs[0].x, secs[0].y, secs[0].z)), lb = p16(V3(secs[4].x, -300, secs[4].z + secs[4].hd)); g = c.createLinearGradient(nq.x, nq.y, lb.x, lb.y); g.addColorStop(0, PV.rgba(P16.skinSh, 0.85)); g.addColorStop(0.35, PV.rgba(P16.skinHi, 0.25)); g.addColorStop(1, PV.rgba(P16.skinSh, 0.6)); }
-    c.fillStyle = g; ALL(c);
-    const s0 = secAt(-390), s1 = secAt(-300), sp0 = p16(V3(s0.x, -390, s0.z + s0.hd * 0.9)), sp1 = p16(V3(s1.x, -300, s1.z + s1.hd * 0.95));   // spine hollow
-    c.strokeStyle = PV.rgba(P16.skinSh, 0.55); c.lineWidth = 6 * sp0.k; c.lineCap = 'round'; c.beginPath(); c.moveTo(sp0.x, sp0.y); c.lineTo(sp1.x, sp1.y); c.stroke();
-    c.restore();
-    c.strokeStyle = PV.rgba(P16.dressHi, 0.65); c.lineWidth = 2.2; c.beginPath(); neckline.forEach((q, i) => (i ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y))); c.stroke();
-    const a0 = secAt(-322), a1 = secAt(100), z0 = p16(V3(a0.x, -322, a0.z + a0.hd)), z1 = p16(V3(a1.x, 100, a1.z + a1.hd));   // centre-back seam
-    c.strokeStyle = PV.rgba(P16.dressSh, 0.5); c.lineWidth = 1.6; c.beginPath(); c.moveTo(z0.x, z0.y); c.lineTo(z1.x, z1.y); c.stroke();
-    if (top) {    // the spot's rim along the tops of the shoulders (upper half of the shoulders' hull only)
-      const hh = hull2(rings[0].concat(rings[1], rings[2], rings[3])), cyy = hh.reduce((a2, q) => a2 + q.y, 0) / hh.length;
-      let i0 = 0; for (let i = 0; i < hh.length; i++) if (hh[i].x < hh[i0].x) i0 = i;
-      const up = []; for (let j = 0; j < hh.length; j++) { const q = hh[(i0 + j) % hh.length]; if (q.y <= cyy + 6) up.push(q); }
-      up.sort((a2, b2) => a2.x - b2.x);
-      const rq0 = p16(V3(secs[0].x, secs[0].y - 20, secs[0].z)), rq1 = p16(V3(secs[4].x, secs[4].y, secs[4].z));
-      g = c.createLinearGradient(rq0.x, rq0.y, rq1.x, rq1.y); g.addColorStop(0, PV.rgba(LIT16.rim, 0.6)); g.addColorStop(1, PV.rgba(LIT16.rim, 0));
-      c.strokeStyle = g; c.lineWidth = 5; c.lineJoin = 'round'; c.beginPath(); up.forEach((q, i) => (i ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y))); c.stroke();
-    }
-    c.restore();
-  }
-  function upperArm16(c, S, E, side, far) {
-    const A = va(S, V3(side === 'L' ? -10 : 10, 26, 0));
-    const cap = capsule16(c, A, 44, E, 29);
-    c.fillStyle = far ? P16.skinSh : P16.skin; c.fill();
-    c.save(); c.clip();
-    const g = c.createLinearGradient(cap.a.x + cap.nx * cap.r0, cap.a.y + cap.ny * cap.r0, cap.a.x - cap.nx * cap.r0, cap.a.y - cap.ny * cap.r0);
-    g.addColorStop(0, PV.rgba(P16.skinHi, far ? 0.2 : 0.7)); g.addColorStop(0.45, PV.rgba(P16.skinHi, 0)); g.addColorStop(0.55, PV.rgba(P16.skinSh, 0.8)); g.addColorStop(1, PV.rgba(P16.skinSh, 0.95));
-    c.fillStyle = g; ALL(c);
-    c.restore();
-    capsule16(c, A, 44, E, 29); c.strokeStyle = P16.line; c.lineWidth = 1.6; c.stroke();
-    { const m0 = p16(vmix(A, E, 0.42)), m1 = p16(vmix(A, E, 0.86)), off = (far ? -1 : 1) * 0.35 * cap.r0;   // triceps / elbow crease
-      c.strokeStyle = PV.rgba(P16.skinSh, 0.55); c.lineWidth = 1.2; c.beginPath(); c.moveTo(m0.x - cap.nx * off, m0.y - cap.ny * off); c.quadraticCurveTo((m0.x + m1.x) / 2 - cap.nx * off * 1.2, (m0.y + m1.y) / 2 - cap.ny * off * 1.2, m1.x - cap.nx * off * 0.6, m1.y - cap.ny * off * 0.6); c.stroke(); }
-    if (LIT16.mode === 'top') { c.save(); c.clip(); c.strokeStyle = PV.rgba(LIT16.rim, far ? 0.25 : 0.5); c.lineWidth = 6; c.stroke(); c.restore(); }
-    // a fitted cap sleeve over the shoulder
-    capsule16(c, va(S, V3(side === 'L' ? -2 : 2, 10, 0)), 44, vmix(A, E, 0.22), 41); c.fillStyle = far ? P16.dressSh : P16.dress; c.fill();
-    c.strokeStyle = 'rgba(13,17,36,0.45)'; c.lineWidth = 1.4; c.stroke();
-    c.save(); c.clip(); const sq = p16(S); const g2 = c.createRadialGradient(sq.x - 30, sq.y - 30, 0, sq.x, sq.y, 90 * sq.k); g2.addColorStop(0, PV.rgba(P16.dressHi, far ? 0.2 : 0.6)); g2.addColorStop(1, PV.rgba(P16.dressHi, 0)); c.fillStyle = g2; ALL(c); c.restore();
-  }
-  function neck16(c, body) {
-    const a = body.neck, b = vs(body.head, V3(0, -62, 8));
-    capsule16(c, a, 45, b, 39); c.fillStyle = P16.skin; c.fill();
-    c.save(); c.clip();
-    const pb = p16(b), pa = p16(a); const g = c.createLinearGradient(pb.x, pb.y, pa.x, pa.y); g.addColorStop(0, PV.rgba(P16.skinSh, 0.95)); g.addColorStop(0.5, PV.rgba(P16.skinSh, 0.4)); g.addColorStop(1, PV.rgba(P16.skinSh, 0.15));
-    c.fillStyle = g; ALL(c);
-    if (LIT16.mode === 'top') { capsule16(c, a, 45, b, 39); c.strokeStyle = PV.rgba(LIT16.rim, 0.5); c.lineWidth = 5; c.stroke(); }
-    c.restore();
-  }
-  // ---- the head with the updo, as projected 3-D pieces: face, hair cap, chignon, near ear; strands and the sheen are
-  //      curves on the skull. pose {yaw (to her left +), pitch (down +), roll}. Head height ~ R world units.
-  function head16(c, Hc, R, pose, t, warm) {
-    const C = P16, cy = Math.cos(pose.yaw), sy = Math.sin(pose.yaw), cp = Math.cos(pose.pitch), sp = Math.sin(pose.pitch), cr = Math.cos(pose.roll), sr = Math.sin(pose.roll);
-    const P = (x, y, z) => {
-      const x1 = x * cr - y * sr, y1 = x * sr + y * cr, y2 = y1 * cp - z * sp, z2 = y1 * sp + z * cp, x3 = x1 * cy + z2 * sy, z3 = -x1 * sy + z2 * cy;
-      return p16(V3(Hc.x + R * x3, Hc.y + R * y2, Hc.z + R * z3));
-    };
-    const k0 = P(0, 0, 0).k * R;           // px per head unit
-    const ell = (cx, cy2, cz, rx, ry, rz, keep, nLat, nLon) => {
-      const out = [];
-      for (let i = 0; i <= nLat; i++) { const v = -Math.PI / 2 + Math.PI * i / nLat, cv = Math.cos(v), sv = Math.sin(v); for (let j = 0; j < nLon; j++) { const u = TAU * j / nLon, x = cx + rx * cv * Math.sin(u), y = cy2 + ry * sv, z = cz + rz * cv * Math.cos(u); if (!keep || keep(x, y, z)) out.push(P(x, y, z)); } }
-      return out;
-    };
-    // hairline: hair where z (toward the back) lies beyond a line from the forehead to the front of the ear to the nape
-    const hairZ = (y) => (y < -0.28 ? -0.42 : y < 0.0 ? lerp(-0.42, -0.17, (y + 0.28) / 0.28) : y < 0.16 ? lerp(-0.17, 0.08, y / 0.16) : lerp(0.08, 0.2, clamp((y - 0.16) / 0.2)));
-    // face side (the cheek and the jaw)
-    const faceP = smoothPath(hull2(ell(0, -0.05, 0.03, 0.37, 0.46, 0.49, (x, y, z) => z < 0.0, 12, 22).concat(ell(0, 0.16, -0.1, 0.28, 0.33, 0.32, (x, y, z) => z < 0.12, 8, 14))));
-    c.fillStyle = C.skin; c.fill(faceP);
-    c.save(); c.clip(faceP);
-    {
-      const a = P(-0.45, -0.05, -0.15), b = P(0.1, 0.1, 0.1);
-      let g = c.createLinearGradient(a.x, a.y, b.x, b.y); g.addColorStop(0, PV.rgba(C.skinHi, 0.7)); g.addColorStop(0.45, PV.rgba(C.skinHi, 0)); g.addColorStop(1, PV.rgba(C.skinSh, 0.6)); c.fillStyle = g; ALL(c);
-      const j0 = P(0, 0.3, 0), j1 = P(0, 0.52, -0.1); g = c.createLinearGradient(j0.x, j0.y, j1.x, j1.y); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, PV.rgba(C.skinSh, 0.85)); c.fillStyle = g; ALL(c);
-      if (warm > 0) { const q = P(-0.4, 0.05, -0.25); g = c.createRadialGradient(q.x, q.y, 0, q.x, q.y, 0.45 * k0); g.addColorStop(0, PV.rgba(C.warm, 0.6 * warm)); g.addColorStop(1, PV.rgba(C.warm, 0)); c.fillStyle = g; ALL(c); }
-    }
-    c.restore();
-    c.strokeStyle = PV.rgba(C.line, 0.65); c.lineWidth = 1.4; c.stroke(faceP);
-    // hair cap + chignon
-    const capP = smoothPath(hull2(ell(0, -0.05, 0.03, 0.39, 0.485, 0.51, (x, y, z) => z > hairZ(y) && y < 0.37, 16, 30)));
-    const bunC = [0, 0.06, 0.6], bunR = [0.19, 0.17, 0.15];
-    const bunP = smoothPath(hull2(ell(bunC[0], bunC[1], bunC[2], bunR[0], bunR[1], bunR[2], null, 8, 16)));
-    c.fillStyle = C.hair; c.fill(capP);
-    c.save(); c.clip(capP);
-    {
-      const a = P(-0.1, -0.5, 0.0), b = P(0.15, 0.32, 0.35);
-      let g = c.createLinearGradient(a.x, a.y, b.x, b.y); g.addColorStop(0, PV.rgba(C.hairHi, 0.26)); g.addColorStop(0.45, PV.rgba(C.hairHi, 0)); g.addColorStop(1, PV.rgba(C.hairSh, 0.8)); c.fillStyle = g; ALL(c);
-      // 天使の輪: a soft band of light round the crown, cut by a few strand gaps
-      const band = (v, u) => P(0.396 * Math.cos(v) * Math.sin(u), -0.05 + 0.486 * Math.sin(v), 0.03 + 0.512 * Math.cos(v) * Math.cos(u));
-      const bp = new Path2D(), N = 20;
-      for (let j = 0; j <= N; j++) { const q = band(-0.72, lerp(-2.0, 0.8, j / N)); if (j) bp.lineTo(q.x, q.y); else bp.moveTo(q.x, q.y); }
-      for (let j = N; j >= 0; j--) { const q = band(-0.58, lerp(-2.0, 0.8, j / N)); bp.lineTo(q.x, q.y); }
-      bp.closePath();
-      c.fillStyle = PV.rgba(C.hairHi, 0.13); c.fill(bp); c.lineJoin = 'round'; c.strokeStyle = PV.rgba(C.hairHi, 0.07); c.lineWidth = Math.max(2, 0.03 * k0); c.stroke(bp);
-      c.strokeStyle = PV.rgba(C.hairSh, 0.35); c.lineWidth = Math.max(0.8, 0.006 * k0);
-      for (const uu of [-1.75, -1.1, -0.55, 0.15, 0.6]) { const a2 = band(-0.75, uu), b2 = band(-0.55, uu + 0.12); c.beginPath(); c.moveTo(a2.x, a2.y); c.lineTo(b2.x, b2.y); c.stroke(); }
-      // strands combed back to the chignon (pushed onto the skull)
-      const roots = [[-0.3, -0.32], [-0.34, -0.12], [-0.3, 0.06], [-0.12, -0.45], [0.12, -0.46], [0.3, -0.3], [0.33, -0.06], [0.22, 0.24], [-0.15, 0.27]];
-      c.lineWidth = Math.max(0.8, 0.007 * k0);
-      roots.forEach(([x0, y0], i) => {
-        const A = [x0, y0, Math.max(hairZ(y0) + 0.03, -0.3)], B = [bunC[0], bunC[1], bunC[2] - 0.12];
-        c.strokeStyle = PV.rgba(C.hairHi, 0.08 + 0.05 * (i % 3 === 0)); c.beginPath();
-        for (let s = 0; s <= 10; s++) { const u = s / 10; let x = lerp(A[0], B[0], u), y = lerp(A[1], B[1], u), z = lerp(A[2], B[2], u); const rr = Math.hypot(x / 0.4, (y + 0.05) / 0.5, (z - 0.03) / 0.52) || 1; const q = P(x / rr, (y + 0.05) / rr - 0.05, (z - 0.03) / rr + 0.03); if (s) c.lineTo(q.x, q.y); else c.moveTo(q.x, q.y); }
-        c.stroke();
-      });
-      if (warm > 0) { const q = P(-0.4, -0.2, -0.2); const g2 = c.createRadialGradient(q.x, q.y, 0, q.x, q.y, 0.5 * k0); g2.addColorStop(0, PV.rgba(C.warm, 0.5 * warm)); g2.addColorStop(1, PV.rgba(C.warm, 0)); c.fillStyle = g2; ALL(c); }
-    }
-    c.restore();
-    c.strokeStyle = PV.rgba(C.hairSh, 0.6); c.lineWidth = 1.2; c.stroke(capP);
-    c.fillStyle = C.hair; c.fill(bunP);
-    c.save(); c.clip(bunP);
-    {
-      const q = P(bunC[0] - 0.05, bunC[1] - 0.11, bunC[2]), q2 = P(bunC[0], bunC[1] + 0.03, bunC[2]);
-      const g = c.createRadialGradient(q.x, q.y, 0, q2.x, q2.y, 0.24 * k0); g.addColorStop(0, PV.rgba(C.hairHi, 0.38)); g.addColorStop(0.45, PV.rgba(C.hairHi, 0.08)); g.addColorStop(0.8, 'rgba(0,0,0,0)'); g.addColorStop(1, PV.rgba(C.hairSh, 0.6)); c.fillStyle = g; ALL(c);
-      c.lineCap = 'round';
-      for (let k = 0; k < 3; k++) {    // three soft wraps of the twist
-        c.strokeStyle = PV.rgba(C.hairSh, 0.28); c.lineWidth = Math.max(0.8, 0.012 * k0); c.beginPath();
-        for (let s2 = 0; s2 <= 10; s2++) { const u = s2 / 10, ang = -2.4 + k * 2.1 + u * 1.7, rr = 0.82 - 0.12 * k; const p2 = P(bunC[0] + bunR[0] * rr * Math.cos(ang), bunC[1] + bunR[1] * rr * Math.sin(ang), bunC[2] + bunR[2] * 0.55); if (s2) c.lineTo(p2.x, p2.y); else c.moveTo(p2.x, p2.y); }
-        c.stroke();
-        c.strokeStyle = PV.rgba(C.hairHi, 0.12); c.lineWidth = Math.max(0.6, 0.006 * k0); c.stroke();
-      }
-    }
-    c.restore();
-    c.strokeStyle = PV.rgba(C.hairSh, 0.6); c.lineWidth = 1.2; c.stroke(bunP);
-    for (let i = 0; i < 3; i++) { const q = P(bunC[0] - 0.12 + i * 0.05, bunC[1] - 0.13 - i * 0.02, bunC[2] - 0.05); c.fillStyle = '#f6f2ea'; c.beginPath(); c.arc(q.x, q.y, Math.max(1.4, 0.016 * k0), 0, TAU); c.fill(); }   // pearl pins
-    // the near (left) ear, oriented by the projected head axes
-    {
-      const e0 = P(-0.385, 0.04, 0.05), eUp = P(-0.385, -0.06, 0.05), eBk = P(-0.385, 0.04, 0.13);
-      const ux = eUp.x - e0.x, uy = eUp.y - e0.y, hl = Math.hypot(ux, uy) || 1, bx = eBk.x - e0.x, by = eBk.y - e0.y;
-      const hgt = hl * 1.05, wid = Math.max(0.25 * hgt, Math.hypot(bx, by) * 0.95), ang = Math.atan2(uy, ux) + Math.PI / 2;
-      const flip = (bx * Math.cos(ang) + by * Math.sin(ang)) >= 0 ? 1 : -1;
-      c.save(); c.translate(e0.x, e0.y); c.rotate(ang); c.scale(flip, 1);
-      const ear = new Path2D(); ear.moveTo(-wid * 0.15, -hgt); ear.bezierCurveTo(wid * 0.9, -hgt * 1.05, wid * 1.0, -hgt * 0.1, wid * 0.55, hgt * 0.45); ear.bezierCurveTo(wid * 0.35, hgt * 0.95, -wid * 0.15, hgt * 1.05, -wid * 0.3, hgt * 0.7); ear.lineTo(-wid * 0.35, -hgt * 0.6); ear.closePath();
-      c.fillStyle = C.skin; c.fill(ear);
-      c.save(); c.clip(ear); const g = c.createLinearGradient(-wid * 0.4, 0, wid, 0); g.addColorStop(0, PV.rgba(C.skinSh, 0.7)); g.addColorStop(1, PV.rgba(C.skinHi, 0.5)); c.fillStyle = g; c.fillRect(-wid * 2, -hgt * 2, wid * 4, hgt * 4);
-      if (warm > 0) { c.fillStyle = PV.rgba(C.warm, 0.42 * warm); c.fillRect(-wid * 2, -hgt * 2, wid * 4, hgt * 4); } c.restore();
-      c.strokeStyle = PV.rgba(C.line, 0.7); c.lineWidth = 1.2; c.stroke(ear);
-      c.strokeStyle = PV.rgba(C.skinSh, 0.9); c.lineWidth = Math.max(1, hgt * 0.07); c.lineCap = 'round';
-      c.beginPath(); c.moveTo(wid * 0.05, -hgt * 0.65); c.bezierCurveTo(wid * 0.6, -hgt * 0.7, wid * 0.65, -hgt * 0.05, wid * 0.3, hgt * 0.4); c.stroke();
-      c.fillStyle = '#f7f3ea'; c.beginPath(); c.arc(wid * 0.05, hgt * 0.78, Math.max(1.4, hgt * 0.09), 0, TAU); c.fill();   // pearl stud
-      c.restore();
-    }
-    // loose strands (後れ毛) at the nape and the temple: they sway
-    c.strokeStyle = C.hair; c.lineCap = 'round';
-    for (const [x0, y0, z0, len, ph, cv] of [[-0.24, 0.24, 0.24, 0.24, 0.0, 1], [0.0, 0.33, 0.4, 0.2, 1.7, -1], [0.18, 0.3, 0.36, 0.17, 2.6, 1], [-0.36, -0.1, -0.2, 0.26, 3.4, -1]]) {
-      const sw = 0.03 * Math.sin(t * 1.25 + ph);
-      c.lineWidth = Math.max(0.8, 0.008 * k0); c.beginPath();
-      for (let s = 0; s <= 6; s++) { const u = s / 6, q = P(x0 + cv * 0.035 * Math.sin(u * 3) + sw * u, y0 + len * u, z0 + 0.03 * u); if (s) c.lineTo(q.x, q.y); else c.moveTo(q.x, q.y); }
-      c.stroke();
-    }
-  }
-  // ---- hands: the frozen rigs are solved once (forearm aimed at the IK elbow), then re-posed per frame
-  const H16 = { init: false };
-  function handOpt16(side, extra) {
-    const hb = HANDS16[side];
-    return Object.assign({ az: CAM16.az, el: CAM16.el, scale: CAM16.scale, x: CAM16.x, y: CAM16.y, focal: CAM16.focal, t: 0, side: hb.side, handX: hb.handX, keys: hb.keys, press: [-0.4, -0.4, -0.4, -0.4, -0.4],
-      wristY: hb.wristY, wristZ: hb.wristZ, roll: hb.roll, drawKeys: false, shadow: false, reflection: false, light: -2.0, skin: P16.skin, shade: P16.skinSh, hi: P16.skinHi, line: P16.line }, extra || {});
-  }
-  function initHands16() {
-    const body = body16({ lift: 0, drop: 0, lean: 0 }), scratch = PV.buffer('g05:c16scratch', 64, 64).ctx;
-    for (const side of ['L', 'R']) {
-      const S = side === 'L' ? body.shL : body.shR;
-      let turn = side === 'L' ? -0.35 : 0.35, tilt = -0.1, rig = null;
-      for (let it = 0; it < 3; it++) {
-        rig = L.handOnKeys(scratch, handOpt16(side, { turn, tilt, arm: 200, alpha: 0 }));
-        const Wr = va(rig.toWorld(V3(0, 0, 0)), LOOK16), E = ik2(S, Wr, UPPER, FORE, V3(side === 'L' ? -0.7 : 0.7, 0.55, 0.45)), e = vn(vs(E, Wr));
-        turn = Math.atan2(e.x, e.z); tilt = Math.asin(clamp(e.y, -1, 1));
-      }
-      H16[side] = { o: rig.o, wrist: va(rig.toWorld(V3(0, 0, 0)), LOOK16) };
-    }
-    H16.relax = L.handRig({ kind: 'her', curl: [0.3, 0.34, 0.4, 0.46, 0.52], spread: 0.1 }).pose;
-    H16.init = true;
-  }
-  const HM16 = () => L._handMath.M;
-  function handMatrix16(turn, tilt, roll, mirror) { const M = HM16(); return M.mul(M.rz(-roll * mirror), M.mul(M.ry(turn), M.mul(M.rx(-tilt), M.cols(V3(1, 0, 0), V3(0, 0, 1), V3(0, -1, 0))))); }
-  function arm16(side, body, t, rel, trem) {
-    const H0 = H16[side], mir = side === 'L' ? -1 : 1, S = side === 'L' ? body.shL : body.shR;
-    const lap = side === 'L' ? V3(CX16 - 105, 46, 262) : V3(CX16 + 45, 52, 250);   // the far hand settles in front of her (hidden by her back)
-    const up = Math.sin(Math.PI * clamp(rel * 1.15)) * 40;            // the hands lift off before they fall to the lap
-    let Wr = vmix(H0.wrist, lap, PV.ease.inOutCubic(rel)); Wr = V3(Wr.x + trem * 1.6 * N2(t * 7.3, mir * 3), Wr.y - up + trem * 1.6 * N2(mir * 5, t * 6.7), Wr.z);
-    const pole = side === 'L' ? V3(-0.7, 0.55 + 0.3 * rel, 0.45) : V3(lerp(0.7, 0.25, rel), lerp(0.55, 1.0, rel), lerp(0.45, 0.6, rel));
-    const E = ik2(S, Wr, UPPER, FORE, pole), e = vn(vs(E, Wr));
-    return { Wr, E, S, turn: Math.atan2(e.x, e.z), tilt: Math.asin(clamp(e.y, -1, 1)), roll: lerp(HANDS16[side].roll, mir * 0.55, rel), fore: vl(vs(E, Wr)) };
-  }
-  function hand16(ctx, side, A, t, rel, trem) {
-    const H0 = H16[side], mir = side === 'L' ? -1 : 1, m = ctx.getTransform(), u = PV.ease.inOut(clamp(rel * 1.3)), F0 = H0.o.pose, F1 = H16.relax;
-    const pose = {
-      F: F0.F.map((f, i) => ({ flex: f.flex.map((v, j) => lerp(v, F1.F[i].flex[j], u) + trem * 0.07 * N2(t * 6.1 + i * 3.3, j * 1.7)), splay: lerp(f.splay, F1.F[i].splay, u) + trem * 0.02 * N2(t * 4.3, i * 5.1) })),
-      T: { abd: lerp(F0.T.abd, F1.T.abd, u), opp: lerp(F0.T.opp, F1.T.opp, u), flex: F0.T.flex.map((v, j) => lerp(v, F1.T.flex[j], u) + trem * 0.05 * N2(t * 5.2, 9 + j)), twist: lerp(F0.T.twist || 0, F1.T.twist || 0, u) },
-    };
-    const rig = L.handRig(Object.assign({}, H0.o, { pose, handMatrix: handMatrix16(A.turn, A.tilt, A.roll, mir), handPos: vs(A.Wr, LOOK16), arm: A.fore + 4, _m: { a: m.a, b: m.b, c: m.c, d: m.d, e: m.e, f: m.f },
-      skin: P16.skin, shade: P16.skinSh, hi: P16.skinHi, line: P16.line }));
-    L.handRender(ctx, [rig], {});
-  }
-  // ---- the piano front (cached): fallboard, cheek block, key slip, the 88 keys -- one camera with the hands
-  const X0_16 = -12.75 - 25 * KW - 6, X1_16 = -12.75 + 27 * KW + 6, ZF16 = -179;
-  const fallboard16 = () => [p16(V3(X0_16, 2, ZF16)), p16(V3(X1_16, 2, ZF16)), p16(V3(X1_16, -160, ZF16 - 16)), p16(V3(X0_16, -160, ZF16 - 16))];
-  function piano16() {
-    return PV.cached('g05:c16piano', W, H, (c) => {
-      const nb = fallboard16();
-      let g = c.createLinearGradient(nb[3].x, nb[3].y, nb[0].x, nb[0].y); g.addColorStop(0, '#09080c'); g.addColorStop(0.7, '#121116'); g.addColorStop(1, '#1b191f');
-      quad16(c, nb, g);
-      c.save(); quad16(c, nb); c.clip();
-      const b0 = [p16(V3(X0_16, -150, ZF16 - 15)), p16(V3(X1_16, -150, ZF16 - 15)), p16(V3(X1_16, -105, ZF16 - 12)), p16(V3(X0_16, -105, ZF16 - 12))];
-      g = c.createLinearGradient(b0[0].x, b0[0].y, b0[3].x, b0[3].y); g.addColorStop(0, 'rgba(248,248,246,0.34)'); g.addColorStop(1, 'rgba(248,248,246,0)');   // the white mirrored in the lacquer
-      quad16(c, b0, g);
-      const e0 = p16(V3(X0_16, -158, ZF16 - 16)), e1 = p16(V3(X1_16, -158, ZF16 - 16));
-      c.strokeStyle = 'rgba(255,255,255,0.55)'; c.lineWidth = 2; c.beginPath(); c.moveTo(e0.x, e0.y); c.lineTo(e1.x, e1.y); c.stroke();
-      c.restore();
-      quad16(c, [p16(V3(X0_16 - 70, -48, 22)), p16(V3(X0_16, -48, 22)), p16(V3(X0_16, -48, ZF16)), p16(V3(X0_16 - 70, -48, ZF16))], '#1d1c22');   // cheek block
-      quad16(c, [p16(V3(X0_16 - 70, -48, 22)), p16(V3(X0_16 - 70, -48, ZF16)), p16(V3(X0_16 - 70, 64, ZF16)), p16(V3(X0_16 - 70, 64, 22))], '#0e0d12');
-      quad16(c, [p16(V3(X0_16 - 70, 14, 26)), p16(V3(X1_16 + 70, 14, 26)), p16(V3(X1_16 + 70, 56, 26)), p16(V3(X0_16 - 70, 56, 26))], '#141318');     // key slip
-      const ks0 = p16(V3(X0_16 - 70, 15, 26)), ks1 = p16(V3(X1_16 + 70, 15, 26)); c.strokeStyle = 'rgba(255,255,255,0.45)'; c.lineWidth = 1.5; c.beginPath(); c.moveTo(ks0.x, ks0.y); c.lineTo(ks1.x, ks1.y); c.stroke();
-      L.handOnKeys(c, handOpt16('R', { drawKeys: true, alpha: 0, fallboard: false, range: [-25, 26] }));
-      // the white eats the underside (the piano floats) and the far, treble end behind her shoulder
-      c.globalCompositeOperation = 'destination-out';
-      const lo = p16(V3(0, 56, 26)), lo2 = p16(V3(0, 180, 60));
-      g = c.createLinearGradient(lo.x, lo.y, lo2.x, lo2.y); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,1)'); c.fillStyle = g; c.fillRect(0, 0, W, H);
-      const fa = p16(V3(150, -60, -90)), fb = p16(V3(520, -60, -90));
-      g = c.createLinearGradient(fa.x, fa.y, fb.x, fb.y); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,1)'); c.fillStyle = g; c.fillRect(0, 0, W, H);
-      c.globalCompositeOperation = 'source-over';
-    });
-  }
-  // ---- the hall in the lacquer after the cough: the front rows in warm light and him, small, seated, a fist at his mouth
-  const REFL16 = { x0: -600, x1: -250, bw: 360, bh: 168 };
-  function reflection16() {
-    return PV.cached('g05:c16refl', REFL16.bw, REFL16.bh, (c) => {
-      const w = REFL16.bw, h = REFL16.bh, bx = w * 0.46, by = 100;
-      let g = c.createRadialGradient(bx, by - 10, 6, bx, by, 150); g.addColorStop(0, 'rgba(255,206,140,0.75)'); g.addColorStop(0.45, 'rgba(214,150,92,0.38)'); g.addColorStop(1, 'rgba(120,80,50,0)');
-      c.fillStyle = g; c.fillRect(0, 0, w, h);
-      c.fillStyle = 'rgba(24,16,14,0.8)';
-      for (let i = -1; i < 7; i++) { const x = bx - 30 + (i - 2) * 64; if (Math.abs(x + 26 - bx) < 30) continue; c.beginPath(); c.roundRect(x, 112, 52, 64, [18, 18, 3, 3]); c.fill(); }   // seat backs
-      c.save(); c.translate(bx, by); c.scale(2.0, 2.0);
-      c.fillStyle = '#0e0a0b';
-      c.beginPath(); c.moveTo(-30, 44); c.bezierCurveTo(-30, 10, -18, -2, 0, -2); c.bezierCurveTo(18, -2, 30, 10, 30, 44); c.closePath(); c.fill();
-      c.beginPath(); c.ellipse(2, -18, 12, 14, 0.1, 0, TAU); c.fill();
-      c.beginPath(); c.moveTo(-12, -22); c.quadraticCurveTo(-14, -36, -2, -38); c.quadraticCurveTo(8, -42, 14, -32); c.lineTo(18, -26); c.lineTo(13, -27); c.lineTo(15, -18); c.lineTo(-13, -14); c.closePath(); c.fill();
-      c.beginPath(); c.ellipse(12, -8, 6, 7, 0.4, 0, TAU); c.fill();
-      c.strokeStyle = 'rgba(255,220,160,0.95)'; c.lineWidth = 1.4; c.lineCap = 'round';
-      c.beginPath(); c.arc(2, -18, 13.2, -2.7, -0.8); c.stroke(); c.beginPath(); c.moveTo(-28, 30); c.bezierCurveTo(-27, 8, -16, 0, -2, -1); c.stroke();
-      c.restore();
-      c.globalCompositeOperation = 'destination-in';   // no frame: it lives inside the lacquer
-      g = c.createRadialGradient(bx, by + 4, 30, bx, by + 4, 175); g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(0.6, 'rgba(0,0,0,0.75)'); g.addColorStop(1, 'rgba(0,0,0,0)'); c.fillStyle = g; c.fillRect(0, 0, w, h);
-      c.globalCompositeOperation = 'source-atop'; c.fillStyle = 'rgba(40,46,70,0.16)'; c.fillRect(0, 0, w, h);
-      c.globalCompositeOperation = 'source-over';
-      const tmp = PV.makeCanvas(w, h); tmp.ctx.drawImage(c.canvas, 0, 0); c.clearRect(0, 0, w, h);
-      c.filter = 'blur(1.2px)'; c.drawImage(tmp.canvas, 0, 0); c.filter = 'none';
-    });
-  }
-  function drawReflection16(ctx, ap) {
-    if (ap <= 0.01) return;
-    const P00 = p16(V3(REFL16.x0, -158, ZF16 - 16)), P10 = p16(V3(REFL16.x1, -158, ZF16 - 16)), P01 = p16(V3(REFL16.x0, -4, ZF16 - 1));
-    ctx.save(); quad16(ctx, fallboard16()); ctx.clip();
-    ctx.transform((P10.x - P00.x) / REFL16.bw, (P10.y - P00.y) / REFL16.bw, (P01.x - P00.x) / REFL16.bh, (P01.y - P00.y) / REFL16.bh, P00.x, P00.y);
-    ctx.globalAlpha = ap; ctx.drawImage(reflection16(), 0, 0);
-    ctx.globalAlpha = 0.5 * ap; ctx.fillStyle = 'rgba(255,255,255,0.22)'; ctx.fillRect(-60, 58, REFL16.bw + 120, 4); ctx.fillRect(-60, 66, REFL16.bw + 120, 1.5);   // the lacquer's sheen over it
-    ctx.restore();
+  // her light: the white world ('stage'); after the cough the hall's amber reaches her (quantised so the colours are reused)
+  function light16(k) {
+    const q = Math.round(clamp(k) * 8) / 8; if (q <= 0) return 'stage';
+    const st = PV.anime.LIGHT.stage;
+    return { light: mixH(st.light, '#ffe7cc', q), shadow: mixH(st.shadow, '#c7a4b6', q), amb: 0, rim: mixH(st.rim, '#ffd7a0', q), rimA: lerp(st.rimA, 0.55, q), sat: lerp(st.sat, 1.0, q), dark: lerp(st.dark, 1.03, q) };
   }
   // a few slow motes in the white (life, not snow)
   function motes16(ctx, t, a) {
@@ -415,150 +267,144 @@
     }
     ctx.restore();
   }
-  // the void + the piano + the fog, baked once in a cold and a warm (the hall's amber has reached it) version
+  // the white void (cold) and the same void after the hall's amber has reached it (warm), cached
   function bg16(warm) {
-    return PV.cached('g05:c16bg:' + (warm ? 'w' : 'c'), W, H, (c) => {
-      c.fillStyle = '#f8f8f6'; c.fillRect(0, 0, W, H);
-      if (warm) {
-        let g = c.createRadialGradient(80, 380, 50, 80, 380, 1800); g.addColorStop(0, '#ffd9a0'); g.addColorStop(0.5, '#fbe7cf'); g.addColorStop(1, '#f6efe6');
+    return PV.cached('g05:c16bg2:' + (warm ? 'w' : 'c'), W, H, (c) => {
+      let g = c.createRadialGradient(W * 0.42, H * 0.38, 120, W * 0.5, H * 0.45, 1300); g.addColorStop(0, '#fbfbf9'); g.addColorStop(0.6, '#f3f3f2'); g.addColorStop(1, '#e4e5e9');
+      c.fillStyle = g; c.fillRect(0, 0, W, H);
+      if (warm) {   // the amber of the hall comes from the audience side (the left, behind the camera)
+        g = c.createRadialGradient(-120, 420, 60, -120, 420, 1900); g.addColorStop(0, 'rgba(255,196,128,0.85)'); g.addColorStop(0.45, 'rgba(252,222,186,0.55)'); g.addColorStop(1, 'rgba(246,236,226,0)');
         c.fillStyle = g; c.fillRect(0, 0, W, H);
       }
-      c.drawImage(piano16(), 0, 0);
-      const fogC = warm ? '246,236,222' : '248,248,246';
-      let g = c.createLinearGradient(-260, 0, 260, 0); g.addColorStop(0, 'rgba(' + fogC + ',0.95)'); g.addColorStop(1, 'rgba(' + fogC + ',0)');
-      c.fillStyle = g; c.fillRect(0, 0, 260, H);
-      const ft = p16(V3(0, -160, ZF16 - 16)), ft2 = p16(V3(0, -330, ZF16 - 40));
-      g = c.createLinearGradient(ft.x, ft.y, ft2.x, ft2.y); g.addColorStop(0, 'rgba(' + fogC + ',0)'); g.addColorStop(1, 'rgba(' + fogC + ',0.9)');
-      c.fillStyle = g; c.fillRect(0, 0, W, H);
-      if (warm) { g = c.createRadialGradient(0, 420, 20, 0, 420, 900); g.addColorStop(0, 'rgba(255,191,107,0.32)'); g.addColorStop(1, 'rgba(255,191,107,0)'); c.fillStyle = g; c.fillRect(0, 0, W, H); }
     });
   }
-  // a veil of white over everything (the world without outlines), screen-blended with a per-frame strength
+  // a veil of white over everything (the world without outlines), screen-blended with a per-frame strength; clear round her face
   function veil16() {
-    return PV.cached('g05:c16veil', W, H, (c) => { const g = c.createRadialGradient(W * 0.55, H * 0.45, 200, W * 0.55, H * 0.45, 1250); g.addColorStop(0, 'rgba(255,255,255,0.14)'); g.addColorStop(1, 'rgba(255,255,255,1)'); c.fillStyle = g; c.fillRect(0, 0, W, H); });
+    return PV.cached('g05:c16veil2', W, H, (c) => { const g = c.createRadialGradient(W * 0.44, H * 0.4, 160, W * 0.5, H * 0.45, 1250); g.addColorStop(0, 'rgba(255,255,255,0.0)'); g.addColorStop(0.35, 'rgba(255,255,255,0.12)'); g.addColorStop(1, 'rgba(255,255,255,1)'); c.fillStyle = g; c.fillRect(0, 0, W, H); });
   }
-  PV.shot('C16', { draw(ctx, t, d) {
-    const tt = clamp(t, -0.3, d + 0.3), cough = C16.cough;
-    if (!H16.init) { initHands16(); bg16(true); reflection16(); }          // build every cache on the first frame (no hitch mid-cut)
-    const k = sm(cough, cough + 1.3, tt);                                   // the white gives way to the hall's amber
-    palette16(0.75 * k);
-    const rel = sm(C16.rel0, C16.rel1, tt);                                  // she lets the arms go
-    const breath = Math.sin(Math.PI * clamp((tt - C16.inhale + 0.15) / 1.0)) * sm(C16.inhale - 0.3, C16.inhale, tt);
-    const body = body16({ lift: 14 * breath + 2 * Math.sin(tt * 2.1), drop: 10 * rel, lean: -8 * rel });
-    const pulse = Math.pow(0.5 + 0.5 * Math.cos((tt - 0.35) * TAU * 0.72), 6) * (1 - k);   // heartbeat in the tinnitus
+  // the bottom of the case dissolves in the white (the piano floats)
+  function fog16(ctx, warm) {
+    const col = warm > 0.01 ? mixH('#f6f6f4', '#f6ebde', warm) : '#f6f6f4';
+    const g = ctx.createLinearGradient(0, 760, 0, 1090); g.addColorStop(0, PV.rgba(col, 0)); g.addColorStop(0.55, PV.rgba(col, 0.5)); g.addColorStop(1, PV.rgba(col, 0.96));
+    ctx.fillStyle = g; ctx.fillRect(-200, 700, W + 400, 500);
+  }
+  PV.shot('C16', { draw(ctx, t, d, S) {
+    if (S) S.post = Object.assign({}, S.post, { bloom: 0.15 });   // bright close-up: keep the thin eye lines crisp
+    ensurePose();
+    const tt = clamp(t, -0.3, d + 0.3), T = absT(S, 'C16', tt), tq = tw(T), cough = C16.cough;
+    const k = sm(cough, cough + 1.3, T);                                       // the white gives way to the hall's amber
+    const cam = gcam(CAM16.th, CAM16.ph, CAM16.x, CAM16.y, CAM16.s);
+    // ---- acting (global time; the figure's pose values on twos)
+    const eyeK = sm(51.44, 51.58, tq);                                         // the eyes move first ...
+    const headK = PV.ease.inOutCubic(sm(51.5, 51.96, tq));                     // ... then the head turns toward him (the lens)
+    const bf = Math.floor((T - 51.625) * 24 + 1e-6);                           // one blink: the light comes back behind it
+    const blinkO = bf < 0 || bf > 4 ? 1 : [0.55, 0.1, 0.0, 0.35, 0.8][bf];
+    const lit = T >= 51.7 ? 1 : 0;
+    const rel = sm(51.85, 52.75, tq);                                          // she lets the arms go
+    const inh = sm(52.32, 52.86, tq);                                          // 52.4 the breath in: the shoulders rise
+    const closeK = sm(52.42, 52.6, tq);                                        // ... with the eyes closed
+    const frozen = 1 - sm(cough, cough + 0.5, T);
+    const shallow = frozen * (0.5 + 0.5 * Math.sin(tq * TAU / 0.8));           // quick shallow breaths while frozen
+    const lookX = lerp(0.34, -0.4, eyeK), lookY = lerp(0.16, -0.02, eyeK) + 0.3 * closeK;
+    const open = closeK > 0 ? lerp(1.0, 0, closeK) : (lit ? 1.04 : 0.93) * blinkO;
+    const head = {
+      expr: 'neutral', noBlink: true,
+      eyes: closeK > 0.5 ? { open: 0, closed: 'down', look: [0.1, 0.3] }
+        : { open, look: [lookX, lookY], shine: lit ? 1 : 0.22, dull: lit ? 0 : 0.38, hlK: lit ? 1.12 : 0.78, wide: lit ? 0.12 * (1 - closeK) : 0 },
+      brows: { inner: lerp(0.1, 0.34, sm(51.6, 51.9, tq)) - 0.18 * closeK, outer: lerp(-0.04, 0.06, sm(51.6, 51.9, tq)) },
+      mouth: { shape: T < 51.62 && T > 51.43 ? 'o' : 'flat', open: frozen * 0.07 + (T > 51.43 && T < 51.62 ? 0.12 : 0) + 0.04 * inh },
+      blush: lerp(0.03, 0.34, sm(51.75, 52.5, tq)),
+      lightDir: -2.5, shade: 0.09,
+    };
+    const fig = {
+      who: 'senpai', outfit: 'dress', pose: 'g05_piano', facing: cam.th, camPitch: cam.ph, x: cam.x, y: cam.y, scale: cam.s, T,
+      light: light16(k), keyDir: -2.45, rimDir: -2.2,
+      params: { intensity: 0, play: 0, look: 'keys', rel, trem: frozen * 0.8, lift: 0.012 * shallow + 0.05 * inh,
+        neckYaw: -0.42 * headK + 0.1 * inh, neckPitch: lerp(0.1, -0.02, headK) + 0.1 * inh, bendAdd: -0.02 * inh },
+      head,
+    };
     ctx.save();
-    const ph = p16(body.head), pr = p16(V3((REFL16.x0 + REFL16.x1) / 2, -80, ZF16));
-    PV.camera(ctx, { zoom: 1 + 0.075 * PV.ease.inOut(sm(cough, d + 0.4, tt)), cx: lerp(pr.x, ph.x, 0.55), cy: lerp(pr.y, ph.y, 0.5) });
+    const fc = gp(cam, 0, -2.75, 0.1);
+    PV.camera(ctx, { zoom: 1 + 0.075 * PV.ease.inOut(sm(cough, cough + d, T)), cx: fc[0], cy: fc[1] });
     ctx.drawImage(bg16(false), 0, 0);
     if (k > 0.002) { ctx.globalAlpha = k; ctx.drawImage(bg16(true), 0, 0); ctx.globalAlpha = 1; }
-    drawReflection16(ctx, sm(cough - 0.05, cough + 0.3, tt));
-    // her: far arm (behind the torso; its hand is hidden by her body, so only the limbs are drawn), torso, neck, near arm, head
-    const trem = 1 - sm(cough, cough + 0.4, tt);
-    const AL = arm16('L', body, tt, rel, trem), AR = arm16('R', body, tt, rel, trem);
-    capsule16(ctx, AR.Wr, 26, AR.E, 30); ctx.fillStyle = P16.skinSh; ctx.fill(); ctx.strokeStyle = P16.line; ctx.lineWidth = 1.4; ctx.stroke();
-    upperArm16(ctx, AR.S, AR.E, 'R', true);
-    torso16(ctx, body);
-    neck16(ctx, body);
-    hand16(ctx, 'L', AL, tt, rel, trem); upperArm16(ctx, AL.S, AL.E, 'L', false);
-    const turn = 0.36 * PV.ease.inOutCubic(sm(cough + 0.12, cough + 0.75, tt));
-    head16(ctx, body.head, 240, { yaw: -0.12 + turn, pitch: 0.2 - 0.08 * turn, roll: -0.05 }, tt, k);
+    const pal = k > 0.01 ? Object.assign({}, PAL16, { refl: mixH(PAL16.refl, '#ffd9a8', k), lidSheen: mixH('#ffffff', '#ffcf94', k), lidSheenA: PAL16.lidSheenA + 0.06 * k, edge: mixH('#ffffff', '#ffe2b8', k) }) : PAL16;
+    pianoBack(ctx, cam, pal);
+    PV.anime.figure(ctx, fig);
+    pianoFront(ctx, cam, pal);
+    pianoLid(ctx, cam, pal);
+    fog16(ctx, k);
     ctx.restore();
     motes16(ctx, tt, 1 - 0.6 * k);
-    ctx.save(); ctx.globalCompositeOperation = 'screen'; ctx.globalAlpha = clamp(0.42 * (1 - 0.5 * k) + 0.12 * pulse); ctx.drawImage(veil16(), 0, 0); ctx.restore();
+    const pulse = Math.pow(0.5 + 0.5 * Math.cos((tt - 0.35) * TAU * 0.72), 6) * (1 - k);   // heartbeat in the tinnitus
+    ctx.save(); ctx.globalCompositeOperation = 'screen'; ctx.globalAlpha = clamp(0.4 * (1 - 0.55 * k) + 0.12 * pulse); ctx.drawImage(veil16(), 0, 0); ctx.restore();
   } });
 
   /* ================================================================== C17 〈別れの曲〉
-   * 53.0–57.0 (4.0s). One spotlight; her back as she starts to play (the nape, the navy dress, the slowly moving
-   * shoulders, 原作3406). As the music goes on, the white left over from C16 fills with the warm light of the hall.
-   * Dust in the shaft. A very slow dolly-in from behind. Same 3-D figure as C16 (same dress, same chignon), seen from
-   * straight behind and a little left; her arms go forward to the keys (elbows out, forearms hidden by her back).
-   * Text: vertical monologue on the right 53.4–56.9 -> x ≈ 1480–1760 stays dark and calm (the piano's lid, the dim hall).
+   * 53.0–57.0 (4.0 s). One spotlight; from the same audience side, a little further back and more to her side: she plays,
+   * the shoulders moving slowly (原作3406), the face in 3/4 turning toward the profile as she sinks into the music.
+   * During the monologue (53.4–56.9, right) the brows knit, the eyes fill; a blink at 55.15 lets ONE tear run down her cheek
+   * (no crying face: the strong face of 原作3408). The white left over from C16 fills with the warm light of the hall; dust
+   * in the shaft; a slow dolly-in. The right side (the vertical monologue, x ≈ 1480–1760) stays dark and calm: the open
+   * lid's underside and the dim hall.
    */
-  const CAM17 = { az: -0.1, el: 0.28, scale: 1.08, x: 900, y: 860, focal: 2800 };
-  const P17 = { dress: '#1b2242', dressSh: '#090c1a', dressHi: '#5a6aa0', skin: '#e9c4aa', skinSh: '#8f6152', skinHi: '#ffe4c8', line: '#5e382e', hair: '#141017', hairHi: '#d3ab72', hairSh: '#050406', warm: '#ffd59a' };
-  const HANDS17 = { L: { x: -11 * KW, y: -40, z: 100 }, R: { x: 3 * KW, y: -40, z: 100 } };
-  function piano17() {
-    return PV.cached('g05:c17piano', W, H, (c) => {
-      // the open lid, hinged on the left (spine) and propped up to the right: its dark lacquer underside with a dim
-      // golden mirror of the strings, a warm line where the spot catches its front edge
-      const la = 0.66, cl = Math.cos(la), sl = Math.sin(la), spine = X0_16 - 70, rim = -290;
-      const wAt = (z) => (z > -1300 ? 1490 : lerp(1490, 420, Math.pow((-1300 - z) / 1400, 1.4)));
-      const lidPt = (xl, z) => p16(V3(spine + xl * cl, rim - xl * sl, z));
-      const lid = []; for (let i = 0; i <= 14; i++) { const z = lerp(-300, -2700, i / 14); lid.push(lidPt(wAt(z), z)); }
-      lid.push(lidPt(0, -2700)); lid.push(lidPt(0, -300));
-      let g = c.createLinearGradient(lidPt(0, -300).x, lidPt(0, -300).y, lidPt(1490, -300).x, lidPt(1490, -300).y); g.addColorStop(0, '#0c0a0c'); g.addColorStop(0.6, '#17120f'); g.addColorStop(1, '#241a12');
-      quad16(c, lid, g);
-      c.save(); quad16(c, lid); c.clip();
-      for (let i = 1; i < 26; i++) { const z = lerp(-420, -2500, i / 26), a0 = lidPt(60, z), a1 = lidPt(wAt(z) * 0.92, z); c.strokeStyle = 'rgba(214,170,96,' + (0.05 + 0.05 * (i % 3 === 0)).toFixed(3) + ')'; c.lineWidth = 1; c.beginPath(); c.moveTo(a0.x, a0.y); c.lineTo(a1.x, a1.y); c.stroke(); }
-      c.restore();
-      const fe0 = lidPt(0, -300), fe1 = lidPt(1490, -300); c.strokeStyle = 'rgba(255,213,154,0.55)'; c.lineWidth = 2.5; c.beginPath(); c.moveTo(fe0.x, fe0.y); c.lineTo(fe1.x, fe1.y); c.stroke();
-      const ps0 = p16(V3(X1_16 + 40, rim, -1000)), ps1 = lidPt(1300, -1000); c.strokeStyle = '#0c0a0a'; c.lineWidth = 6; c.beginPath(); c.moveTo(ps0.x, ps0.y); c.lineTo(ps1.x, ps1.y); c.stroke();   // prop stick
-      // the case: rim top and the front of the case behind the fallboard
-      quad16(c, [p16(V3(spine, rim, -190)), p16(V3(X1_16 + 70, rim, -190)), p16(V3(X1_16 + 70, rim, -1300)), p16(V3(spine, rim, -2700))], '#0b0a0c');
-      quad16(c, [p16(V3(spine, rim, -190)), p16(V3(X1_16 + 70, rim, -190)), p16(V3(X1_16 + 70, -150, -190)), p16(V3(spine, -150, -190))], '#100e10');
-      const rl0 = p16(V3(spine, rim, -190)), rl1 = p16(V3(X1_16 + 70, rim, -190)); c.strokeStyle = 'rgba(255,213,154,0.4)'; c.lineWidth = 2; c.beginPath(); c.moveTo(rl0.x, rl0.y); c.lineTo(rl1.x, rl1.y); c.stroke();
-      // fallboard (black lacquer with the spot's warm reflection)
-      const nb = fallboard16();
-      g = c.createLinearGradient(nb[3].x, nb[3].y, nb[0].x, nb[0].y); g.addColorStop(0, '#0a0809'); g.addColorStop(1, '#1d1612');
-      quad16(c, nb, g);
-      const e0 = p16(V3(X0_16, -158, ZF16 - 16)), e1 = p16(V3(X1_16, -158, ZF16 - 16));
-      c.strokeStyle = 'rgba(255,213,154,0.5)'; c.lineWidth = 2; c.beginPath(); c.moveTo(e0.x, e0.y); c.lineTo(e1.x, e1.y); c.stroke();
-      // the keys, the key slip, the cheek blocks
-      L.handOnKeys(c, Object.assign(handOpt16('R'), { az: CAM17.az, el: CAM17.el, scale: CAM17.scale, x: CAM17.x, y: CAM17.y, focal: CAM17.focal, drawKeys: true, alpha: 0, fallboard: false, range: [-25, 26], keyColor: '#ffd59a', tint: 0.35 }));
-      quad16(c, [p16(V3(X0_16 - 70, 14, 26)), p16(V3(X1_16 + 70, 14, 26)), p16(V3(X1_16 + 70, 70, 26)), p16(V3(X0_16 - 70, 70, 26))], '#0d0b0b');
-      const ks0 = p16(V3(X0_16 - 70, 15, 26)), ks1 = p16(V3(X1_16 + 70, 15, 26)); c.strokeStyle = 'rgba(255,213,154,0.5)'; c.lineWidth = 1.5; c.beginPath(); c.moveTo(ks0.x, ks0.y); c.lineTo(ks1.x, ks1.y); c.stroke();
-    });
-  }
+  const CAM17 = { th: 1.1, ph: 0.14, x: 600, y: 1075, s: 215 };
+  const PAL17 = {
+    side: '#141015', top: '#3a2c22', inner: '#100c0c', innerWall: '#1a1412', plate: '#4a3820', strings: 'rgba(214,170,96,0.28)',
+    lid: '#0e0b0d', lidEdge: '#2a201a', lidRefl: '#d6aa60', lidReflA: 0.16, lidSheen: '#ffd59a', lidSheenA: 0.1,
+    refl: '#ffd59a', reflA: 0.16, streaks: [[3.0, 0.45, 0.16], [6.0, 0.6, 0.12]], edge: '#ffd59a', edgeA: 0.85, line: '#060406',
+  };
   function bg17(warm) {
-    return PV.cached('g05:c17bg:' + (warm ? 'w' : 'c'), W, H, (c) => {
-      const keep = CAMX; CAMX = CAM17;
-      try {
-        const wk = warm ? 1 : 0;
-        c.drawImage(hallBack('c17'), 0, 0);
-        c.save(); c.globalCompositeOperation = 'screen';
-        const g = c.createRadialGradient(860, 560, 40, 860, 600, 900); g.addColorStop(0, PV.rgba('#ffd59a', 0.5 * wk + 0.18)); g.addColorStop(0.5, PV.rgba('#c98a4a', 0.22 * wk + 0.05)); g.addColorStop(1, 'rgba(0,0,0,0)');
-        c.fillStyle = g; c.fillRect(0, 0, W, H); c.restore();
-        L.godRays(c, 1.3, { x: 760, y: -120, angle: Math.PI / 2 + 0.06, spread: 0.3, count: 9, length: 1500, width: 150, flare: 3.2, color: '#ffe2b0', alpha: 0.1 + 0.06 * wk, seed: 17, jitter: 260, flicker: 0.4 });
-        c.drawImage(piano17(), 0, 0);
-      } finally { CAMX = keep; }
+    return PV.cached('g05:c17bg2:' + (warm ? 'w' : 'c'), W, H, (c) => {
+      const wk = warm ? 1 : 0;
+      c.drawImage(hallBack('c17'), 0, 0);
+      c.save(); c.globalCompositeOperation = 'screen';
+      const g = c.createRadialGradient(620, 430, 40, 640, 470, 900); g.addColorStop(0, PV.rgba('#ffd59a', 0.5 * wk + 0.18)); g.addColorStop(0.5, PV.rgba('#c98a4a', 0.22 * wk + 0.05)); g.addColorStop(1, 'rgba(0,0,0,0)');
+      c.fillStyle = g; c.fillRect(0, 0, W, H); c.restore();
+      L.godRays(c, 1.3, { x: 560, y: -160, angle: Math.PI / 2 + 0.05, spread: 0.3, count: 9, length: 1500, width: 150, flare: 3.2, color: '#ffe2b0', alpha: 0.1 + 0.06 * wk, seed: 17, jitter: 260, flicker: 0.4 });
     });
   }
-  PV.shot('C17', { draw(ctx, t, d) {
-    const tt = clamp(t, -0.3, d + 0.3);
+  PV.shot('C17', { draw(ctx, t, d, S) {
+    if (S) S.post = Object.assign({}, S.post, { bloom: 0.22 });
+    ensurePose();
+    const tt = clamp(t, -0.3, d + 0.3), T = absT(S, 'C17', tt), tq = tw(T);
     const warmK = smr(0.0, 3.2, tt);                  // white world -> warm hall light
     const whiteK = 0.62 * (1 - smr(0.0, 2.6, tt));    // leftover of C16's white
-    const keep = [CAMX, LIT16, P16];
-    CAMX = CAM17; LIT16 = { mode: 'top', rim: '#ffd59a' }; P16 = P17;
-    try {
-      ctx.save();
-      PV.camera(ctx, { zoom: 1.0 + 0.055 * PV.ease.inOut(clamp(tt / d)), cx: 860, cy: 430, x: 6 * Math.sin(tt * 0.5), y: 0 });
-      // the hall, the spot cone, the light shafts, the piano and the calm column: baked cold (just out of the white) and warm
-      ctx.drawImage(bg17(false), 0, 0);
-      if (warmK > 0.002) { ctx.globalAlpha = warmK; ctx.drawImage(bg17(true), 0, 0); ctx.globalAlpha = 1; }
-      // her, playing 〈別れの曲〉: slow phrase breathing, the shoulders and the head follow the line
-      const ph = tt * 1.05, sw = Math.sin(ph * 1.15), sw2 = Math.sin(ph * 2.7);
-      const body = body16({ lift: 6 * Math.sin(ph * 2.3), drop: 6, lean: -22 + 9 * Math.sin(ph * 0.8), sway: 16 * sw + 4 * sw2, tiltSh: 7 * Math.sin(ph * 1.15 - 0.6) });
-      const arms = ['L', 'R'].map((side) => {
-        const mir = side === 'L' ? -1 : 1, h = HANDS17[side], S = side === 'L' ? body.shL : body.shR;
-        const Wr = V3(h.x + (side === 'L' ? -18 * Math.sin(ph * 0.9 + 1) : 26 * Math.sin(ph * 1.3)), h.y - 6 * Math.max(0, Math.sin(ph * 2.6 + mir)), h.z);
-        const E = ik2(S, Wr, UPPER, FORE, V3(mir * 0.4, 0.85, 0.25));
-        return { side, S, E, Wr };
-      });
-      for (const A of arms) {   // arms first: her back hides the forearms and the hands on the keys
-        capsule16(ctx, A.Wr, 24, A.E, 30); ctx.fillStyle = P16.skinSh; ctx.fill(); ctx.strokeStyle = P16.line; ctx.lineWidth = 1.4; ctx.stroke();
-        upperArm16(ctx, A.S, A.E, A.side, false);
-      }
-      torso16(ctx, body);
-      neck16(ctx, body);
-      head16(ctx, body.head, 240, { yaw: 0.04 * Math.sin(ph * 0.8), pitch: 0.36 + 0.05 * Math.sin(ph * 1.15), roll: -0.06 * Math.sin(ph * 1.15 - 0.4) }, tt, 0);
-      L.dust(ctx, tt, { seed: 23, count: 70, x0: 380, x1: 1250, y0: 0, y1: 1000, size: 2.6, alpha: 0.55 + 0.25 * warmK, color: '#fff0d0', drift: 40, vx: -3, vy: 6 });
-      ctx.restore();
-      // the white world receding (screen space)
-      if (whiteK > 0.002) { ctx.save(); ctx.globalCompositeOperation = 'screen'; ctx.globalAlpha = whiteK; ctx.drawImage(veil16(), 0, 0); ctx.restore(); }
-      // keep the monologue column calm
-      ctx.save(); g = ctx.createLinearGradient(1340, 0, 1920, 0); g.addColorStop(0, 'rgba(10,7,5,0)'); g.addColorStop(0.42, PV.rgba('#0a0705', 0.32 + 0.35 * whiteK)); g.addColorStop(1, PV.rgba('#0a0705', 0.42 + 0.3 * whiteK));
-      ctx.fillStyle = g; ctx.fillRect(1340, 0, 580, H); ctx.restore();
-    } finally { CAMX = keep[0]; LIT16 = keep[1]; P16 = keep[2]; }
+    const cam = gcam(CAM17.th, CAM17.ph, CAM17.x, CAM17.y, CAM17.s);
+    // ---- acting
+    const think = sm(53.6, 55.0, tq);                 // the thought of never seeing him again: brows knit, eyes fill
+    const strong = sm(55.7, 56.4, tq);                // 「一転。一呼吸。力強い顔」
+    const bf = Math.floor((T - 55.15) * 24 + 1e-6);   // the blink that lets the tear go
+    const blinkO = bf < 0 || bf > 4 ? 1 : [0.5, 0.1, 0.0, 0.3, 0.75][bf];
+    const tears = T < 55.2 ? 0.5 * sm(53.9, 55.0, T) : lerp(0.5, 0.72, sm(55.2, 55.6, T));
+    const head = {
+      expr: 'focus', noBlink: true,
+      eyes: { open: (0.82 + 0.1 * strong) * blinkO, focus: lerp(0.55, 0.9, strong), tears, look: [0.25, 0.2 - 0.14 * strong], hlK: 1.05 },
+      brows: { furrow: lerp(0.25, 0.8, think), inner: lerp(-0.2, 0.05, think) - 0.35 * strong },
+      mouth: { shape: 'flat', open: 0 }, blush: 0.12 + 0.08 * think,
+      lightDir: -2.0, shade: 0.1,
+    };
+    const fig = {
+      who: 'senpai', outfit: 'dress', pose: 'g05_piano', facing: cam.th, camPitch: cam.ph, x: cam.x, y: cam.y, scale: cam.s, T,
+      light: 'spot', keyDir: -1.95, rimDir: -1.7, faceLift: 0.62,
+      params: { intensity: lerp(0.38, 0.7, strong), play: 1, look: 'keys', neckYaw: lerp(-0.22, 0.1, sm(54.2, 56.3, tq)), neckPitch: lerp(0.1, 0.0, strong) },
+      head,
+    };
+    ctx.save();
+    PV.camera(ctx, { zoom: 1.0 + 0.06 * PV.ease.inOut(clamp(tt / d)), cx: 640, cy: 470, x: 4 * Math.sin(tt * 0.5) });
+    ctx.drawImage(bg17(false), 0, 0);
+    if (warmK > 0.002) { ctx.globalAlpha = warmK; ctx.drawImage(bg17(true), 0, 0); ctx.globalAlpha = 1; }
+    pianoBack(ctx, cam, PAL17);
+    PV.anime.figure(ctx, fig);
+    pianoFront(ctx, cam, PAL17);
+    pianoLid(ctx, cam, PAL17);
+    L.dust(ctx, tt, { seed: 23, count: 70, x0: 300, x1: 1100, y0: 0, y1: 1000, size: 2.6, alpha: 0.55 + 0.25 * warmK, color: '#fff0d0', drift: 40, vx: -3, vy: 6 });
+    ctx.restore();
+    // the white world receding (screen space)
+    if (whiteK > 0.002) { ctx.save(); ctx.globalCompositeOperation = 'screen'; ctx.globalAlpha = whiteK; ctx.drawImage(veil16(), 0, 0); ctx.restore(); }
+    // keep the monologue column calm
+    ctx.save(); const g = ctx.createLinearGradient(1340, 0, 1920, 0); g.addColorStop(0, 'rgba(10,7,5,0)'); g.addColorStop(0.42, PV.rgba('#0a0705', 0.3 + 0.35 * whiteK)); g.addColorStop(1, PV.rgba('#0a0705', 0.42 + 0.3 * whiteK));
+    ctx.fillStyle = g; ctx.fillRect(1340, 0, 580, H); ctx.restore();
   } });
 
   /* ================================================================== C18 〈木枯らし〉

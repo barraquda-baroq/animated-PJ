@@ -36,75 +36,118 @@
   }
 
   /* =====================================================================================================
-   * C05 — over the shoulder: her blurred head & shoulder (screen right after the flip), the sunlit floor between,
-   *        the boy in the pier's shade (screen left), a band of light with dust crossing between them. He has just
-   *        clapped (C04 ends with his hands up and the pack standing on his thigh); while she asks, his hands settle,
-   *        he picks the pack up and drinks — so C06 can open on the straw leaving his lips.
+   * Screen geography (C04 -> C05 -> C06): g01's C04 keeps the boy at screen-LEFT by the pier (deep) and her at the piano at
+   * screen-RIGHT; C05 turns her to him, so here 先輩 is on the right looking LEFT and 彼 on the left looking RIGHT (as before
+   * the rework). DIR = -1 = that geography: the room plates are painted mirrored (as they always were) and the characters
+   * are placed at the mirrored spots — but drawn un-flipped, so her parting and his hair flow stay on their own sides.
+   * DIR = +1 would give the design sheet's preferred sides (her right cheek, his left cheek) if C04 is ever restaged.
+   * (C08's landing is its own picture: piano and 先輩 left, guitar and 彼 right, as the plan asks.)
+   * ===================================================================================================== */
+  const DIR = -1;
+  const A = () => PV.anime;
+  const sX = (x) => (DIR > 0 ? x : W - x);                 // a screen x in this geography
+  const sAng = (a) => (DIR > 0 ? a : PI - a);              // a screen direction (rimDir / lightDir / windDir)
+  function inDir(ctx, fn) { if (DIR > 0) return fn(ctx); return mirrored(ctx, fn); }
+  // lips between the words: the line's own lip-sync while a syllable sounds; between syllables / in the pauses the lips
+  // rest a little parted (先輩: "言葉を探す「……」で唇が少し開いたまま止まる"), closed for 彼
+  function lips(T, who, rest) {
+    const mo = A().mouth(T, who);
+    return mo.open > 0 ? { talk: true } : { talk: false, mouth: { open: rest } };
+  }
+
+  /* =====================================================================================================
+   * C05 — 先輩's close-up, 3/4 from her right side, the windows behind her (back-light, rim on the far cheek and the
+   *        hair). Still out of breath after 〈雪あらし〉, eyes welling, she asks "ねえ……どうして今日は拍手をくれたの"
+   *        (V01, lip-synced). Behind her, out of focus in the pier's shade, the boy picks his juice up off his knee and
+   *        drinks (C06 opens on the straw leaving his lips). The band of light with its dust crosses between them.
    * ===================================================================================================== */
   const C05_CAM = { eye: [8.7, 1.3, 5.3], target: [4.25, 0.8, 1.65], fov: 54 };
   const C05_BOY = [4.95, 0.45, 0.9];        // seat (room metres): by the pier, where the sun does not reach
-  // her head & shoulder: rendered once as a mask, then built as an out-of-focus plate (dark body + light wrapping
-  // round the hair from the window ahead), only moved afterwards (breathing / parallax)
-  const GIRL_OX = 420, GIRL_OY = 80, GIRL_HX = 245, GIRL_HY = 410;   // plate origin = screen(-OX,-OY); head centre (screen)
-  function c05Girl() {
-    return PV.cached('g02:c05girl4', 1180, 1420, (c, w, h) => {
-      const hx = GIRL_OX + GIRL_HX, hy = GIRL_OY + GIRL_HY;
-      const base = { x: hx, y: hy, scale: 3.25, view: 'back', len: 2.8, tilt: 0.11, spread: 0.09, wisps: 10, mess: 0.1, fps: 0, seed: 11 };
-      const mk = (o) => { const m = PV.makeCanvas(w, h); L.hairLong(m.ctx, 0.35, Object.assign({}, base, o)); return m.canvas; };
-      const full = mk({ bust: true, color: '#000' }), hair = mk({ bust: false, color: '#000' });
-      const tint = (mask, paint) => { const b = PV.makeCanvas(w, h), bc = b.ctx; bc.drawImage(mask, 0, 0); bc.globalCompositeOperation = 'source-in'; paint(bc); return b.canvas; };
-      // the white blouse on her shoulders, seen from its shaded side against the window (a muted, warm grey)
-      const blouse = tint(full, (bc) => { const g = bc.createLinearGradient(hx + 320, hy - 100, hx - 260, hy + 620); g.addColorStop(0, '#a8968a'); g.addColorStop(0.5, '#6c6268'); g.addColorStop(1, '#3c3844'); bc.fillStyle = g; bc.fillRect(0, 0, w, h); });
-      const hairC = tint(hair, (bc) => { const g = bc.createLinearGradient(hx + 220, 0, hx - 240, 0); g.addColorStop(0, '#2c2228'); g.addColorStop(1, '#110e14'); bc.fillStyle = g; bc.fillRect(0, 0, w, h); });
-      // light wrapping round her from the window ahead: the outline's up/right side, warm
-      const wrap = tint(full, (bc) => { bc.globalCompositeOperation = 'destination-out'; bc.drawImage(full, -22, 18); bc.globalCompositeOperation = 'source-in'; bc.fillStyle = '#ffd7a2'; bc.fillRect(0, 0, w, h); });
-      const pl = PV.makeCanvas(w, h), pc = pl.ctx; pc.drawImage(blouse, 0, 0); pc.drawImage(hairC, 0, 0);
-      c.filter = 'blur(17px)'; c.drawImage(pl.canvas, 0, 0);
-      c.globalCompositeOperation = 'lighter';
-      c.filter = 'blur(15px)'; c.globalAlpha = 0.75; c.drawImage(wrap, 0, 0);
-      c.filter = 'blur(38px)'; c.globalAlpha = 0.6; c.drawImage(wrap, 0, 0);
-      c.filter = 'none'; c.globalAlpha = 1; c.globalCompositeOperation = 'source-over';
-    });
+  // her: the neck point on screen, head size (px), body facing / head turn
+  const C05_HER = { x: 600, y: 700, size: 500, facing: 0.62, turn: 0.08 };
+  // her figure: seated at the piano (hands in her lap), turned to him; the back-light from the windows behind her right
+  // shoulder (a rosy-lavender shade on the face, a lit edge along the far cheek, the hair rimmed)
+  // the window light, a little softer on her than the library's 'window' (the close face stays fair in its back-light shade)
+  const C05_LIGHT = Object.assign({}, PV.anime.LIGHT.window, { amb: 0.12, dark: 0.96, shadow: '#aaa6d4', sat: 0.8 });
+  function c05HerArgs(T, p) {
+    const base = { who: 'senpai', outfit: 'uniform', pose: 'piano', facing: C05_HER.facing * DIR, scale: C05_HER.size, T, light: C05_LIGHT,
+      rimDir: sAng(-0.5), keyDir: sAng(-0.3), rimA: 0, wind: 0.2, windDir: sAng(PI * 0.98),     // body rim off: it zigzags along the collar
+      params: { hands: 'lap', keys: false, bench: false, look: 'ahead', breathe: 0, tilt: 0.04, nod: 0.1 },
+      head: { expr: 'teary', turn: C05_HER.turn * DIR, lightDir: sAng(-0.12), shade: 0.6, rimW: 1.4, faceLift: 1, blinkOffset: 0.54 } };
+    const nk = probeNeck('c05her', base);            // place her by the neck point (the seated pose leans, so it is measured)
+    const o = Object.assign({}, base, { x: sX(C05_HER.x) - nk[0], y: C05_HER.y - nk[1] });
+    o.params = Object.assign({}, base.params, p); o.head = Object.assign({}, base.head);
+    return o;
   }
-  PV.shot('C05', { draw(ctx, t, d, S) { mirrored(ctx, (c) => drawC05(c, t, d, S)); } });
+  // the neck point of a figure relative to its anchor, measured once by a draw into a tiny scratch canvas
+  const PROBES = {};
+  function probeNeck(key, o) {
+    if (PROBES[key]) return PROBES[key];
+    const b = PV.makeCanvas(4, 4);
+    const info = A().figure(b.ctx, Object.assign({}, o, { x: 0, y: 0, T: 0 }));
+    const nk = (info.head && info.head.neck) || info.neck;
+    return (PROBES[key] = [nk[0], nk[1]]);
+  }
+  // the boy far behind her: the juice on his knee -> up to his lips while she asks (global seconds)
+  function c05Sip(T) { return sm(13.45, 14.3, T) * (1 - 0.06 * Math.max(0, Math.sin((T - 14.3) * 3.4)) * sm(14.3, 14.6, T)); }
+  // the out-of-focus room: painted sharp into a scratch buffer, then blurred at half resolution (edges clamped so the
+  // blur does not darken the frame border)
+  function blurPlate(src, px) {
+    const m = 8, hw = W / 2, hh = H / 2;
+    const hb = PV.buffer('g02:blurHalf', hw + 2 * m, hh + 2 * m), hc = hb.ctx;
+    hc.clearRect(0, 0, hw + 2 * m, hh + 2 * m);
+    hc.drawImage(src, 0, 0, W, H, 0, 0, hw + 2 * m, hh + 2 * m);       // stretched copy under the margins
+    hc.drawImage(src, 0, 0, W, H, m, m, hw, hh);
+    const ob = PV.buffer('g02:blurOut', hw + 2 * m, hh + 2 * m), oc = ob.ctx;
+    oc.clearRect(0, 0, hw + 2 * m, hh + 2 * m); oc.filter = `blur(${px}px)`; oc.drawImage(hb.canvas, 0, 0); oc.filter = 'none';
+    return { canvas: ob.canvas, m };
+  }
+  PV.shot('C05', { draw(ctx, t, d, S) { drawC05(ctx, t, d, S); } });
   function drawC05(ctx, t, d, S) {
     const tt = clamp(t, -0.5, d + 0.5);
     const T = absT(S, 'C05', tt);
-    // camera: static, a very slow drift to the right (parallax: foreground travels ~3x the background)
+    S.post = Object.assign({}, S.post, { bloom: 0.18 });      // a bright close-up: keep the thin eye lines crisp
+    // camera: static, a very slow drift (parallax: the close foreground travels ~3x the background)
     const drift = smr(-0.2, 4.4, tt);                        // 0..1 over the cut
-    const bgX = 26 * drift, fgX = 78 * drift;            // (+x here = a drift to the right once the frame is flipped)
-    // the room, the pier's shade and the boy: one plate repainted on twos (the camera drift is far below a pixel per step)
+    const bgX = 26 * drift * DIR, fgX = 78 * drift * DIR;    // (the old plate's un-mirrored drift)
+    // the room, the pier's shade and the boy: one plate repainted on twos and thrown out of focus (she is the focus now)
     ctx.drawImage(onTwos('c05bg', tt, 0, (c, q) => {
       const dq = smr(-0.2, 4.4, q), bq = 26 * dq;
-      c.save();
-      PV.camera(c, { zoom: 1.035 + 0.006 * dq, x: bq, cx: 1050, cy: 560 });
-      const R = L.musicRoom(c, q, { cam: C05_CAM, time: 'noon', furniture: 'none', wind: 0.35, shaft: 1.8 });
-      // the pier's shade around his seat: a soft cool pocket (he sits where the sun does not reach)
-      const p0 = R.project(C05_BOY), pH = R.project([C05_BOY[0], C05_BOY[1] + 1.0, C05_BOY[2]]);
-      const pxm = p0[1] - pH[1];                               // px per metre at his depth
-      c.save(); c.globalCompositeOperation = 'multiply';
-      // the pier behind him and the curtain that hangs in front of it receive no sun: a soft vertical shade column
-      const pw = R.project([4.1, 2.6, 0.12]), pb = R.project([4.1, 0.0, 0.12]);
-      const colW = pxm * 0.95;
-      let g = c.createLinearGradient(p0[0] - colW, 0, p0[0] + colW * 1.1, 0);
-      g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.3, 'rgba(196,180,170,1)'); g.addColorStop(0.62, 'rgba(184,168,160,1)'); g.addColorStop(1, 'rgba(255,255,255,1)');
-      c.fillStyle = g; c.fillRect(p0[0] - colW, pw[1] - 40, colW * 2.1, pb[1] - pw[1] + 40);
-      // his patch of floor: in the shade, between the sunlit squares
-      g = c.createRadialGradient(p0[0] + pxm * 0.1, p0[1] + pxm * 0.15, pxm * 0.1, p0[0] + pxm * 0.1, p0[1] + pxm * 0.15, pxm * 1.1);
-      g.addColorStop(0, 'rgba(150,132,128,0.9)'); g.addColorStop(1, 'rgba(255,255,255,0)');
-      c.save(); c.translate(p0[0], p0[1]); c.scale(1, 0.35); c.translate(-p0[0], -p0[1]); c.fillStyle = g; c.fillRect(p0[0] - pxm * 1.3, p0[1] - pxm * 1.3, pxm * 2.6, pxm * 2.6); c.restore();
-      c.restore();
-      // the window behind him blooms a little (spring back-light): a warm halo his silhouette is cut out of
-      L.glow(c, p0[0] + pxm * 0.25, p0[1] - pxm * 1.05, pxm * 1.5, '#fff1d8', 0.42);
-      // the boy (in focus): profile facing her, back-lit by the window; he takes up his juice while she asks
-      const scale = pxm * 0.224 / 92, Tq = absT(S, 'C05', q);
-      boySeatedSip(c, q, { x: p0[0], y: p0[1], scale, flip: true, pose: c05BoyPose(Tq), lean: 0.12, headTilt: 0.1 - 0.06 * sm(12.62, 12.9, Tq),
-        light: -1.45, rimColor: '#ffe9c8', rim: 1.15, backlight: 0.55, glow: 0.7 });
-      c.restore();
+      const sb = PV.buffer('g02:c05sharp'), sc = sb.ctx; sc.clearRect(0, 0, W, H);
+      inDir(sc, (c2) => {
+        c2.save();
+        PV.camera(c2, { zoom: 1.035 + 0.006 * dq, x: bq, cx: 1050, cy: 560 });
+        const R = L.musicRoom(c2, q, { cam: C05_CAM, time: 'noon', furniture: 'none', wind: 0.35, shaft: 1.8 });
+        // the pier's shade around his seat: a soft cool pocket (he sits where the sun does not reach)
+        const p0 = R.project(C05_BOY), pH = R.project([C05_BOY[0], C05_BOY[1] + 1.0, C05_BOY[2]]);
+        const pxm = p0[1] - pH[1];                               // px per metre at his depth
+        c2.save(); c2.globalCompositeOperation = 'multiply';
+        const pw = R.project([4.1, 2.6, 0.12]), pb = R.project([4.1, 0.0, 0.12]);
+        const colW = pxm * 0.95;
+        let g = c2.createLinearGradient(p0[0] - colW, 0, p0[0] + colW * 1.1, 0);
+        g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.3, 'rgba(196,180,170,1)'); g.addColorStop(0.62, 'rgba(184,168,160,1)'); g.addColorStop(1, 'rgba(255,255,255,1)');
+        c2.fillStyle = g; c2.fillRect(p0[0] - colW, pw[1] - 40, colW * 2.1, pb[1] - pw[1] + 40);
+        g = c2.createRadialGradient(p0[0] + pxm * 0.1, p0[1] + pxm * 0.15, pxm * 0.1, p0[0] + pxm * 0.1, p0[1] + pxm * 0.15, pxm * 1.1);
+        g.addColorStop(0, 'rgba(150,132,128,0.9)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+        c2.save(); c2.translate(p0[0], p0[1]); c2.scale(1, 0.35); c2.translate(-p0[0], -p0[1]); c2.fillStyle = g; c2.fillRect(p0[0] - pxm * 1.3, p0[1] - pxm * 1.3, pxm * 2.6, pxm * 2.6); c2.restore();
+        c2.restore();
+        L.glow(c2, p0[0] + pxm * 0.25, p0[1] - pxm * 1.05, pxm * 1.5, '#fff1d8', 0.42);
+        c2.restore();
+        // the boy (seated by the pier, turned to her), drawn un-mirrored at his mirrored place
+        const Tq = absT(S, 'C05', q), cz = 1.035 + 0.006 * dq;
+        const bxs = 1050 + (p0[0] - 1050) * cz + bq, bys = 560 + (p0[1] - 560) * cz;
+        c2.save(); if (DIR < 0) c2.setTransform(1, 0, 0, 1, 0, 0);
+        A().figure(c2, { who: 'boy', outfit: 'uniform', pose: 'seated_chair', facing: -0.95 * DIR, x: DIR > 0 ? bxs : W - bxs, y: bys,
+          scale: pxm * 0.244 * cz, T: Tq, light: 'window', rimDir: sAng(-1.35), params: { variant: 'juice', sip: c05Sip(Tq), chair: true },
+          head: { rim: 0, expr: 'neutral', eyes: { look: [-0.4 * DIR, 0.05] } } });
+        c2.restore();
+      });
+      const bp = blurPlate(sb.canvas, 3.4);
+      c.drawImage(bp.canvas, bp.m, bp.m, W / 2, H / 2, 0, 0, W, H);
     }), 0, 0);
     // the band of light that crosses between them + dust riding in it
-    const bx = 860 + bgX * 1.6;                              // band centre at mid-height (between them)
-    const slant = 0.36;                                        // x shift per px of y (top leans right, toward the window)
+    const bx = sX(1000) + bgX * 1.6;                         // band centre at mid-height (between them)
+    const slant = 0.36 * DIR;                                  // x shift per px of y (top leans toward the window)
     ctx.save(); ctx.globalCompositeOperation = 'screen';
     const bandA = 0.3 + 0.06 * Math.sin(T * 1.1) + 0.04 * Math.sin(T * 2.9 + 1);
     ctx.translate(bx, 540); ctx.transform(1, 0, -slant, 1, 0, 0);
@@ -114,32 +157,39 @@
       ctx.fillStyle = gg; ctx.fillRect(-hw, -600, hw * 2, 1200);
     }
     ctx.restore();
-    L.dust(ctx, T, { seed: 51, count: 70, x0: bx - 520, x1: bx + 420, y0: 40, y1: 1000, size: 3.0, alpha: 0.95, color: '#fff3dc', drift: 46, vx: 7, vy: -5,
+    L.dust(ctx, T, { seed: 51, count: 70, x0: bx - 470, x1: bx + 470, y0: 40, y1: 1000, size: 3.0, alpha: 0.95, color: '#fff3dc', drift: 46, vx: 7 * DIR, vy: -5,
       mask: (x, y) => clamp(1.15 - Math.abs((x - bx) + (y - 540) * slant) / 200) });
-    L.dust(ctx, T, { seed: 52, count: 26, x0: bx - 520, x1: bx + 420, y0: 40, y1: 1000, size: 6.5, alpha: 0.45, color: '#fff1d6', drift: 60, vx: 9, vy: -3,
+    L.dust(ctx, T, { seed: 52, count: 26, x0: bx - 470, x1: bx + 470, y0: 40, y1: 1000, size: 6.5, alpha: 0.45, color: '#fff1d6', drift: 60, vx: 9 * DIR, vy: -3,
       mask: (x, y) => clamp(1.1 - Math.abs((x - bx) + (y - 540) * slant) / 230) });
-    // a few big soft motes very near the lens (out of focus)
-    L.bokeh(ctx, T, { seed: 7, count: 8, x0: 420, x1: 950, y0: 120, y1: 820, rmin: 12, rmax: 30, alpha: 0.2, colors: ['#fff1d6', '#ffe2b8'], wobble: 14 });
-
-    // floor nearest the camera sits in the piano's shadow (also keeps the subtitle legible)
+    // floor nearest the camera in the piano's shadow (also keeps the subtitle legible)
     const g = ctx.createLinearGradient(0, H * 0.74, 0, H);
     g.addColorStop(0, 'rgba(40,28,22,0)'); g.addColorStop(1, 'rgba(40,28,22,0.42)');
     ctx.fillStyle = g; ctx.fillRect(0, H * 0.74, W, H * 0.26);
 
-    // her head & shoulder: huge, out of focus, breathing hard (hair rises and falls), slowly calming
+    // her: out of breath, slowly calming (breathing slows ~0.95 -> 0.7 Hz; phase integrated so it never stutters)
     const calm = sm(0, d, tt);
-    // breathing slows from ~0.95 Hz to ~0.7 Hz (phase integrated, so it never stutters), the shoulders rise and fall
-    // and the whole figure sways a hair round her seat
-    const ph = TAU * (0.95 * tt - 0.25 * (tt - d * 0.5 * (calm * calm * (2 - calm)))) + 0.6;
-    const br = Math.sin(ph), amp = lerp(7, 3.2, calm);
-    const sway = 0.0035 * Math.sin(TAU * 0.37 * tt + 1.2) * (1 - 0.5 * calm);
-    const pv = GIRL_HY + 700;                                   // pivot: low on her back
-    ctx.save();
-    ctx.translate(GIRL_HX + fgX, pv + br * amp); ctx.rotate(sway); ctx.scale(1 + 0.004 * br, 1 + 0.006 * br); ctx.translate(-GIRL_HX, -pv);
-    ctx.drawImage(c05Girl(), -GIRL_OX, -GIRL_OY);
-    ctx.restore();
-    // warm window flare (top right), lens haze
-    L.glow(ctx, 1500 + bgX, 170, 700, '#fff3dc', 0.32);
+    const fig = onTwos('c05her', tt, 1 / 24, (c, q) => {
+      const Tq = absT(S, 'C05', q);
+      // the acting (global seconds; V01: "ねえ" 12.64–12.9, "……", "どうして今日は" 13.6–14.4, "拍手を" 14.85–15.5, "くれたの" 15.55–15.95)
+      const nee = sm(12.6, 12.95, Tq) * (1 - 0.5 * sm(13.7, 14.4, Tq));          // "ねえ……": the small head tilt, chin in, eyes up (上目で窺う)
+      const asks = sm(13.55, 14.3, Tq), last = sm(14.9, 15.8, Tq), after = sm(15.95, 16.3, Tq);
+      const breathe = lerp(1, 0.12, sm(12.45, 15.2, Tq));                         // out of breath after 〈雪あらし〉, calming
+      const tears = lerp(0.3, 0.48, sm(12.7, 15.9, Tq));                          // welling, never spilling (her tear falls in C07)
+      const lp = lips(Tq, 'senpai', 0.1 + 0.08 * (1 - sm(12.5, 13.1, Tq)) - 0.04 * after);   // still catching her breath at the cut
+      const o = c05HerArgs(Tq, { breathe, tilt: 0.04 + 0.07 * nee - 0.02 * last, nod: 0.1 + 0.05 * nee });
+      o.head = Object.assign(o.head, {
+        eyes: { tears, look: [0.42 * DIR, -0.18 - 0.1 * nee + 0.05 * last], open: 0.97 + 0.05 * asks - 0.06 * after },
+        brows: { inner: 0.66 + 0.2 * asks + 0.08 * last, outer: -0.2, furrow: 0.15 + 0.15 * last },
+        mouth: Object.assign({ tremble: 0.35 * last }, lp.mouth || {}), talk: lp.talk, blush: 0.36 + 0.1 * last, roll: 0.07 * nee * DIR });
+      A().figure(c, o);
+    });
+    ctx.save(); ctx.translate(fgX, 0); ctx.drawImage(fig, 0, 0); ctx.restore();
+    // the bottom of the frame falls into the piano's shade: the white blouse stays under the subtitle quietly
+    const gb = ctx.createLinearGradient(0, 860, 0, H); gb.addColorStop(0, 'rgba(46,34,30,0)'); gb.addColorStop(1, 'rgba(46,34,30,0.34)');
+    ctx.fillStyle = gb; ctx.fillRect(0, 860, W, H - 860);
+    // a few big soft motes very near the lens (out of focus), the warm window flare (top right), lens haze
+    L.bokeh(ctx, T, { seed: 7, count: 8, x0: Math.min(sX(1250), sX(1850)), x1: Math.max(sX(1250), sX(1850)), y0: 120, y1: 820, rmin: 12, rmax: 30, alpha: 0.2, colors: ['#fff1d6', '#ffe2b8'], wobble: 14 });
+    L.glow(ctx, sX(1500) + bgX, 170, 700, '#fff3dc', 0.32);
   }
 
   /* =====================================================================================================
@@ -1121,4 +1171,33 @@
   } });
 
 
+  /* TEMP dev variants (removed before delivery) */
+  PV.g02devVariants = [];
+  {
+    const T0 = 14.1;
+    const bgv = (c) => { c.fillStyle = PV.linGrad(c, 0, 0, 480, 0, [[0, '#b39a7e'], [0.6, '#e0d2bc'], [1, '#f6eee0']]); c.fillRect(0, 0, 480, H); };
+    const her = (o) => (c, t) => { bgv(c); const T = T0 + t;
+      A().figure(c, Object.assign({ who: 'senpai', outfit: 'uniform', pose: 'stand', facing: 0.62, x: 200, y: 690 + 6.12 * 440, scale: 440, T, light: 'window', rimDir: -0.55, wind: 0.22, windDir: PI * 0.98,
+        params: { weight: 0.15, armBend: 0.15, tilt: 0.06 } }, o, { head: Object.assign({ expr: 'teary', turn: 0.05, eyes: { tears: 0.45, look: [0.42, -0.2] }, talk: true }, o.head || {}) })); };
+    const pp = { weight: 0.15, armBend: 0.15, tilt: 0.06, nod: 0.12 };
+    const LW1 = Object.assign({}, PV.anime.LIGHT.window, { amb: 0.16, dark: 0.94, shadow: '#a49ccc', sat: 0.82 });
+    const LW2 = Object.assign({}, PV.anime.LIGHT.window, { amb: 0.2, dark: 0.92, shadow: '#9c9ad0', sat: 0.86 });
+    const LW3 = Object.assign({}, PV.anime.LIGHT.window, { amb: 0.12, dark: 0.96, shadow: '#aaa6d4', sat: 0.8 });
+    PV.g02devVariants.push(her({ params: pp, rimA: 0, light: LW1, head: { lightDir: 0, shade: 0.66, rimW: 1.4, faceLift: 1 } }));
+    PV.g02devVariants.push(her({ params: pp, rimA: 0, light: LW2, head: { lightDir: 0, shade: 0.66, rimW: 1.4, faceLift: 0.7 } }));
+    PV.g02devVariants.push(her({ params: pp, rimA: 0, light: LW3, head: { lightDir: 0, shade: 0.66, rimW: 1.4, faceLift: 1 } }));
+    PV.g02devVariants.push(her({ params: pp, rimA: 0, light: LW3, head: { lightDir: -0.12, shade: 0.6, rimW: 1.4, faceLift: 1 } }));
+  }
+
+})();
+/* TEMP g02 dev: variant comparison (removed before delivery) */
+(function () {
+  const PV = window.PV, W = PV.W, H = PV.H;
+  PV.shot('g02dev', { draw(ctx, t) {
+    const v = PV.g02devVariants || [];
+    ctx.fillStyle = '#c8b49c'; ctx.fillRect(0, 0, W, H);
+    const n = v.length, cw = W / Math.max(1, n);
+    v.forEach((fn, i) => { ctx.save(); ctx.beginPath(); ctx.rect(i * cw, 0, cw, H); ctx.clip(); ctx.translate(i * cw, 0); const t0 = performance.now(); fn(ctx, t); const dt = performance.now() - t0; ctx.restore();
+      ctx.save(); ctx.font = '22px monospace'; ctx.fillStyle = '#fff'; ctx.shadowColor = '#000'; ctx.shadowBlur = 4; ctx.fillText(i + ': ' + dt.toFixed(1) + ' ms', i * cw + 12, 30); ctx.restore(); });
+  } });
 })();
